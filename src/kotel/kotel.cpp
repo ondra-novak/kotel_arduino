@@ -1,11 +1,13 @@
 #include "kotel.h"
-#include "config.h"
-#include "motohodiny.h"
+#include "feeder.h"
+#include "nonv_storage.h"
 
 
 namespace kotel {
+Storage storage;
 
-Podavac podavac;
+
+Feeder podavac(storage);
 Ventilator ventilator;
 Cerpadlo cerpadlo;
 
@@ -14,7 +16,8 @@ auto planovac = init_scheduler(&podavac,
         &cerpadlo);
 
 void setup() {
-
+    podavac.start();
+    planovac.reschedule();
 }
 
 void loop() {

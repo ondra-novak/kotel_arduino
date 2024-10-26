@@ -4,6 +4,11 @@
 
 namespace kotel {
 
+class IScheduler {
+public:
+    virtual ~IScheduler() = default;
+    virtual void reschedule() = 0;
+};
 
 
 class ITimedTask {

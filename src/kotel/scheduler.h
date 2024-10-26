@@ -7,7 +7,7 @@ namespace kotel {
 
 
 template<unsigned int N>
-class Scheduler {
+class Scheduler: public IScheduler {
 public:
 
     Scheduler(ITimedTask * const (&arr)[N]) {
@@ -15,12 +15,13 @@ public:
         for (auto x: arr) {
             _items[pos]._tp = x->get_scheduled_time();
             _items[pos]._task = x;
+            ++pos;
         }
     }
 
-    void reschedule() {
+    virtual void reschedule() override {
         for (unsigned int i = 0; i < N; ++i) {
-            _items[i]._tp = _items[i]->_task.get_scheduled_time();
+            _items[i]._tp = _items[i]._task->get_scheduled_time();
             heap_push(_items, i+1, compare);
         }
     }
@@ -48,7 +49,7 @@ protected:
 
 
     static bool compare(const Item &a, const Item &b) {
-        return a._tp > b._tp;
+        return a._tp < b._tp;
     }
 
     Item _items[N];

@@ -2,6 +2,7 @@
 
 set(COMMON_FILES
     kotel.cpp
+    feeder.cpp
 )
 
 

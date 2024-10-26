@@ -8,7 +8,7 @@ namespace kotel {
 class Cerpadlo : public ITimedTask { // @suppress("Miss copy constructor or assignment operator")
 public:
     virtual void run(TimeStampMs ) override {}
-    virtual TimeStampMs get_scheduled_time() const override {return 0;}
+    virtual TimeStampMs get_scheduled_time() const override {return max_timestamp;}
 
 };
 

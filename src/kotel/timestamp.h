@@ -12,8 +12,18 @@ inline TimeStampMs get_current_timestamp() {
     unsigned long n = millis();
     auto diff = n - last_ms;
     last_milli += diff;
+    last_ms = n;
     return last_milli;
-
-
 }
+
+constexpr int32_t from_seconds(int seconds) {
+    return static_cast<int64_t>(seconds * 1000);
+}
+
+constexpr int32_t from_minutes(int minutes) {
+    return static_cast<int64_t>(minutes * 60000);
+}
+
+constexpr TimeStampMs max_timestamp = ~TimeStampMs{};
+
 
