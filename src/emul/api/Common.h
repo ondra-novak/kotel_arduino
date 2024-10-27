@@ -9,3 +9,5 @@ unsigned long millis();
 #define LOW 0
 
 void digitalWrite(int pin, int mode);
+
+#define PSTR(x) (x)

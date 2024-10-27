@@ -111,7 +111,7 @@ void Feeder::change_state(bool new_state) {
 }
 
 void Feeder::set_active(bool active) {
-    digitalWrite(pin_out_feeder_on, active?LOW:HIGH);   //ssr is active on LOW
+    digitalWrite(pin_out_feeder_on, active?active_feeder:inactive_feeder);
 }
 
 

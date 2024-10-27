@@ -10,4 +10,7 @@ constexpr int pin_in_tray = 4;          //cidlo otevrene nasypky
 constexpr int pin_in_motor_temp = 6;    //teplotni cidlo motoru
 constexpr int pin_in_one_wire = 2;      //teplomery
 
+constexpr int active_feeder = LOW;
+constexpr int inactive_feeder = HIGH;
+
 }

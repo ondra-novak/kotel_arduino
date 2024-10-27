@@ -94,14 +94,14 @@ void test_3_files() {
         CHECK(b);
         CHECK_EQUAL(c,canary);
 
-        if constexpr(sector_size == 32) {
+        if constexpr(sector_size == 28) {
             eeprom.list_revisions(2, [r = 839,ctx = 9868](auto rev, int x) mutable {
                 CHECK_EQUAL(rev, r);
                 CHECK_EQUAL(ctx, x);
                 ++r;
                 ctx = ctx + 2;
             });
-        } else if constexpr(sector_size == 24) {
+        } else if constexpr(sector_size == 20) {
             eeprom.list_revisions(2, [r = 813,ctx = 9816](auto rev, int x) mutable {
                 CHECK_EQUAL(rev, r);
                 CHECK_EQUAL(ctx, x);
@@ -109,9 +109,6 @@ void test_3_files() {
                 ctx = ctx + 2;
             });
         }
-
-
-
     }
 }
 
@@ -120,8 +117,8 @@ void test_3_files() {
 
 int main() {
     test_3_files<32>();
-    test_3_files<30>();
-    test_3_files<22>();
+    test_3_files<28>();
+    test_3_files<20>();
 
 
 

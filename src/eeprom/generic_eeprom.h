@@ -19,18 +19,29 @@ public:
         return c;
     }
 
-    using HeaderType = uint16_t;
-    static constexpr unsigned int header_size_bits = sizeof(HeaderType) * 8;
+    struct HeaderType {
+        uint16_t tag = 0xFFFF;
+        uint16_t crc = 0xFFFF;
+        bool operator==(const HeaderType &other) const {
+            return tag == other.tag && crc == other.crc;
+        }
+        bool operator!=(const HeaderType &other) const {
+            return !operator==(other);
+        }
+    };
+
+    static constexpr unsigned int header_size_bits = sizeof(
+            decltype(std::declval<HeaderType>().tag)) * 8;
 
     static constexpr unsigned int sector_size = sector_data_size + sizeof(HeaderType);
     static constexpr unsigned int file_nr_bits = log2(directory_size);
-    static constexpr unsigned int sectors_per_page = page_size / sector_data_size;
+    static constexpr unsigned int sectors_per_page = page_size / sector_size;
     static constexpr unsigned int page_count = eeprom_size/page_size;
     static constexpr unsigned int total_sectors = sectors_per_page * page_count;
     static constexpr unsigned int rev_bits = header_size_bits - file_nr_bits;
-    static constexpr HeaderType free_sector = ~static_cast<HeaderType>(0);
-    static constexpr HeaderType file_nr_mask = free_sector >> (rev_bits);
-    static constexpr HeaderType rev_mask = free_sector >> file_nr_bits;
+    static constexpr HeaderType free_sector = {};
+    static constexpr auto file_nr_mask = free_sector.tag >> (rev_bits);
+    static constexpr auto rev_mask = free_sector.tag >> file_nr_bits;
     static constexpr unsigned int file_nr_shift = 0;
     static constexpr unsigned int rev_shift = file_nr_bits;
     static constexpr unsigned int total_files = file_nr_mask;
@@ -99,13 +110,16 @@ public:
                     free_found = true;
                 }
             } else {
-                SectorInfo nfo = parse_header(sec.header);
-                FileInfo &f = _files[nfo.file_nr];
-                if (f.sector == invalid_sector || is_newer(nfo.revision, f.revision)) {
-                    f.sector = i;
-                    f.revision = nfo.revision;
+                auto crc = calc_crc_sector(sec);
+                if (crc == sec.header.crc) {
+                    SectorInfo nfo = parse_header(sec.header);
+                    FileInfo &f = _files[nfo.file_nr];
+                    if (f.sector == invalid_sector || is_newer(nfo.revision, f.revision)) {
+                        f.sector = i;
+                        f.revision = nfo.revision;
+                    }
+                    last_used = i;
                 }
-                last_used = i;
             }
         }
         if (free_found) {
@@ -147,6 +161,10 @@ public:
         if (f.sector == invalid_sector) return false;
         //read sector
         Sector s = read_sector(f.sector);
+        if (s.header.crc != calc_crc_sector(s)) { //bad crc - flash is corrupted, rescan
+            rescan();
+            return read_file(id, out_data);
+        }
         //extract data
         out_data = *reinterpret_cast<const T *>(s.data);
         return true;
@@ -208,6 +226,7 @@ public:
         }
         if (need_write) {
             //so we successfully merged without need to erase
+            cur.header.crc = calc_crc_sector(cur);
             write_sector(cur_sector, cur);
         }
         return true;
@@ -271,15 +290,17 @@ protected:
     ///Parses sector header
      constexpr SectorInfo parse_header(HeaderType h) {
         SectorInfo ret = {};
-        ret.file_nr = static_cast<FileNr>((h >> file_nr_shift) & file_nr_mask);
-        ret.revision = static_cast<RevisionNr>((h >> rev_shift) & rev_mask);
+        ret.file_nr = static_cast<FileNr>((h.tag >> file_nr_shift) & file_nr_mask);
+        ret.revision = static_cast<RevisionNr>((h.tag >> rev_shift) & rev_mask);
         return ret;
     }
 
     ///Composes sector header
-     constexpr HeaderType compose_header(const SectorInfo &nfo) {
-        return (static_cast<HeaderType>(nfo.file_nr & file_nr_mask) << file_nr_shift)
-            | (static_cast<HeaderType>(nfo.revision & rev_mask) << rev_shift);
+     constexpr uint16_t compose_header_tag(const SectorInfo &nfo) {
+        return
+            static_cast<uint16_t>((static_cast<uint16_t>(nfo.file_nr & file_nr_mask) << file_nr_shift)
+            | (static_cast<uint16_t>(nfo.revision & rev_mask) << rev_shift));
+
     }
 
 
@@ -369,7 +390,8 @@ protected:
                     Sector s = read_sector(f.sector);
                     SectorInfo sinfo = parse_header(s.header);
                     ++sinfo.revision;
-                    s.header = compose_header(sinfo);
+                    s.header.tag = compose_header_tag(sinfo);
+                    s.header.crc = calc_crc_sector(s);
                     SectorIndex new_s = append_sector(s);
                     f.revision = sinfo.revision;
                     f.sector = new_s;
@@ -415,7 +437,8 @@ protected:
         //increase revision
         ++f.revision;
         //create header
-        s.header = compose_header({id,f.revision});
+        s.header.tag = compose_header_tag({id,f.revision});
+        s.header.crc = calc_crc_sector(s);
         //write sector and retrieve its index
         f.sector = append_sector(s);
         //if we create free page, erase it now
@@ -426,15 +449,37 @@ protected:
 
 
      static constexpr FlashAddr sector_2_addr(SectorIndex idx) {
-         if constexpr(sector_data_size * sectors_per_page == page_size) {
-             return static_cast<FlashAddr>(idx) * sector_data_size;
+         if constexpr(sector_size * sectors_per_page == page_size) {
+             return static_cast<FlashAddr>(idx) * sector_size;
          } else {
              PageIndex page = idx / sectors_per_page;
              SectorIndex sect_in_page = idx % sectors_per_page;
              return static_cast<FlashAddr>(page) * page_size +
-                     static_cast<FlashAddr>(sect_in_page) * sector_data_size;
+                     static_cast<FlashAddr>(sect_in_page) * sector_size;
          }
      }
 
+     static constexpr uint16_t crc16_update(uint16_t crc, uint8_t a) {
+     int i;
+     crc ^= a;
+     for (i = 0; i < 8; ++i)
+     {
+         if (crc & 1)
+         crc = (crc >> 1) ^ 0xA001;
+         else
+         crc = (crc >> 1);
+     }
+     return crc;
+     }
+
+     static constexpr uint16_t calc_crc_sector(const Sector &sec) {
+         uint16_t res = 0xFFFF;
+         res = crc16_update(res, sec.header.tag >> 8);
+         res = crc16_update(res, sec.header.tag & 0xFF);
+         for (uint8_t x: sec.data) {
+             res = crc16_update(res, x);
+         }
+         return res;
+     }
 
 };
