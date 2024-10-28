@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <utility>
+#include "Stream.h"
 unsigned long millis();
 
 

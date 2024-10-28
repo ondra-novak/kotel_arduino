@@ -1,12 +1,14 @@
 #pragma once
 #include <stdint.h>
+#include <array>
 
 constexpr unsigned int file_config = 0;
 constexpr unsigned int file_tray = 1;
 constexpr unsigned int file_util = 2;
 constexpr unsigned int file_cntrs1 = 3;
 constexpr unsigned int file_cntrs2 = 4;
-constexpr unsigned int file_directory_len = 5;
+constexpr unsigned int file_tempsensor = 5;
+constexpr unsigned int file_directory_len = 6;
 
 namespace kotel {
 
@@ -50,12 +52,20 @@ struct Counters2 {
     uint32_t long_attents_count;     //pocet dlouhych utlumu (spusteni na chvili)
 };
 
+struct TempSensor {
+    std::array<uint8_t,8> input_temp;         //address of input temperature sensor
+    std::array<uint8_t,8> output_temp;        //address of output temperature sensor
+    uint8_t interval = 0;              //reading interval in seconds (0 = not configured)
+    uint8_t trend_smooth = 4;          //kolik vzorku zmen pro vypocet trendu
+};
+
 union StorageSector {
     Config cfg;
     Tray tray;
     Utilization util;
     Counters1 cntr1;
     Counters2 cntr2;
+    TempSensor tempsensor;
 
     StorageSector() {}
     ~StorageSector() {}

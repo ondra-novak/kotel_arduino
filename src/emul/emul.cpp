@@ -1,6 +1,11 @@
 #include "../kotel/kotel.h"
+#include "../kotel/controller.h"
 #include <thread>
 #include <iostream>
+
+namespace kotel {
+    extern Controller controller;
+}
 
 static std::chrono::system_clock::time_point start_time;
 

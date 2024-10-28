@@ -119,6 +119,8 @@ public:
                         f.revision = nfo.revision;
                     }
                     last_used = i;
+                } else {
+                    _crc_errors++;
                 }
             }
         }
@@ -162,6 +164,7 @@ public:
         //read sector
         Sector s = read_sector(f.sector);
         if (s.header.crc != calc_crc_sector(s)) { //bad crc - flash is corrupted, rescan
+            ++_crc_errors;
             rescan();
             return read_file(id, out_data);
         }
@@ -260,6 +263,16 @@ public:
         return _error;
     }
 
+    ///retrieve crc error counter
+    /**
+     * @return everytime a crc error encountered, counter is increased.
+     * If returned values is not zero, it shows that EEPROM is in
+     * bad condition and should be replaced
+     */
+    constexpr unsigned int get_crc_error_counter() const {
+        return _crc_errors;
+    }
+
     ///Determines whether file is newer depend on revision
     /**
      * @param n new file revision
@@ -278,6 +291,7 @@ protected:
     SectorIndex _first_free_sector = 0;
     PageIndex _first_free_page = 0;
     bool _error = false;
+    unsigned int _crc_errors = 0;
 
     ///Reads sector
      Sector read_sector(SectorIndex idx) {
@@ -460,7 +474,7 @@ protected:
      }
 
      static constexpr uint16_t crc16_update(uint16_t crc, uint8_t a) {
-     int i;
+     int i = 0;
      crc ^= a;
      for (i = 0; i < 8; ++i)
      {

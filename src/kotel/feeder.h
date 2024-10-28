@@ -4,7 +4,7 @@
 #include "nonv_storage.h"
 namespace kotel {
 
-class Feeder: public ITimedTask {
+class Feeder: public AbstractTimedTask {
 public:
 
     Feeder(Storage &storage);

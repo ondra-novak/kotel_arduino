@@ -92,7 +92,7 @@ void Feeder::change_state(bool new_state) {
 
         auto now = get_current_timestamp();
         if (_state) {
-            _storage.tray.feeder_time += now - _change_time;
+            _storage.tray.feeder_time += (now - _change_time+500)/1000;
             if (_storage.tray.feeder_time > _storage.tray.tray_empty_time
                     && (_storage.tray.tray_open_time + (_storage.config.default_bag_count * _storage.tray.bag_consump_time > _storage.tray.tray_empty_time)/2)) {
                 _storage.tray.tray_empty_time = _storage.tray.tray_open_time + (_storage.config.default_bag_count * _storage.tray.bag_consump_time > _storage.tray.tray_empty_time);

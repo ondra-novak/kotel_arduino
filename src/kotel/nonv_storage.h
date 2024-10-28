@@ -12,6 +12,7 @@ public:
     Utilization utlz;
     Counters1 cntr1;
     Counters2 cntr2;
+    TempSensor temp;
 
     void update(const Config &x) {
         _eeprom.update_file(file_config, x);
@@ -28,6 +29,9 @@ public:
     void update(const Counters2 &x) {
         _eeprom.update_file(file_cntrs2, x);
     }
+    void update(const TempSensor &x) {
+        _eeprom.update_file(file_tempsensor, x);
+    }
 
     Storage() {
         _eeprom.read_file(file_config, config);
@@ -35,6 +39,7 @@ public:
         _eeprom.read_file(file_util, utlz);
         _eeprom.read_file(file_cntrs1, cntr1);
         _eeprom.read_file(file_cntrs2, cntr2);
+        _eeprom.read_file(file_tempsensor, temp);
     }
 
 

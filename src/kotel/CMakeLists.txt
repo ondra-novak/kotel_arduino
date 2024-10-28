@@ -4,6 +4,7 @@ set(COMMON_FILES
     kotel.cpp
     feeder.cpp
     http_server.cpp
+    controller.cpp
 )
 
 

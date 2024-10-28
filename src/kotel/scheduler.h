@@ -3,6 +3,7 @@
 #include "heap.h"
 #include "timed_task.h"
 
+#include <algorithm>
 namespace kotel {
 
 
@@ -10,7 +11,7 @@ template<unsigned int N>
 class Scheduler: public IScheduler {
 public:
 
-    Scheduler(ITimedTask * const (&arr)[N]) {
+    Scheduler(AbstractTimedTask * const (&arr)[N]) {
         int pos = 0;
         for (auto x: arr) {
             _items[pos]._tp = x->get_scheduled_time();
@@ -32,7 +33,10 @@ public:
             if (tp >= _items[0]._tp) {
                 heap_pop(_items, N, compare);
                 auto &x = _items[N-1];
+                auto start = millis();
                 x._task->run(tp);
+                auto util = millis() - start;;
+                x._task->_run_time = std::max<unsigned long>(x._task->_run_time, util);
                 x._tp = x._task->get_scheduled_time();
                 heap_push(_items, N, compare);
             } else {
@@ -44,12 +48,12 @@ public:
 protected:
     struct Item { // @suppress("Miss copy constructor or assignment operator")
         TimeStampMs _tp;
-        ITimedTask *_task;
+        AbstractTimedTask *_task;
     };
 
 
     static bool compare(const Item &a, const Item &b) {
-        return a._tp < b._tp;
+        return a._tp+a._task->_run_time < b._tp+b._task->_run_time;
     }
 
     Item _items[N];
