@@ -24,7 +24,11 @@ bool SimpleDallasTemp::is_valid_address(const Address &a) {
 }
 
 unsigned long SimpleDallasTemp::request_temp(const Address &) {
-    return 100;
+    return 750;
+}
+
+unsigned long SimpleDallasTemp::request_temp() {
+   return 750;
 }
 
 std::optional<float> SimpleDallasTemp::read_temp_celsius(const Address &addr) {
@@ -35,6 +39,18 @@ std::optional<float> SimpleDallasTemp::read_temp_celsius(const Address &addr) {
     }
     auto index = std::distance(std::begin(devices), iter);
     return temps[index];
+}
+
+static int srch_index = 0;
+
+void SimpleDallasTemp::wire_reset_search() {
+    srch_index = 0;
+}
+bool SimpleDallasTemp::wire_search(Address &addr) {
+    if (srch_index >= count_devices) return false;
+    addr = devices[srch_index];
+    ++srch_index;
+    return true;
 }
 
 

@@ -154,8 +154,23 @@ inline constexpr std::string_view parse_http_header(std::string_view hdr, Iter &
     return parse_http_header(hdr, iter);
 }
 
+enum class HttpMethod {
+    GET, POST, PUT, HEAD, OPTIONS, TRACE, DELETE, CONNECT, unknown
+};
+
+constexpr std::pair<HttpMethod, const char *> method_map[] = {
+        {HttpMethod::GET,"GET"},
+        {HttpMethod::POST,"POST"},
+        {HttpMethod::PUT,"PUT"},
+        {HttpMethod::HEAD,"HEAD"},
+        {HttpMethod::OPTIONS,"OPTIONS"},
+        {HttpMethod::TRACE,"TRACE"},
+        {HttpMethod::DELETE,"DELETE"},
+        {HttpMethod::CONNECT,"CONNECT"},
+};
+
 struct HttpRequestLine {
-    std::string_view method;
+    HttpMethod method;
     std::string_view path;
     std::string_view version;
 };
@@ -165,7 +180,11 @@ inline  HttpRequestLine parse_http_request_line(std::string_view first_line) {
     auto m = split(first_line, " ");
     auto p = split(first_line, " ");
     auto v = first_line;
-    return {m,p,v};
+    HttpMethod meth = HttpMethod::unknown;
+    for (const auto &[k,v]: method_map) {
+        if (icmp(v, m)) {meth = k; break;}
+    }
+    return {meth,p,v};
 }
 
 

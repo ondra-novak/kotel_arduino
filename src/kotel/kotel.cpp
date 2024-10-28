@@ -29,10 +29,24 @@ void loop() {
     controller.run();
     auto req = server.get_request();
     if (req.client) {
-        if (req.request_line.path == "/config" && req.request_line.method == "GET") {
+        if (req.request_line.path == "/config") {
+                if (req.request_line.method == HttpMethod::GET) {
+                    req.client.print(response_header);
+                    controller.config_out(req.client);
+                } else if (req.request_line.method == HttpMethod::PUT) {
+                    std::string_view f;
+                    if (controller.config_update(req.body, std::move(f))) {
+                        server.error_response(req, 202, "Accepted");
+                    } else {
+                        server.error_response(req, 409, "Conflict",{},f);
+                    }
+                } else {
+                    server.error_response(req, 405, "Method not allowed", "Allow: GET,PUT\r\n");
+                }
+        } else if (req.request_line.path == "/scan_temp" && req.request_line.method == HttpMethod::POST) {
             req.client.print(response_header);
-            controller.config_out(req.client);
-        } else if (req.request_line.path == "/stats" && req.request_line.method == "GET") {
+            controller.list_onewire_sensors(req.client);
+        } else if (req.request_line.path == "/stats" && req.request_line.method == HttpMethod::GET) {
             req.client.print(response_header);
             controller.stats_out(req.client);
         } else {

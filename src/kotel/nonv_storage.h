@@ -41,6 +41,9 @@ public:
         _eeprom.read_file(file_cntrs2, cntr2);
         _eeprom.read_file(file_tempsensor, temp);
     }
+    auto get_eeprom() const {
+        return _eeprom;
+    }
 
 
 protected:

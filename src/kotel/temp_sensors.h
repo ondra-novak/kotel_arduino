@@ -40,7 +40,12 @@ public:
             }
 
             ++_read_count;
+            _next_read_time = cur_time + from_seconds(_stor.temp.interval);
         }
+    }
+
+    auto &get_controller() {
+        return _temp_reader;
     }
 
     SimpleDallasTemp::Status get_input_status() const {

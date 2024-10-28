@@ -25,7 +25,8 @@ public:
     void error_response(const Request &req,
             int code,
             std::string_view message,
-            std::string_view extra_headers = {});
+            std::string_view extra_headers = {},
+            std::string_view extra_message = {});
 
 
 
@@ -124,7 +125,8 @@ inline void HttpServer<max_request_size, max_header_lines>::error_response(
         const Request &req,
         int code,
         std::string_view message,
-        std::string_view extra_headers) {
+        std::string_view extra_headers,
+        std::string_view extra_message) {
 
     WiFiClient client = req.client;
     auto emit_msg = [&] {
@@ -134,7 +136,9 @@ inline void HttpServer<max_request_size, max_header_lines>::error_response(
 
     };
     client.write(req.request_line.version.data(),req.request_line.version.size());
+    client.print(' ');
     emit_msg();
+    client.println();
     client.println("Connection: close");
     client.println("Content-Type: text/html;charset=utf-8");
     client.write(extra_headers.data(), extra_headers.size());
@@ -143,7 +147,9 @@ inline void HttpServer<max_request_size, max_header_lines>::error_response(
     emit_msg();
     client.print("</title></head><body><h1>");
     emit_msg();
-    client.print("</h1></body></html>");
+    client.print("</h1><pre>");
+    client.write(extra_message.data(), extra_message.size());
+    client.print("</pre></body></html>");
 
 
 }

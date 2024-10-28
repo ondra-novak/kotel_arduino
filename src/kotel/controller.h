@@ -21,14 +21,16 @@ public:
 
     void config_out(Stream &s);
     void stats_out(Stream &s);
-    void config_update(std::string_view body);
+    bool config_update(std::string_view body, std::string_view &&failed_field = {});
+    void list_onewire_sensors(Stream &s);
 
 protected:
     Storage _storage;
     Feeder _feeder;
     Ventilator _fan;
     Cerpadlo _pump;
-    Scheduler<3> _scheduler;
+    TempSensors _temp_sensors;
+    Scheduler<4> _scheduler;
 
 };
 

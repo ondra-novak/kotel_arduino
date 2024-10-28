@@ -55,7 +55,7 @@ struct Counters2 {
 struct TempSensor {
     std::array<uint8_t,8> input_temp;         //address of input temperature sensor
     std::array<uint8_t,8> output_temp;        //address of output temperature sensor
-    uint8_t interval = 0;              //reading interval in seconds (0 = not configured)
+    uint8_t interval = 5;              //reading interval in seconds
     uint8_t trend_smooth = 4;          //kolik vzorku zmen pro vypocet trendu
 };
 
