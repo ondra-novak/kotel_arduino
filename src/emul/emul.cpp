@@ -148,7 +148,8 @@ void process_command(const Command &cmd) {
             auto tt = parse_temp_pair(cmd.arg);
             smooth_start_temp = tt;
             smooth_start_time = 0;
-            set_temp(tt.first, tt.second);
+            set_temp(0,tt.first);
+            set_temp(1, tt.second);
         }break;
         default:break;
     }
@@ -214,9 +215,16 @@ unsigned long millis() {
     return static_cast<unsigned long>(simspeed * current_cycle);
 }
 
+static int pins[10] = {};
 
 void digitalWrite(int pin, int level) {
-    log_line("PIN: ", pin, ": ", level?"HIGH":"LOW");
+    pins[pin] = level;
+    char buff[20];
+    for (int i = 0; i<10; ++i) {
+        buff[i] = '0'+pins[i];
+    }
+    buff[10] = 0;
+    log_line("PINS: ", buff);
 }
 
 int digitalRead(int pin) {

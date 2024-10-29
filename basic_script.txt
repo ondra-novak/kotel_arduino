@@ -3,7 +3,8 @@
 
 +1800 temp_smooth 25 41
 +500 temp_smooth 35 36
-+1800 temp_smooth 55 75
-
++1800 temp_smooth 73 80
++2000 temp_smooth 58 70
++2000 temp_smooth 73 80
 
 +1000 tray_open

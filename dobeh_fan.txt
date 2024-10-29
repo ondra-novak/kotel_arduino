@@ -1,0 +1,4 @@
+0 config input_temp_sensor_addr=01-FD-7D-45-38-FC-89-40&output_temp_sensor_addr=02-6D-38-D9-78-EF-00-1E
+0 temp_set 65 55
++10 temp_set 75 65
++10000 tray_open

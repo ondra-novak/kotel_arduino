@@ -14,5 +14,7 @@ constexpr int active_feeder = LOW;
 constexpr int inactive_feeder = HIGH;
 constexpr int active_pump = LOW;
 constexpr int inactive_pump = HIGH;
+constexpr int active_fan = LOW;
+constexpr int inactive_fan = HIGH;
 
 }

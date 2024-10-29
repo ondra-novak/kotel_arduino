@@ -26,6 +26,8 @@ struct Config {
     uint8_t pump_temp = 40;   //zapinaci teplota cerpadla
     uint8_t default_bag_count = 15; //vychozi plneni
     uint8_t operation_mode = 1;     //0 - manual, 1 - automatic
+    uint8_t fan_pulse = 5;          //delka pulzu ventilátoru ve vlnach 50Hz
+
 };
 
 

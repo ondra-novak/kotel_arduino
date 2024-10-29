@@ -6,6 +6,7 @@ namespace kotel {
 
 Controller::Controller()
         :_feeder(_storage)
+        ,_fan(_storage)
         ,_temp_sensors(_storage)
         ,_wifi_mon(_storage)
         ,_display(_storage, _wifi_mon,_temp_sensors, _sensors)
@@ -15,7 +16,6 @@ Controller::Controller()
 }
 
 void Controller::begin() {
-    _feeder.start();
     _scheduler.reschedule();
 }
 
@@ -23,6 +23,19 @@ void Controller::run() {
     _sensors.read_sensors();
     _scheduler.run();
     control_pump();
+    if (!_sensors.motor_temp_monitor
+            || _sensors.tray_open
+            || !_temp_sensors.get_output_temp().has_value()
+            || *(_temp_sensors.get_output_temp()) >= static_cast<float>(_storage.config.output_max_temp)) {
+        run_stop_mode();
+    } else if (_storage.config.operation_mode == 0) {
+        run_manual_mode();
+    } else if (_storage.config.operation_mode == 1) {
+        run_auto_mode();
+    } else {
+        run_other_mode();
+    }
+
 }
 
 
@@ -245,7 +258,10 @@ void Controller::status_out(Stream &s) {
     print_data_line(s,"temp.input.status", static_cast<int>(_temp_sensors.get_input_status()));
     print_data_line(s,"tray_open", _sensors.tray_open);
     print_data_line(s,"motor_temp_ok", _sensors.motor_temp_monitor);
-    print_data_line(s, "pump", _pump_active);
+    print_data_line(s,"pump", _pump_active);
+    print_data_line(s,"feeder", _feeder.is_active());
+    print_data_line(s,"fan", _fan.get_speed());
+
 }
 
 void Controller::control_pump() {
@@ -259,6 +275,47 @@ void Controller::control_pump() {
             digitalWrite(pin_out_pump_on, inactive_pump);
         }
     }
+}
+
+void Controller::run_manual_mode() {
+    //nothing to run in manual mode
+}
+
+void Controller::run_auto_mode() {
+    float output_temp = *_temp_sensors.get_output_temp();
+    float input_temp = _temp_sensors.get_input_temp().has_value()?
+                    *_temp_sensors.get_input_temp():output_temp - 10;   //fallback if one temp is failed
+
+    float attent_temp = static_cast<float>(_storage.config.input_min_temp+2);
+
+    if (_attenuation) {
+        if (input_temp > _storage.config.input_min_temp) {
+            //stay here
+            return;
+        }
+        _attenuation = false;
+        _feeder.set_mode(_scheduler, Feeder::cycle_after_atten);
+        _fan.set_mode(_scheduler, Fan::running);
+    } else {
+        if (input_temp >=attent_temp) {
+            _attenuation = true;
+            _feeder.set_mode(_scheduler, Feeder::stop);
+            _fan.set_mode(_scheduler, Fan::run_away);
+        } else {
+            _feeder.set_mode(_scheduler, Feeder::cycle);
+            _fan.set_mode(_scheduler, Fan::running);
+        }
+    }
+}
+
+void Controller::run_other_mode() {
+    _feeder.set_mode(_scheduler, Feeder::stop); //unknown mode
+    _fan.set_mode(_scheduler, Fan::stop);
+}
+
+void Controller::run_stop_mode() {
+    _feeder.set_mode(_scheduler, Feeder::stop); //force stop all the time
+    _fan.set_mode(_scheduler, Fan::stop);
 }
 
 }
