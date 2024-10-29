@@ -8,7 +8,9 @@ set(emul_files emul.cpp
     api/IPAddress.cpp
     wifi/WiFiClient.cpp
     wifi/WiFiServer.cpp
+    wifi/WiFiS3.cpp
     temp_sim.cpp
+    DotMatrix.cpp
 
 )
 

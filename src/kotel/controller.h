@@ -3,10 +3,13 @@
 
 #include "ventilator.h"
 
-#include "cerpadlo.h"
+
 
 #include "scheduler.h"
 #include "temp_sensors.h"
+#include "wifi_mon.h"
+#include "display_control.h"
+#include "sensors.h"
 
 namespace kotel {
 
@@ -21,17 +24,24 @@ public:
 
     void config_out(Stream &s);
     void stats_out(Stream &s);
+    void status_out(Stream &s);
     bool config_update(std::string_view body, std::string_view &&failed_field = {});
     void list_onewire_sensors(Stream &s);
 
 protected:
+    Sensors _sensors;
+
     Storage _storage;
     Feeder _feeder;
     Ventilator _fan;
-    Cerpadlo _pump;
     TempSensors _temp_sensors;
-    Scheduler<4> _scheduler;
+    WiFiMonitor _wifi_mon;
+    DisplayControl _display;
+    Scheduler<5> _scheduler;
 
+    bool _pump_active = false;
+
+    void control_pump();
 };
 
 }

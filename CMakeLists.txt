@@ -24,6 +24,7 @@ endif()
 include_directories(AFTER ${CMAKE_CURRENT_LIST_DIR}/src/emul)
 include_directories(AFTER ${CMAKE_CURRENT_LIST_DIR}/src/eeprom)
 include_directories(AFTER ${CMAKE_CURRENT_LIST_DIR}/src/SimpleDallasTemp)
+include_directories(AFTER ${CMAKE_CURRENT_LIST_DIR}/src/DotMatrix)
 
 include(library.cmake)
 enable_testing()

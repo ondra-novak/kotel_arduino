@@ -1,12 +1,15 @@
 #include "controller.h"
 
 #include "http_utils.h"
+#include "display.h"
 namespace kotel {
 
 Controller::Controller()
         :_feeder(_storage)
         ,_temp_sensors(_storage)
-        ,_scheduler({&_feeder, &_fan, &_pump, &_temp_sensors})
+        ,_wifi_mon(_storage)
+        ,_display(_storage, _wifi_mon,_temp_sensors, _sensors)
+        ,_scheduler({&_feeder, &_fan, &_temp_sensors, &_wifi_mon, &_display})
 {
 
 }
@@ -17,7 +20,9 @@ void Controller::begin() {
 }
 
 void Controller::run() {
+    _sensors.read_sensors();
     _scheduler.run();
+    control_pump();
 }
 
 
@@ -51,13 +56,40 @@ void print_data(Stream &s, const SimpleDallasTemp::Address &data) {
     }
 }
 
+template<>
+void print_data(Stream &s, const IPAddr &data) {
+    s.print(data.ip[0]);
+    for (unsigned int i = 1; i < 4; ++i) {
+        s.print('.');
+        s.print(data.ip[i]);
+    }
+}
+
+template<>
+void print_data(Stream &s, const TextSector &data) {
+    auto txt = data.get();
+    s.write(txt.data(), txt.size());
+}
+
+template<>
+void print_data(Stream &s, const std::optional<float> &data) {
+    if (data.has_value()) s.print(*data);
+}
+
+
+template<typename T>
+void print_data_line(Stream &s, const char *name, const T &object) {
+    s.print(name);
+    s.print('=');
+    print_data(s,object);
+    s.println();
+
+}
+
 template<typename Table, typename Object>
 void print_table(Stream &s, const Table &table, const Object &object) {
     for (const auto &[k,ptr]: table) {
-        s.print(k);
-        s.print('=');
-        print_data(s,(object.*ptr));
-        s.println();
+        print_data_line(s, k, object.*ptr);
     }
 
 }
@@ -91,12 +123,19 @@ static constexpr std::pair<const char *, uint32_t Counters1::*> counters1_table[
         {"fan_start_count", &Counters1::fan_start_count},
         {"pump_start_coun", &Counters1::pump_start_coun},
         {"attent_count", &Counters1::attent_count},
+        {"long_attents_count", &Counters1::long_attents_count},
 };
 
-static constexpr std::pair<const char *, uint32_t Counters2::*> counters2_table[] ={
-        {"long_attents_count", &Counters2::long_attents_count},
+static constexpr std::pair<const char *, TextSector WiFi_SSID::*> wifi_ssid_table[] ={
+        {"wifi.ssid", &WiFi_SSID::ssid},
 };
 
+static constexpr std::pair<const char *, IPAddr WiFi_NetSettings::*> wifi_netcfg_table[] ={
+        {"net.ip", &WiFi_NetSettings::ipaddr},
+        {"net.dns", &WiFi_NetSettings::dns},
+        {"net.gateway", &WiFi_NetSettings::gateway},
+        {"net.netmask", &WiFi_NetSettings::netmask},
+};
 
 
 void Controller::config_out(Stream &s) {
@@ -104,6 +143,8 @@ void Controller::config_out(Stream &s) {
     print_table(s, config_table, _storage.config);
     print_table(s, tempsensor_table_1, _storage.temp);
     print_table(s, tempsensor_table_2, _storage.temp);
+    print_table(s, wifi_ssid_table, _storage.wifi_ssid);
+    print_table(s, wifi_netcfg_table, _storage.wifi_config);
 }
 
 void Controller::stats_out(Stream &s) {
@@ -111,7 +152,6 @@ void Controller::stats_out(Stream &s) {
     print_table(s, tray_table, _storage.tray);
     print_table(s, utilization_table, _storage.utlz);
     print_table(s, counters1_table, _storage.cntr1);
-    print_table(s, counters2_table, _storage.cntr2);
     s.print("eeprom_checksum_error=");
     print_data(s, _storage.get_eeprom().get_crc_error_counter());
 }
@@ -193,10 +233,32 @@ void Controller::list_onewire_sensors(Stream &s) {
         s.print('=');
         auto tmp = cntr.read_temp_celsius(addr);
         if (tmp) print_data(s, *tmp);
-        else s.print("null");
         s.println();
         return true;
     });
+}
+
+void Controller::status_out(Stream &s) {
+    print_data_line(s,"temp.output.value", _temp_sensors.get_output_temp());
+    print_data_line(s,"temp.output.status", static_cast<int>(_temp_sensors.get_output_status()));
+    print_data_line(s,"temp.input.value", _temp_sensors.get_input_temp());
+    print_data_line(s,"temp.input.status", static_cast<int>(_temp_sensors.get_input_status()));
+    print_data_line(s,"tray_open", _sensors.tray_open);
+    print_data_line(s,"motor_temp_ok", _sensors.motor_temp_monitor);
+    print_data_line(s, "pump", _pump_active);
+}
+
+void Controller::control_pump() {
+    auto t = _temp_sensors.get_output_temp();
+    if (t.has_value()) {
+        if (!_pump_active && *t >= static_cast<float>(_storage.config.pump_temp)) {
+            _pump_active = true;
+            digitalWrite(pin_out_pump_on, active_pump);
+        } else if (_pump_active && *t <= static_cast<float>(_storage.config.pump_temp-2)) {
+            _pump_active = false;
+            digitalWrite(pin_out_pump_on, inactive_pump);
+        }
+    }
 }
 
 }

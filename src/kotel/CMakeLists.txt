@@ -5,6 +5,7 @@ set(COMMON_FILES
     feeder.cpp
     http_server.cpp
     controller.cpp
+    display.cpp
 )
 
 

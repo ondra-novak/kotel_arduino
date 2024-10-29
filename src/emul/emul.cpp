@@ -7,12 +7,48 @@
 #include <thread>
 #include <iostream>
 #include <fstream>
+#include <iomanip>
+
+
+
+template<typename ... Args>
+void log_line(Args ... text) {
+    float m = millis() *0.001f;
+    std::cout << std::setprecision(3) << std::fixed << m << " ";
+    (std::cout << ... <<  text) << std::endl;
+}
+
+namespace Matrix {
+
+
+extern uint8_t framebuffer[12];
+extern bool frame_changed ;
+bool get_pixel(uint8_t x, uint8_t y);
+
+
+void output_frame() {
+    constexpr std::string_view blocks[] = {
+            " ","▀","▄","█"
+    };
+    std::string ln("DISPLAY: ");
+    auto n = ln.size();
+    for (uint8_t y = 0; y< 12; y+=2) {
+        ln.resize(n);
+        for(uint8_t x = 0; x< 8;++x) {
+            int c = get_pixel(x,y) + 2*get_pixel(x,y+1);
+            ln.append(blocks[c]);
+        }
+        log_line(ln);
+    }
+}
+
+}
 
 namespace kotel {
     extern Controller controller;
 }
 
-static std::chrono::system_clock::time_point start_time;
+static unsigned long current_cycle = 0;
 
 
 
@@ -153,29 +189,36 @@ int main(int argc, char **argv) {
     }
 
 
-    start_time = std::chrono::system_clock::now();
     kotel::setup();
     Command cmd;
     bool cont = fetch_command(cmd, f);
     while (cont) {
+        auto now = std::chrono::system_clock::now();
         auto time = millis();
         smooth_temp(cmd, time);
-        while (time >= cmd.timestamp) {
+        while (cont && time >= cmd.timestamp) {
             process_command(cmd);
             cont = fetch_command(cmd, f);
         }
         kotel::loop();
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (Matrix::frame_changed) {
+            Matrix::output_frame();
+            Matrix::frame_changed = false;
+        }
+        ++current_cycle;
+        std::this_thread::sleep_until(now+std::chrono::milliseconds(1));
     }
 }
 
 unsigned long millis() {
-    return static_cast<unsigned long>(
-            simspeed * std::chrono::duration_cast<std::chrono::milliseconds>(
-                    std::chrono::system_clock::now() - start_time).count());
+    return static_cast<unsigned long>(simspeed * current_cycle);
 }
 
 
 void digitalWrite(int pin, int level) {
-    std::cout << "PIN " << pin << ": " << level << std::endl;
+    log_line("PIN: ", pin, ": ", level?"HIGH":"LOW");
+}
+
+int digitalRead(int pin) {
+    return pin==6?HIGH:LOW;
 }

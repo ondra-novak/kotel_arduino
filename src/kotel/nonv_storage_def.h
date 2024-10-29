@@ -6,9 +6,11 @@ constexpr unsigned int file_config = 0;
 constexpr unsigned int file_tray = 1;
 constexpr unsigned int file_util = 2;
 constexpr unsigned int file_cntrs1 = 3;
-constexpr unsigned int file_cntrs2 = 4;
 constexpr unsigned int file_tempsensor = 5;
-constexpr unsigned int file_directory_len = 6;
+constexpr unsigned int file_wifi_ssid = 6;
+constexpr unsigned int file_wifi_pwd = 7;
+constexpr unsigned int file_wifi_net = 8;
+constexpr unsigned int file_directory_len = 9;
 
 namespace kotel {
 
@@ -46,12 +48,12 @@ struct Counters1 {
     uint32_t fan_start_count = 0;     //pocet spusteni ventilatoru
     uint32_t pump_start_coun = 0;     //pocet spusteni cerpadla
     uint32_t attent_count = 0;        //pocet utlumu
-};
-
-struct Counters2 {
     uint32_t long_attents_count;     //pocet dlouhych utlumu (spusteni na chvili)
 };
-
+/*
+struct Counters2 {
+};
+*/
 struct TempSensor {
     std::array<uint8_t,8> input_temp;         //address of input temperature sensor
     std::array<uint8_t,8> output_temp;        //address of output temperature sensor
@@ -59,17 +61,38 @@ struct TempSensor {
     uint8_t trend_smooth = 4;          //kolik vzorku zmen pro vypocet trendu
 };
 
+struct IPAddr {
+    uint8_t ip[4] = {};
+    bool operator==(const IPAddr &other) const {
+        return std::equal(std::begin(ip), std::end(ip), std::begin(other.ip));
+    }
+    bool operator!=(const IPAddr &other) const {
+        return !operator==(other);
+    }
+};
+
+struct WiFi_NetSettings {
+    IPAddr ipaddr = {};
+    IPAddr dns = {};
+    IPAddr gateway = {};
+    IPAddr netmask = {255,255,255,0};
+};
+
+
+
 union StorageSector {
     Config cfg;
     Tray tray;
     Utilization util;
     Counters1 cntr1;
-    Counters2 cntr2;
+//  Counters2 cntr2;
     TempSensor tempsensor;
+    WiFi_NetSettings wifi_cfg;
 
     StorageSector() {}
     ~StorageSector() {}
 };
+
 
 /* rezim kalibrace:
  *

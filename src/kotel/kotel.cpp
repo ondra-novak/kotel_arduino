@@ -49,6 +49,9 @@ void loop() {
         } else if (req.request_line.path == "/stats" && req.request_line.method == HttpMethod::GET) {
             req.client.print(response_header);
             controller.stats_out(req.client);
+        } else if (req.request_line.path == "/status" && req.request_line.method == HttpMethod::GET) {
+            req.client.print(response_header);
+            controller.status_out(req.client);
         } else {
             server.error_response(req, 404, "Not found");
         }

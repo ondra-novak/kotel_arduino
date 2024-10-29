@@ -12,5 +12,7 @@ constexpr int pin_in_one_wire = 2;      //teplomery
 
 constexpr int active_feeder = LOW;
 constexpr int inactive_feeder = HIGH;
+constexpr int active_pump = LOW;
+constexpr int inactive_pump = HIGH;
 
 }
