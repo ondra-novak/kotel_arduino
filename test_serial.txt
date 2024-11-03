@@ -1,0 +1,8 @@
+0 serial 
++1 serial /s
++1 serial /c
++1 serial input_temp_sensor_addr=01-FD-7D-45-38-FC-89-40&output_temp_sensor_addr=02-6D-38-D9-78-EF-00-1E
++1 serial /t
++1 serial /x
++1 serial /c
++1000 serial

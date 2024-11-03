@@ -18,6 +18,7 @@ namespace kotel {
 class Controller {
 public:
 
+
     Controller();
     void begin();
     void run();
@@ -30,6 +31,8 @@ public:
 
     void set_operation_mode(uint8_t mode);
 
+    const DisplayControl &get_display() const {return _display;}
+
 protected:
     Sensors _sensors;
 
@@ -40,6 +43,8 @@ protected:
     WiFiMonitor _wifi_mon;
     DisplayControl _display;
     Scheduler<5> _scheduler;
+
+
 
     bool _pump_active = false;
     bool _attenuation = false;

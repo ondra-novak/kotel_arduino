@@ -10,6 +10,15 @@ namespace kotel {
 
 class TempSensors: public AbstractTimedTask {
 public:
+
+    enum class State {
+        start,
+        write_request,
+        read_temp1,
+        read_temp2,
+        wait
+    };
+
     TempSensors(Storage &stor):_stor(stor)
         ,_wire(pin_in_one_wire)
         ,_temp_reader(_wire) {}
@@ -20,28 +29,54 @@ public:
     }
 
     virtual void run(TimeStampMs cur_time) override {
-        _reading = !_reading;
-        if (_reading) {
-            auto wt = _temp_reader.request_temp();
-            _next_read_time = cur_time+wt;
-        } else {
-            auto i = _temp_reader.read_temp_celsius(_stor.temp.input_temp);
-            _input_status = _temp_reader.get_last_error();
-            auto o = _temp_reader.read_temp_celsius(_stor.temp.output_temp);
-            _output_status = _temp_reader.get_last_error();
+        std::optional<float> rdtmp;
 
-            if (i.has_value() && _input_temp.has_value()) {
-                _input_change = calc_change(*i, *_input_temp);
-                _input_temp = i;
-            }
-            if (o.has_value() && _output_temp.has_value()) {
-                _output_change = calc_change(*i, *_output_temp);
-                _output_temp = o;
-            }
+        switch (_state) {
+            case State::start:
+                _next_read_time = cur_time+1;
+                _state = State::write_request;
+                break;
+            case State::write_request:
+                _temp_reader.request_temp();
+                _state = State::read_temp1;
+                _next_read_time = cur_time + 200;
+                break;
+            case State::read_temp1:
+                rdtmp = _temp_reader.read_temp_celsius(_stor.temp.input_temp);
+                _input_status = _temp_reader.get_last_error();
+                if (rdtmp.has_value()) {
+                    if (_input_temp.has_value()) {
+                        _input_change = calc_change(*rdtmp, *_input_temp);
+                        _input_temp = rdtmp;
+                    } else {
+                        _input_temp = rdtmp;
+                    }
+                }
+                _state = State::read_temp2;
+                _next_read_time = cur_time + 1;
+                break;
+            case State::read_temp2:
+                rdtmp = _temp_reader.read_temp_celsius(_stor.temp.output_temp);
+                _output_status = _temp_reader.get_last_error();
+                if (rdtmp.has_value()) {
+                    if (_output_temp.has_value()) {
+                        _output_change = calc_change(*rdtmp, *_output_temp);
+                        _output_temp = rdtmp;
+                    } else {
+                        _output_temp = rdtmp;
+                    }
+                }
+                _state = State::wait;
+                _next_read_time = cur_time + 1;
+                break;
+            default:
+                _next_read_time = cur_time + 1000;
+                _state = State::write_request;
 
-            ++_read_count;
-            _next_read_time = cur_time + from_seconds(_stor.temp.interval);
+
+
         }
+
     }
 
     auto &get_controller() {
@@ -69,7 +104,7 @@ public:
     }
 
     bool is_reading() const {
-        return _reading;
+        return  _state != State::wait;
     }
 
     bool is_emergency_temp() const {
@@ -100,17 +135,20 @@ public:
     }
 
 
+
+
 protected:
+
+    State _state = State::start;
     Storage &_stor;
     OneWire _wire;
     SimpleDallasTemp _temp_reader;
-    std::optional<float> _input_temp = 0;
-    std::optional<float> _output_temp = 0;
+    std::optional<float> _input_temp = {};
+    std::optional<float> _output_temp = {};
     float _input_change = 0;
     float _output_change = 0;
     SimpleDallasTemp::Status _input_status = {};
     SimpleDallasTemp::Status _output_status = {};
-    bool _reading = false;
     TimeStampMs _next_read_time = 0;
     unsigned int _read_count = 0;
 

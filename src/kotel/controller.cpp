@@ -1,8 +1,10 @@
 #include "controller.h"
 
 #include "http_utils.h"
-#include "display.h"
+#include "icons.h"
 namespace kotel {
+
+
 
 Controller::Controller()
         :_feeder(_storage)
@@ -16,6 +18,7 @@ Controller::Controller()
 }
 
 void Controller::begin() {
+    _display.begin();
     _scheduler.reschedule();
 }
 

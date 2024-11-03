@@ -11,6 +11,7 @@ set(emul_files emul.cpp
     wifi/WiFiS3.cpp
     temp_sim.cpp
     DotMatrix.cpp
+    serial_emul.cpp
 
 )
 

@@ -86,13 +86,15 @@ public:
 
     ///construct object
     /** @param dev Reference to block device */
-    constexpr EEPROM(BlockDevice &dev):_flash_device(dev) {
-        rescan();
-    }
+    constexpr EEPROM(BlockDevice &dev):_flash_device(dev) {}
 
     ///construct object
     /** uses current instance of block device */
     constexpr EEPROM(): EEPROM(BlockDevice::getInstance()) {}
+
+    void begin() {
+        rescan();
+    }
 
     ///rescan flash device and build file allocation table
     void rescan() {

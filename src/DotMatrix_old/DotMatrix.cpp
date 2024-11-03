@@ -1,5 +1,6 @@
+#include "../DotMatrix_old/DotMatrix.h"
+
 #include <Arduino_LED_Matrix.h>
-#include "DotMatrix.h"
 
 namespace Matrix {
 

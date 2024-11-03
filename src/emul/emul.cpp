@@ -1,15 +1,19 @@
 #include "../kotel/kotel.h"
 #include "../kotel/controller.h"
 #include "../kotel/http_server.h"
-
+#include "../DotMatrix/DotMatrix.h"
 #include "temp_sim.h"
+#include "serial_emul.h"
 
 #include <thread>
 #include <iostream>
 #include <fstream>
 #include <iomanip>
 
-
+void DotMatrix::enable_auto_drive(DotMatrix::TimerFunction, unsigned int) {}
+void DotMatrix::DirectDrive::activate_row(int, bool) {}
+void DotMatrix::DirectDrive::deactivate_row(int) {}
+void DotMatrix::DirectDrive::clear_matrix() {}
 
 template<typename ... Args>
 void log_line(Args ... text) {
@@ -18,15 +22,25 @@ void log_line(Args ... text) {
     (std::cout << ... <<  text) << std::endl;
 }
 
-namespace Matrix {
 
 
-extern uint8_t framebuffer[12];
-extern bool frame_changed ;
-bool get_pixel(uint8_t x, uint8_t y);
+std::size_t dmx_framebuffer_hash = 0;
+
+template<typename T>
+bool check_frame_changed(const T &fb) {
+    std::string_view pixels(reinterpret_cast<const char *>(fb.pixels), sizeof(fb.pixels));
+    std::hash<std::string_view> hasher;
+    auto h = hasher(pixels);
+    if (h != dmx_framebuffer_hash) {
+        dmx_framebuffer_hash = h;
+        return true;
+    }
+    return false;
+}
 
 
-void output_frame() {
+template<typename T>
+void output_frame(const T &fb) {
     constexpr std::string_view blocks[] = {
             " ","▀","▄","█"
     };
@@ -35,21 +49,19 @@ void output_frame() {
     for (uint8_t y = 0; y< 12; y+=2) {
         ln.resize(n);
         for(uint8_t x = 0; x< 8;++x) {
-            int c = get_pixel(x,y) + 2*get_pixel(x,y+1);
+            int c = fb.get_pixel(x,y) + 2*fb.get_pixel(x,y+1);
             ln.append(blocks[c]);
         }
         log_line(ln);
     }
 }
 
-}
 
 namespace kotel {
     extern Controller controller;
 }
 
 static unsigned long current_cycle = 0;
-
 
 
 
@@ -62,6 +74,7 @@ struct Command {
         tray_close,
         motor_high_temp_on,
         motor_high_temp_off,
+        serial,
         unknown
     };
     unsigned long timestamp = 0;
@@ -75,6 +88,7 @@ constexpr std::pair<Command::Type, std::string_view> command_str_map[] = {
         {Command::temp_smooth,"temp_smooth"},
         {Command::tray_open,"tray_open"},
         {Command::tray_close,"tray_close"},
+        {Command::serial,"serial"},
         {Command::motor_high_temp_on,"motor_high_temp_on"},
         {Command::motor_high_temp_off,"motor_high_temp_off"},
 
@@ -151,6 +165,9 @@ void process_command(const Command &cmd) {
             set_temp(0,tt.first);
             set_temp(1, tt.second);
         }break;
+        case Command::serial:
+            uart_input(cmd.arg);
+            break;
         default:break;
     }
 }
@@ -202,11 +219,15 @@ int main(int argc, char **argv) {
             cont = fetch_command(cmd, f);
         }
         kotel::loop();
-        if (Matrix::frame_changed) {
-            Matrix::output_frame();
-            Matrix::frame_changed = false;
+        const auto &fb = kotel::controller.get_display().frame_buffer;
+        if (check_frame_changed(fb)) {
+            output_frame(fb);
         }
         ++current_cycle;
+        auto str = uart_output();
+        if (!str.empty()) {
+            log_line("Serial: ", str);
+        }
         std::this_thread::sleep_until(now+std::chrono::milliseconds(1));
     }
 }
