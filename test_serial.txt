@@ -1,3 +1,4 @@
+0 wifi 0
 0 serial 
 +1 serial /s
 +1 serial /c
@@ -5,4 +6,6 @@
 +1 serial /t
 +1 serial /x
 +1 serial /c
-+1000 serial
++1 serial wifi.ssid=abcd&wifi.password=xyz
++30 wifi 1
++30 serial

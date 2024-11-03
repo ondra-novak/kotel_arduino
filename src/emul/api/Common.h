@@ -8,9 +8,13 @@ unsigned long millis();
 
 #define HIGH 1
 #define LOW 0
+#define INPUT 1
+#define OUTPUT 2
+#define INPUT_PULLUP 3
 
 void digitalWrite(int pin, int mode);
 int digitalRead(int pin);
+void pinMode(int pin, int mode);
 
 
 #define PSTR(x) (x)

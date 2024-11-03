@@ -17,8 +17,12 @@ public:
     virtual void run(TimeStampMs cur_time) override {
         _next_run =  cur_time + from_seconds(5);
 
-        if (!_connected) {
+        if (test_changed()) {
+            WiFi.disconnect();
             update_changed();
+            _connected = false;
+            _set_settings  = true;
+        } else if (_set_settings) {
             if (_cur_settings.ipaddr != IPAddr{}) {
                 WiFi.config(conv_ip(_cur_settings.ipaddr),
                         conv_ip(_cur_settings.dns),
@@ -31,19 +35,18 @@ public:
 
             auto ssid = _cur_ssid.ssid.get();
             auto password = _cur_password.password.get();
-            *(std::copy(ssid.begin(), ssid.end(), ssid_txt)) = '\0';
-            if (password.empty()) {
-                WiFi.begin(ssid_txt);
-            } else {
-                *(std::copy(ssid.begin(), ssid.end(), password_txt)) = '\0';
-                WiFi.begin(ssid_txt,password_txt);
+            if (!ssid.empty()) {
+                *(std::copy(ssid.begin(), ssid.end(), ssid_txt)) = '\0';
+                if (password.empty()) {
+                    WiFi.begin(ssid_txt);
+                } else {
+                    *(std::copy(password.begin(), password.end(), password_txt)) = '\0';
+                    WiFi.begin(ssid_txt,password_txt);
+                }
             }
-            _connected = true;
-        } else if (test_changed()) {
-            WiFi.disconnect();
-            _connected = false;
-        } else if (WiFi.status() != WL_CONNECTED) {
-            _connected = false;
+            _set_settings  = false;
+        } else {
+            _connected = WiFi.status() == WL_CONNECTED;
         }
     }
 
@@ -52,6 +55,7 @@ public:
 protected:
     TimeStampMs _next_run = 0;
     bool _connected = true;
+    bool _set_settings = true;
 
     const Storage &_stor;
     WiFi_NetSettings _cur_settings = {};

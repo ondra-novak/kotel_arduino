@@ -37,10 +37,10 @@ public:
         if (_sensors.tray_open) {
             icon_tray_open.draw(frame_buffer, 0, 6);
         } else if (_old_wifi_state != wifi_connected && wifi_connected) {
-            icon_no_network.draw(frame_buffer, 0, 6);
+            icon_network_ok.draw(frame_buffer, 0, 6);
         } else if (_alternate_state) {
             if (!wifi_connected) {
-                icon_network_ok.draw(frame_buffer, 0, 6);
+                icon_no_network.draw(frame_buffer, 0, 6);
             } else {
                 print_temp(6, _temp.get_input_temp());
             }

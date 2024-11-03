@@ -47,28 +47,34 @@ public:
 
 
     void update(const Config &x) {
-        _eeprom.update_file(file_config, x);
+        update_config = true;
+        config = x;
+
     }
     void update(const Tray &x) {
-        _eeprom.update_file(file_tray, x);
+        update_tray = true;
+        tray = x;
     }
     void update(const Utilization &x) {
-        _eeprom.update_file(file_util, x);
+        update_utlz = true;
+        utlz = x;
     }
     void update(const Counters1 &x) {
-        _eeprom.update_file(file_cntrs1, x);
+        update_counter1 = true;
+        cntr1 = x;
     }
     void update(const TempSensor &x) {
-        _eeprom.update_file(file_tempsensor, x);
+        update_temp_sensor = true;
+        temp = x;
     }
-    void update(const WiFi_SSID &x) {
-        _eeprom.update_file(file_wifi_ssid, x);
-    }
-    void update(const WiFi_Password &x) {
-        _eeprom.update_file(file_wifi_pwd, x);
+    void update(const WiFi_SSID &x, const WiFi_Password &y) {
+        update_wifi = true;
+        wifi_ssid = x;
+        wifi_password = y;
     }
     void update(const WiFi_NetSettings &x) {
-        _eeprom.update_file(file_wifi_net, x);
+        update_net_settings = true;
+        wifi_config = x;
     }
 
     Storage() {
@@ -85,12 +91,44 @@ public:
         return _eeprom;
     }
 
+    void flush() {
+        if (update_config) _eeprom.update_file(file_config,config);
+        if (update_tray) _eeprom.update_file(file_tray,tray);
+        if (update_utlz) _eeprom.update_file(file_util,utlz);
+        if (update_counter1) _eeprom.update_file(file_cntrs1,cntr1);
+        if (update_temp_sensor) _eeprom.update_file(file_tempsensor,temp);
+        if (update_wifi) {
+            _eeprom.update_file(file_wifi_ssid,wifi_ssid);
+            _eeprom.update_file(file_wifi_pwd,wifi_password);
+        }
+        if (update_net_settings) _eeprom.update_file(file_wifi_net, wifi_config);
+        update_config = update_tray = update_utlz = update_counter1
+                = update_temp_sensor = update_wifi = update_net_settings = false;
+    }
+
+    bool is_wifi_changed() const {
+        return update_wifi || update_net_settings;
+    }
+
+    void update_all() {
+        update_config = update_tray = update_utlz = update_counter1
+                = update_temp_sensor = update_wifi = update_net_settings = true;
+    }
 
 protected:
     EEPROM<sizeof(StorageSector),file_directory_len> _eeprom;
+    bool update_config = false;
+    bool update_tray = false;
+    bool update_utlz = false;
+    bool update_counter1 = false;
+    bool update_temp_sensor = false;
+    bool update_wifi = false;
+    bool update_net_settings = false;
+
 
 
 };
 
 
 }
+

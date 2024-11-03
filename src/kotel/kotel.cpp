@@ -13,15 +13,23 @@ namespace kotel {
 using MyHttpServer = HttpServer<4096,32>;
 
 Controller controller;
-Storage storage;
 
 MyHttpServer server(8300);
 
 
 void setup() {
+    Serial.begin(115200);
+    pinMode(pin_in_motor_temp,INPUT);
+    pinMode(pin_in_tray,INPUT);
+    pinMode(pin_out_fan_on,OUTPUT);
+    pinMode(pin_out_feeder_on,OUTPUT);
+    pinMode(pin_out_pump_on,OUTPUT);
+    pinMode(pin_in_pulpup,INPUT_PULLUP);
     controller.begin();
     server.begin();
 }
+
+
 
 constexpr const char *response_header = "HTTP/1.1 200 OK\r\n"
         "Content-Type: text/pain\r\n"
@@ -71,7 +79,7 @@ void handle_serial() {
             std::string_view cmd(buffer, buffer_use);
             buffer_use  = 0;
             if (cmd.empty()) {
-                Serial.print("Help: /s - status, /c - config, /t - stats, <field>=<value>");
+                Serial.println("Help: /s - status, /c - config, /t - stats, <field>=<value>");
             } else if (cmd.size()>1 && cmd[0] == '/') {
                 switch (cmd[1]) {
                     case 's':controller.status_out(Serial);break;

@@ -23,6 +23,10 @@ public:
             _next_call = max_timestamp;
             set_active(false);
         } else {
+            if (_start_time) {
+                _stor.utlz.fan_time += cur_time - _start_time;
+                _start_time = cur_time;
+            }
             TimeStampMs plen = static_cast<TimeStampMs>(_stor.config.fan_pulse)*20;
             _speed = static_cast<unsigned int>(_stor.config.fan_power_pct);
             if (_mode == run_away) {
@@ -32,12 +36,11 @@ public:
                                 * static_cast<unsigned int>(_stor.config.fan_power_pct))
                                         /(_decay_end - _decay_begin);
                     } else {
-                        set_active(false);
-                        _mode =stop;
-                        return;
+                        _speed = 0;
                     }
                     if (_speed < 1) {
                         set_active(false);
+                        record_stop();
                         _mode =stop;
                         return;
                     }
@@ -60,11 +63,18 @@ public:
 
     void set_mode(IScheduler &sch, Mode mode) {
         auto now = get_current_timestamp();
+        if (_start_time == 0) {
+            _start_time = now;
+            ++_stor.cntr1.fan_start_count;
+            _stor.update(_stor.cntr1);
+        }
         if (_mode != mode) {
             _mode = mode;
             switch(_mode) {
                 default:
-                case stop: break;
+                case stop:
+                    record_stop();
+                    break;
                 case running: _next_call = 0; sch.reschedule();break;
                 case run_away:
                     _decay_begin = now+from_seconds(_stor.config.feeder_off_sec);
@@ -84,6 +94,7 @@ protected:
     TimeStampMs _next_call = 0;
     TimeStampMs _decay_begin = 0;
     TimeStampMs _decay_end = 0;
+    TimeStampMs _start_time = 0;
     unsigned int _speed;
     Storage &_stor;
     bool _pulse = false;
@@ -96,6 +107,11 @@ protected:
         }
     }
 
+    void record_stop() {
+        _stor.utlz.fan_time += get_current_timestamp() - _start_time;
+        _start_time = 0;
+        _stor.update(_stor.utlz);
+    }
 
 
 };

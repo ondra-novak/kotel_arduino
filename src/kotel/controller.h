@@ -11,6 +11,7 @@
 #include "display_control.h"
 #include "sensors.h"
 
+#include "pump.h"
 namespace kotel {
 
 //controller
@@ -39,14 +40,14 @@ protected:
     Storage _storage;
     Feeder _feeder;
     Fan _fan;
+    Pump _pump;
     TempSensors _temp_sensors;
     WiFiMonitor _wifi_mon;
     DisplayControl _display;
-    Scheduler<5> _scheduler;
+    Scheduler<6> _scheduler;
 
 
 
-    bool _pump_active = false;
     bool _attenuation = false;
 
 

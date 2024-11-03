@@ -9,15 +9,17 @@ namespace kotel {
 Controller::Controller()
         :_feeder(_storage)
         ,_fan(_storage)
+        ,_pump(_storage)
         ,_temp_sensors(_storage)
         ,_wifi_mon(_storage)
         ,_display(_storage, _wifi_mon,_temp_sensors, _sensors)
-        ,_scheduler({&_feeder, &_fan, &_temp_sensors, &_wifi_mon, &_display})
+        ,_scheduler({&_feeder, &_fan, &_temp_sensors, &_wifi_mon, &_display, &_pump})
 {
 
 }
 
 void Controller::begin() {
+    _temp_sensors.begin();
     _display.begin();
     _scheduler.reschedule();
 }
@@ -38,6 +40,8 @@ void Controller::run() {
     } else {
         run_other_mode();
     }
+    _storage.flush();
+
 
 }
 
@@ -137,13 +141,16 @@ static constexpr std::pair<const char *, uint32_t Utilization::*> utilization_ta
 static constexpr std::pair<const char *, uint32_t Counters1::*> counters1_table[] ={
         {"feeder_start_count", &Counters1::feeder_start_count},
         {"fan_start_count", &Counters1::fan_start_count},
-        {"pump_start_coun", &Counters1::pump_start_coun},
+        {"pump_start_coun", &Counters1::pump_start_count},
         {"attent_count", &Counters1::attent_count},
         {"long_attents_count", &Counters1::long_attents_count},
 };
 
 static constexpr std::pair<const char *, TextSector WiFi_SSID::*> wifi_ssid_table[] ={
         {"wifi.ssid", &WiFi_SSID::ssid},
+};
+static constexpr std::pair<const char *, TextSector WiFi_Password::*> wifi_password_table[] ={
+        {"wifi.password", &WiFi_Password::password},
 };
 
 static constexpr std::pair<const char *, IPAddr WiFi_NetSettings::*> wifi_netcfg_table[] ={
@@ -199,9 +206,20 @@ bool parse_to_field(SimpleDallasTemp::Address &fld, std::string_view value) {
         x = static_cast<uint8_t>(v);
     }
     return (value.empty());
-
+}
+bool parse_to_field(IPAddr &fld, std::string_view value) {
+    for (auto &x:fld.ip) {
+        auto part = split(value,".");
+        if (part.empty()) return false;
+        if (!parse_to_field(x, part)) return false;
+    }
+    return true;
 }
 
+bool parse_to_field(TextSector &fld, std::string_view value) {
+    fld.set(value);
+    return true;
+}
 
 template<typename Table, typename Config>
 bool update_settings(const Table &table, Config &config, std::string_view key, std::string_view value) {
@@ -220,15 +238,17 @@ bool Controller::config_update(std::string_view body, std::string_view &&failed_
         auto key = split(value, "=");
         bool ok = update_settings(config_table, _storage.config, key, value)
                 || update_settings(tempsensor_table_1, _storage.temp, key, value)
-                || update_settings(tempsensor_table_2, _storage.temp, key, value);
+                || update_settings(tempsensor_table_2, _storage.temp, key, value)
+                || update_settings(wifi_ssid_table, _storage.wifi_ssid, key, value)
+                || update_settings(wifi_password_table, _storage.wifi_password, key, value)
+                || update_settings(wifi_netcfg_table, _storage.wifi_config, key, value);
         if (!ok) {
             failed_field = key;
             return false;
         }
 
     } while (!body.empty());
-    _storage.update(_storage.config);
-    _storage.update(_storage.temp);
+    _storage.update_all();
     _scheduler.reschedule();
     return true;
 
@@ -261,21 +281,23 @@ void Controller::status_out(Stream &s) {
     print_data_line(s,"temp.input.status", static_cast<int>(_temp_sensors.get_input_status()));
     print_data_line(s,"tray_open", _sensors.tray_open);
     print_data_line(s,"motor_temp_ok", _sensors.motor_temp_monitor);
-    print_data_line(s,"pump", _pump_active);
+    print_data_line(s,"pump", _pump.is_active());
     print_data_line(s,"feeder", _feeder.is_active());
     print_data_line(s,"fan", _fan.get_speed());
+    print_data_line(s,"network.ip", WiFi.localIP());
+    print_data_line(s,"network.netmask", WiFi.subnetMask());
+    print_data_line(s,"network.gateway", WiFi.gatewayIP());
+    print_data_line(s,"network.ssid", WiFi.SSID());
 
 }
 
 void Controller::control_pump() {
     auto t = _temp_sensors.get_output_temp();
     if (t.has_value()) {
-        if (!_pump_active && *t >= static_cast<float>(_storage.config.pump_temp)) {
-            _pump_active = true;
-            digitalWrite(pin_out_pump_on, active_pump);
-        } else if (_pump_active && *t <= static_cast<float>(_storage.config.pump_temp-2)) {
-            _pump_active = false;
-            digitalWrite(pin_out_pump_on, inactive_pump);
+        if (!_pump.is_active() && *t >= static_cast<float>(_storage.config.pump_temp)) {
+            _pump.set_active(true);
+        } else if (_pump.is_active() && *t <= static_cast<float>(_storage.config.pump_temp-2)) {
+            _pump.set_active(false);
         }
     }
 }

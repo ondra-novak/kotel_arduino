@@ -75,6 +75,7 @@ struct Command {
         motor_high_temp_on,
         motor_high_temp_off,
         serial,
+        wifi,
         unknown
     };
     unsigned long timestamp = 0;
@@ -89,6 +90,7 @@ constexpr std::pair<Command::Type, std::string_view> command_str_map[] = {
         {Command::tray_open,"tray_open"},
         {Command::tray_close,"tray_close"},
         {Command::serial,"serial"},
+        {Command::wifi,"wifi"},
         {Command::motor_high_temp_on,"motor_high_temp_on"},
         {Command::motor_high_temp_off,"motor_high_temp_off"},
 
@@ -149,6 +151,8 @@ std::pair<double, double> parse_temp_pair(const std::string &arg) {
     return {t1,t2};
 }
 
+void simul_wifi_set_state(bool st);
+
 void process_command(const Command &cmd) {
     switch (cmd.type) {
         case Command::config: {
@@ -167,6 +171,10 @@ void process_command(const Command &cmd) {
         }break;
         case Command::serial:
             uart_input(cmd.arg);
+            break;
+        case Command::wifi:
+            if (cmd.arg == "0") simul_wifi_set_state(false);
+            else simul_wifi_set_state(true);
             break;
         default:break;
     }
@@ -246,6 +254,10 @@ void digitalWrite(int pin, int level) {
     }
     buff[10] = 0;
     log_line("PINS: ", buff);
+}
+
+void pinMode(int pin, int mode) {
+    log_line("Set pin mode: ", pin, " = ", mode);
 }
 
 int digitalRead(int pin) {

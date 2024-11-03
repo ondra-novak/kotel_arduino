@@ -23,6 +23,7 @@ struct Config {
     uint8_t max_atten_min  = 30; //maximalni doba utlumu v minutach
     uint8_t input_min_temp  = 60;  //minimalni teplota na vstupu
     uint8_t output_max_temp = 85;  //maximalni teplota na vystupu
+    uint8_t stop_temp = 35;   //teplota pod kterou se vypne automatika a musi se rucne zapnout
     uint8_t pump_temp = 40;   //zapinaci teplota cerpadla
     uint8_t default_bag_count = 15; //vychozi plneni
     uint8_t operation_mode = 1;     //0 - manual, 1 - automatic
@@ -48,7 +49,7 @@ struct Utilization {
 struct Counters1 {
     uint32_t feeder_start_count = 0;  //pocet spusteni podavace
     uint32_t fan_start_count = 0;     //pocet spusteni ventilatoru
-    uint32_t pump_start_coun = 0;     //pocet spusteni cerpadla
+    uint32_t pump_start_count = 0;     //pocet spusteni cerpadla
     uint32_t attent_count = 0;        //pocet utlumu
     uint32_t long_attents_count;     //pocet dlouhych utlumu (spusteni na chvili)
 };

@@ -20,9 +20,11 @@ public:
     };
 
     TempSensors(Storage &stor):_stor(stor)
-        ,_wire(pin_in_one_wire)
         ,_temp_reader(_wire) {}
 
+    void begin() {
+        _wire.begin(pin_in_one_wire);
+    }
 
     virtual TimeStampMs get_scheduled_time() const override {
         return _next_read_time;
