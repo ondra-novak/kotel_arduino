@@ -15,11 +15,11 @@ public:
             if (a) {
                 ++_stor.cntr1.pump_start_count;
                 _start_time  = now;
-                _stor.update(_stor.cntr1);
+                _stor.save();
             }
             else {
                 _stor.utlz.pump_time += now - _start_time;
-                _stor.update(_stor.utlz);
+                _stor.save();
             }
             digitalWrite(pin_out_pump_on, a?active_pump:inactive_pump);
         }

@@ -10,7 +10,7 @@
 namespace kotel {
 
 
-
+class Controller;
 
 class DisplayControl: public AbstractTimedTask {
 public:
@@ -19,19 +19,27 @@ public:
     using Driver = DotMatrix::Driver<FrameBuffer, DotMatrix::Orientation::portrait>;
     static constexpr Driver dot_driver = {};
 
-    DisplayControl(const Storage &stor, const WiFiMonitor &wifi_mon,
-            const TempSensors &temp, const Sensors &sensors)
-        :_stor(stor)
-        ,_wifi_mon(wifi_mon)
-        ,_temp(temp)
-        ,_sensors(sensors) {}
+    static constexpr unsigned int first_line = 0;
+    static constexpr unsigned int second_line = 0;
 
-    virtual TimeStampMs get_scheduled_time() const override {
-        return _next_change;
 
+
+    DisplayControl(const Controller &cntr):_cntr(cntr) {}
+
+    void begin() {
+        DotMatrix::enable_auto_drive(dot_driver, display_state, frame_buffer);
     }
-    virtual void run(TimeStampMs cur_time) override {
-        _next_change = cur_time + 2000;
+   
+    virtual TimeStampMs get_scheduled_time() const override;
+    virtual void run(TimeStampMs cur_time) override;
+    
+    /* {
+        _next_change = cur_time + 1000;
+        if (_ec) {
+            print_error(second_line,_ec);
+        } else {
+            if ()
+        }
         _alternate_state = !_alternate_state;
         bool wifi_connected = _wifi_mon.is_connected();
         if (_sensors.tray_open) {
@@ -50,27 +58,21 @@ public:
         print_temp(0, _temp.get_output_temp());
         _old_wifi_state = wifi_connected;
     }
+    */
 
-    void begin() {
-        DotMatrix::enable_auto_drive(dot_driver, display_state, frame_buffer);
-    }
 
 public:
     FrameBuffer frame_buffer;
     DotMatrix::State display_state;
 
 protected:
-    const Storage &_stor;
-    const WiFiMonitor &_wifi_mon;
-    const TempSensors &_temp;
-    const Sensors &_sensors;
-    bool _old_wifi_state = false;
-    bool _alternate_state = false;
+    const Controller &_cntr;
+
     TimeStampMs _next_change = 0;
+    using TR = DotMatrix::TextRender<>;
 
     void print_temp(std::uint8_t line, std::optional<float> numb) {
         char txtbuf[3] = {};
-        using TR = DotMatrix::TextRender<>;
         if (numb.has_value()) {
 
             int v = static_cast<int>(*numb+0.5f);
@@ -92,6 +94,13 @@ protected:
 
         TR::render_text(frame_buffer, DotMatrix::font_5x3, 0, line, {txtbuf,2});
     }
+
+    void print_error(uint8_t line, ErrorCode code) {
+        char txt[] = "E?";
+        txt[1] = '0' + static_cast<uint8_t>(code);
+        TR::render_text(frame_buffer, DotMatrix::font_5x3, 0, line, {txt,2});
+    }
+    void main_temp();
 
 };
 

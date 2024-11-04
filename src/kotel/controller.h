@@ -30,12 +30,21 @@ public:
     bool config_update(std::string_view body, std::string_view &&failed_field = {});
     void list_onewire_sensors(Stream &s);
 
-    void set_operation_mode(uint8_t mode);
+
+    void clear_error();
+
 
     const DisplayControl &get_display() const {return _display;}
 
+    bool is_stop() const {return _is_stop;}
+    bool is_manual() const {return _storage.config.operation_mode == 0;}
+    bool is_tray_open() const {return _sensors.tray_open;}
+
 protected:
     Sensors _sensors;
+
+    bool _auto_stop_disabled = false;
+    bool _is_stop = false;
 
     Storage _storage;
     Feeder _feeder;

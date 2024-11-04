@@ -6,6 +6,7 @@ constexpr unsigned int file_config = 0;
 constexpr unsigned int file_tray = 1;
 constexpr unsigned int file_util = 2;
 constexpr unsigned int file_cntrs1 = 3;
+constexpr unsigned int file_status = 4;
 constexpr unsigned int file_tempsensor = 5;
 constexpr unsigned int file_wifi_ssid = 6;
 constexpr unsigned int file_wifi_pwd = 7;
@@ -13,6 +14,13 @@ constexpr unsigned int file_wifi_net = 8;
 constexpr unsigned int file_directory_len = 9;
 
 namespace kotel {
+
+enum class ErrorCode: uint8_t {
+    no_error = 0,   
+    stop_low_temp = 1,  
+    motor_high_temp = 2,    
+};
+
 
 struct Config {
     uint8_t feeder_on_sec = 5; //doba zapnuti podavace v sec
@@ -33,10 +41,15 @@ struct Config {
 
 
 struct Tray {
-    uint32_t feeder_time = 0;       //cisty cas podavace
+    uint32_t feeder_time = 0;       //cisty cas podavace (v sec)
     uint32_t tray_open_time = 0;    //cisty cas podavace, kdy doslo k otevreni zasobniku
-    uint32_t tray_empty_time = 0;   //cisty cas podavace, kdy zasobnik bude prazdny
-    uint32_t bag_consump_time = 0;  //cisty cas na spotrebu jednoho pytle
+    uint32_t tray_fill_time = 0;    //cisty cas podavace, kdy doslo k naplneni
+    uint16_t bag_consump_time = 0;  //cisty cas podavace na spotrebu jednoho pytle (max 18h)
+    uint16_t bag_fill_count = 0;    //celkove nalozeni v pytlech
+
+    constexpr uint32_t calc_tray_empty_time() const {
+        return tray_fill_time + bag_fill_count * bag_consump_time;
+    }
 };
 
 struct Utilization {
@@ -53,6 +66,11 @@ struct Counters1 {
     uint32_t attent_count = 0;        //pocet utlumu
     uint32_t long_attents_count;     //pocet dlouhych utlumu (spusteni na chvili)
 };
+
+struct Status {
+    ErrorCode error = ErrorCode::no_error;             
+};
+
 /*
 struct Counters2 {
 };
@@ -88,14 +106,17 @@ union StorageSector {
     Tray tray;
     Utilization util;
     Counters1 cntr1;
+    Status status;
 //  Counters2 cntr2;
     TempSensor tempsensor;
     WiFi_NetSettings wifi_cfg;
+
 
     StorageSector() {}
     ~StorageSector() {}
 };
 
+static_assert(sizeof(StorageSector) <= 20);
 
 /* rezim kalibrace:
  *

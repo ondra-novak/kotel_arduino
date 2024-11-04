@@ -82,10 +82,10 @@ protected:
             if (a) {
                 _start_time = cur_time;
                 ++_storage.cntr1.feeder_start_count;
-                _storage.update(_storage.cntr1);
+                _storage.save();
             } else {
                 _storage.tray.feeder_time += cur_time - _start_time;
-                _storage.update(_storage.cntr1);
+                _storage.save();
             }
             digitalWrite(pin_out_feeder_on, a?active_feeder:inactive_feeder);
             _active = a;

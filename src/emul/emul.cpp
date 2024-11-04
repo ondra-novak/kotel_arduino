@@ -77,6 +77,7 @@ struct Command {
         serial,
         wifi,
         reset,
+        clear_error,
         unknown
     };
     unsigned long timestamp = 0;
@@ -93,6 +94,7 @@ constexpr std::pair<Command::Type, std::string_view> command_str_map[] = {
         {Command::serial,"serial"},
         {Command::wifi,"wifi"},
         {Command::reset,"reset"},
+        {Command::clear_error, "clear_error"},
         {Command::motor_high_temp_on,"motor_high_temp_on"},
         {Command::motor_high_temp_off,"motor_high_temp_off"},
 
@@ -145,6 +147,9 @@ bool fetch_command(Command &cmd, std::istream &stream) {
 static double simspeed = 1.0;
 static std::pair<double,double> smooth_start_temp = {0.0,0.0};
 static unsigned long smooth_start_time = 0;
+bool state_tray_open = false;
+bool state_motor_temp_ok = true;
+
 
 std::pair<double, double> parse_temp_pair(const std::string &arg) {
     char *x;
@@ -182,6 +187,9 @@ void process_command(const Command &cmd) {
             std::destroy_at(&kotel::controller);
             new(&kotel::controller) kotel::Controller;
             kotel::controller.begin();
+            break;
+        case Command::clear_error:
+            kotel::controller.clear_error();
             break;
         default:break;
     }
@@ -268,5 +276,9 @@ void pinMode(int pin, int mode) {
 }
 
 int digitalRead(int pin) {
-    return pin==6?HIGH:LOW;
+    switch (pin) {
+        case kotel::pin_in_motor_temp: return state_motor_temp_ok?HIGH:LOW;
+        case kotel::pin_in_tray: return state_tray_open?HIGH:LOW;
+        default:return HIGH;
+    }
 }

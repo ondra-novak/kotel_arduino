@@ -66,7 +66,7 @@ public:
         if (_start_time == 0) {
             _start_time = now;
             ++_stor.cntr1.fan_start_count;
-            _stor.update(_stor.cntr1);
+            _stor.save();
         }
         if (_mode != mode) {
             _mode = mode;
@@ -110,7 +110,7 @@ protected:
     void record_stop() {
         _stor.utlz.fan_time += get_current_timestamp() - _start_time;
         _start_time = 0;
-        _stor.update(_stor.utlz);
+        _stor.save();
     }
 
 
