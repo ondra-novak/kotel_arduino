@@ -76,6 +76,7 @@ struct Command {
         motor_high_temp_off,
         serial,
         wifi,
+        reset,
         unknown
     };
     unsigned long timestamp = 0;
@@ -91,6 +92,7 @@ constexpr std::pair<Command::Type, std::string_view> command_str_map[] = {
         {Command::tray_close,"tray_close"},
         {Command::serial,"serial"},
         {Command::wifi,"wifi"},
+        {Command::reset,"reset"},
         {Command::motor_high_temp_on,"motor_high_temp_on"},
         {Command::motor_high_temp_off,"motor_high_temp_off"},
 
@@ -175,6 +177,11 @@ void process_command(const Command &cmd) {
         case Command::wifi:
             if (cmd.arg == "0") simul_wifi_set_state(false);
             else simul_wifi_set_state(true);
+            break;
+        case Command::reset:
+            std::destroy_at(&kotel::controller);
+            new(&kotel::controller) kotel::Controller;
+            kotel::controller.begin();
             break;
         default:break;
     }

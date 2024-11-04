@@ -1,0 +1,3 @@
+[submodule "src/DotMatrix"]
+	path = src/DotMatrix
+	url = https://github.com/ondra-novak/arduino_r4_dot_matrix.git

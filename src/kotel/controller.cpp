@@ -19,6 +19,7 @@ Controller::Controller()
 }
 
 void Controller::begin() {
+    _storage.begin();
     _temp_sensors.begin();
     _display.begin();
     _scheduler.reschedule();

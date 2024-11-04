@@ -1,0 +1,4 @@
+0 serial wifi.ssid=aaaa&wifi.password=xyz
++1 reset
++2 serial /c
++1000 reset

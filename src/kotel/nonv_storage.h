@@ -77,7 +77,8 @@ public:
         wifi_config = x;
     }
 
-    Storage() {
+    void begin() {
+        _eeprom.begin();
         _eeprom.read_file(file_config, config);
         _eeprom.read_file(file_tray, tray);
         _eeprom.read_file(file_util, utlz);
