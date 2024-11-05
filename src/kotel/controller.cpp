@@ -13,7 +13,8 @@ Controller::Controller()
         ,_temp_sensors(_storage)
         ,_wifi_mon(_storage)
         ,_display(*this)
-        ,_scheduler({&_feeder, &_fan, &_temp_sensors, &_wifi_mon, &_display, &_pump})
+        ,_motoruntime(*this)
+        ,_scheduler({&_feeder, &_fan, &_temp_sensors, &_wifi_mon, &_display, &_motoruntime})
 {
 
 }
@@ -31,8 +32,7 @@ void Controller::run() {
     control_pump();
     if (_is_stop || !_sensors.motor_temp_monitor
             || _sensors.tray_open
-            || !_temp_sensors.get_output_temp().has_value()
-            || *(_temp_sensors.get_output_temp()) >= static_cast<float>(_storage.config.output_max_temp)) {
+            || !_temp_sensors.get_output_temp().has_value()) {
         run_stop_mode();
     } else if (_storage.config.operation_mode == 0) {
         run_manual_mode();
@@ -48,17 +48,17 @@ void Controller::run() {
 
 
 static constexpr std::pair<const char *, uint8_t Config::*> config_table[] ={
-        {"fan_power_pct", &Config::fan_power_pct},
+        {"fan.power_pct", &Config::fan_power_pct},
+        {"fan.rundown_sec", &Config::fan_rundown_sec},
+        {"feeder.first_on_sec", &Config::feeder_first_on_sec},
+        {"feeder.on_sec", &Config::feeder_on_sec},
+        {"feeder.off_sec", &Config::feeder_off_sec},
+        {"temperature.max_output_max", &Config::output_max_temp},
+        {"temperature.min_input", &Config::input_min_temp},
+        {"temperature.pump_on", &Config::pump_temp},
+        {"attenuation.max_minutes", &Config::max_atten_min},
         {"default_bag_count", &Config::default_bag_count},
-        {"fan_rundown_sec", &Config::fan_rundown_sec},
-        {"feeder_first_on_sec", &Config::feeder_first_on_sec},
-        {"feeder_on_sec", &Config::feeder_on_sec},
-        {"feeder_off_sec", &Config::feeder_off_sec},
-        {"input_min_temp", &Config::input_min_temp},
-        {"max_atten_min", &Config::max_atten_min},
         {"operation_mode", &Config::operation_mode},
-        {"output_max_temp", &Config::output_max_temp},
-        {"pump_temp", &Config::pump_temp},
 };
 
 template<typename X>
@@ -133,7 +133,7 @@ static constexpr std::pair<const char *, uint32_t Tray::*> tray_table[] ={
 
 static constexpr std::pair<const char *, uint16_t Tray::*> tray_table_2[] ={
         {"tray.bag_fill_count", &Tray::bag_fill_count},
-        {"tray.bag_consump_time", &Tray::bag_consump_time}
+        {"tray.bag_consumption_time", &Tray::bag_consump_time}
 };
 
 static constexpr std::pair<const char *, uint32_t Utilization::*> utilization_table[] ={
@@ -181,12 +181,12 @@ void Controller::config_out(Stream &s) {
     print_table(s, tempsensor_table_2, _storage.temp);
     print_table(s, wifi_ssid_table, _storage.wifi_ssid);
     print_table(s, wifi_netcfg_table, _storage.wifi_config);
+    print_table(s, tray_table_2, _storage.tray);
 }
 
 void Controller::stats_out(Stream &s) {
 
     print_table(s, tray_table, _storage.tray);
-    print_table(s, tray_table_2, _storage.tray);
     print_table(s, utilization_table, _storage.utlz);
     print_table(s, counters1_table, _storage.cntr1);
     s.print("eeprom_checksum_error=");
@@ -202,7 +202,7 @@ bool parse_to_field_uint(UINT &fld, std::string_view value) {
         v = v * 10 + (c - '0');
         if (v > max) return false;
     }
-    fld  = static_cast<uint8_t>(v);
+    fld  = static_cast<UINT>(v);
     return true;
 }
 
@@ -269,7 +269,8 @@ bool Controller::config_update(std::string_view body, std::string_view &&failed_
 
     do {
         auto value = split(body, "&");
-        auto key = split(value, "=");
+        auto key = trim(split(value, "="));
+        value = trim(value);
         bool ok = update_settings(config_table, _storage.config, key, value)
                 || update_settings(tempsensor_table_1, _storage.temp, key, value)
                 || update_settings(tempsensor_table_2, _storage.temp, key, value)
@@ -356,16 +357,19 @@ void Controller::run_auto_mode() {
                     *_temp_sensors.get_input_temp():output_temp;   //fallback if one temp is failed
 
     float min_temp = static_cast<float>(_storage.config.stop_temp);
-    float attent_temp = static_cast<float>(_storage.config.input_min_temp+2);
+    float max_temp = static_cast<float>(_storage.config.output_max_temp);
+    float attent_temp = static_cast<float>(_storage.config.input_min_temp);
 
     if (!_auto_stop_disabled && (output_temp<min_temp || input_temp < min_temp)) {
         _is_stop = true;
         return;
     }
 
+    bool over_temp = input_temp >=attent_temp || (!_auto_stop_disabled && input_temp > output_temp) || output_temp >= max_temp;
+
     if (_attenuation) {
         _auto_stop_disabled = false;
-        if (input_temp > _storage.config.input_min_temp) {
+        if (over_temp) {
             //stay here
             return;
         }
@@ -373,7 +377,7 @@ void Controller::run_auto_mode() {
         _feeder.set_mode(_scheduler, Feeder::cycle_after_atten);
         _fan.set_mode(_scheduler, Fan::running);
     } else {
-        if (input_temp >=attent_temp) {
+        if (over_temp) {
             _attenuation = true;
             _feeder.set_mode(_scheduler, Feeder::stop);
             _fan.set_mode(_scheduler, Fan::run_away);
@@ -392,6 +396,17 @@ void Controller::run_other_mode() {
 void Controller::run_stop_mode() {
     _feeder.set_mode(_scheduler, Feeder::stop); //force stop all the time
     _fan.set_mode(_scheduler, Fan::stop);
+}
+
+int Controller::calc_tray_remain() const {
+    if (_storage.tray.tray_fill_time > _storage.tray.feeder_time) return -1;
+    if (_storage.tray.bag_consump_time == 0) return -1;
+    auto total = static_cast<uint32_t>(_storage.tray.bag_fill_count)
+                      * static_cast<uint32_t>(_storage.tray.bag_consump_time);
+    auto end = _storage.tray.tray_fill_time + total;
+    if (_storage.tray.feeder_time > end) return 0;
+    auto rmn = end - _storage.tray.feeder_time;
+    return rmn / _storage.tray.bag_consump_time;
 }
 
 }

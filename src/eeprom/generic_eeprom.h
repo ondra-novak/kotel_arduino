@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <string.h>
 
-
 template<unsigned int sector_data_size,
          unsigned int directory_size,
          unsigned int page_size,
@@ -13,54 +12,54 @@ template<unsigned int sector_data_size,
 class EEPROM {
 public:
 
-    static constexpr unsigned int log2(unsigned int x) {
-        unsigned int c = 0;
-        while (x) {++c; x = x >> 1;}
-        return c;
-    }
-
-    struct HeaderType {
-        uint16_t tag = 0xFFFF;
-        uint16_t crc = 0xFFFF;
-        bool operator==(const HeaderType &other) const {
-            return tag == other.tag && crc == other.crc;
-        }
-        bool operator!=(const HeaderType &other) const {
-            return !operator==(other);
-        }
+    enum class SectorType: uint8_t {
+        free = 0xFF,
+        file = 0xFE,
+        tombstone = 0xFC
     };
 
-    static constexpr unsigned int header_size_bits = sizeof(
-            decltype(std::declval<HeaderType>().tag)) * 8;
+    using FileNr = uint8_t;
+
+    static_assert(directory_size <= 256, "256 is hard limit");
+
+    struct HeaderType {
+        SectorType type = SectorType::free;
+        FileNr file_nr = 0xFF;
+        uint16_t crc = 0xFFFF;
+    };
+
+    static constexpr bool is_tombstone(uint16_t x) {
+        return x & 1;
+    }
+
+    static constexpr unsigned int get_file_no(uint16_t x) {
+        return x >> 1;
+    }
+
+    static constexpr uint16_t get_file_no_and_flags(int fileno, bool tombstone) {
+        return static_cast<uint16_t>((fileno << 1) | (tombstone?1:0));
+    }
 
     static constexpr unsigned int sector_size = sector_data_size + sizeof(HeaderType);
-    static constexpr unsigned int file_nr_bits = log2(directory_size);
     static constexpr unsigned int sectors_per_page = page_size / sector_size;
     static constexpr unsigned int page_count = eeprom_size/page_size;
     static constexpr unsigned int total_sectors = sectors_per_page * page_count;
-    static constexpr unsigned int rev_bits = header_size_bits - file_nr_bits;
-    static constexpr HeaderType free_sector = {};
-    static constexpr auto file_nr_mask = free_sector.tag >> (rev_bits);
-    static constexpr auto rev_mask = free_sector.tag >> file_nr_bits;
+    static constexpr uint16_t free_sector = 0xFFFF;
     static constexpr unsigned int file_nr_shift = 0;
-    static constexpr unsigned int rev_shift = file_nr_bits;
-    static constexpr unsigned int total_files = file_nr_mask;
-    static constexpr unsigned int data_size = sector_data_size;
+    static constexpr unsigned int total_files = directory_size;
 
-    using SectorIndex = std::conditional_t<(total_sectors >= 256),uint16_t,uint8_t>;
-    using PageIndex = std::conditional_t<(page_count >= 256),uint16_t,uint8_t>;
-    using RevisionNr = std::conditional_t<(rev_bits > 8),uint16_t,uint8_t>;
-    using FileNr = std::conditional_t<(file_nr_bits > 8),uint16_t,uint8_t>;
+    using SectorIndex = uint16_t;
+    using PageIndex = uint8_t;
     using BlockSize = decltype(std::declval<BlockDevice>().get_erase_size());
     using FlashAddr = BlockSize;
 
     static constexpr SectorIndex invalid_sector = ~SectorIndex{};
 
-    static_assert(rev_mask >= 2*total_sectors, "Too many files or small sectors");
+    static_assert(directory_size <= total_sectors - 2*sectors_per_page, "Files must be less than available sectors minus two pages (two pages are reserved)");
 
     struct Sector {
-        HeaderType header = free_sector;
-        char data[data_size];
+        HeaderType header;
+        char data[sector_data_size];
         constexpr Sector() {
             for (char &x: data) x = '\xFF';
         }
@@ -68,57 +67,89 @@ public:
         operator T() const {
             static_assert(sizeof(T) <= sizeof(data));
             return *reinterpret_cast<const T *>(data);
-
         }
-
     };
 
     struct FileInfo {
         SectorIndex sector = invalid_sector;
-        RevisionNr revision = {};
-    };
-
-    struct SectorInfo {
-        FileNr file_nr;
-        RevisionNr revision;
     };
 
 
     ///construct object
-    /** @param dev Reference to block device */
+    /** @param dev Reference to block device
+     *
+     * @note don't forget to call begin()!
+     *
+     * */
     constexpr EEPROM(BlockDevice &dev):_flash_device(dev) {}
 
     ///construct object
-    /** uses current instance of block device */
+    /** uses current instance of block device
+     *
+     * @note don't forget to call begin()!
+     *
+     * */
     constexpr EEPROM(): EEPROM(BlockDevice::getInstance()) {}
 
+
+    ///Initialize object, load and build metadata
     void begin() {
         rescan();
     }
 
     ///rescan flash device and build file allocation table
     void rescan() {
+
+        /* flash area is split into two areas
+         * the 1st area is after empty page
+         * the 2nd area is before empty page
+         *
+         * If the empty page is the first, there is no the 2nd area
+         * if the empty page is the last, there is no the 1st area
+         *
+         * Revisions are go from oldest to newest in both areas. However
+         * the 2nd area is newer then 1st area.
+         *
+         * When scanning sectors, sector of files before empty page has
+         * higher priority. Any file found there is recorded even if
+         * already exists (because new sector is second area is newer revision);
+         *
+         * When scanning sectors after empty page, already existing files
+         * are not overwritten because this area contains older revisions..
+         * However files found new in this area are updated during
+         * processing this area
+         *
+         *
+         */
+        uint8_t file_tracker[directory_size] = {};
+        //current area (we starting by 2, then by 1
+        /* the numbering is because 0 is "not found" which is "like 3rd area" */
+        uint8_t cur_area = 2;
+        //scan error can cause, when no empty page is found or created
         _error = false;
+
+        //
         SectorIndex last_used = total_sectors-1;
-        for (FileNr i = 0; i < total_files; ++i) {
+        for (unsigned int i = 0; i < total_files; ++i) {
             _files[i].sector = invalid_sector;
         }
         bool free_found = false;
         for (SectorIndex i = 0; i < total_sectors; ++i) {
             Sector sec = read_sector(i);
-            if (sec.header == free_sector) {
+            if (sec.header.type == SectorType::free) {
                 if (!free_found) {
                     _first_free_sector = i;
+                    cur_area = 1;
                     free_found = true;
                 }
             } else {
                 auto crc = calc_crc_sector(sec);
                 if (crc == sec.header.crc) {
-                    SectorInfo nfo = parse_header(sec.header);
-                    FileInfo &f = _files[nfo.file_nr];
-                    if (f.sector == invalid_sector || is_newer(nfo.revision, f.revision)) {
-                        f.sector = i;
-                        f.revision = nfo.revision;
+                    bool tombstone = sec.header.type == SectorType::tombstone;
+                    auto fno = sec.header.file_nr;
+                    if (file_tracker[fno] <= cur_area) {
+                        file_tracker[fno] = cur_area;
+                        _files[fno].sector = tombstone?invalid_sector:i;
                     }
                     last_used = i;
                 } else {
@@ -127,24 +158,37 @@ public:
             }
         }
         if (free_found) {
+            //if first free sector is sector 0 and there is at least some sectors at the end
             if (_first_free_sector == 0 && (last_used + 1U < total_sectors)) {
-                _first_free_sector = last_used + 1;
+                //we can continue write after last sector
+                _first_free_sector = last_used + 1U;
+                //and free page is first
                 _first_free_page = 0;
             } else {
+                //otherwise free page is next page relative to first free sector
+                //unless first free sector is at the beginning of the
+                //page, then free page is same page where the first free sector is
                 _first_free_page = ((_first_free_sector + sectors_per_page -1) / sectors_per_page) % page_count;
             }
 
 
         } else {
+            //when no free sector found,
+            //then page could not be erased because power failure
+            //we can find some empty page by reading metadata
             auto p = find_unused_page();
+            //if free page was not found, this is error and we can't continue
             if (p == ~PageIndex{}) {
                 _error = true;
                 return ;
             } else {
-                _first_free_page = find_unused_page();
+                //mark free page
+                _first_free_page = p;
+                //mark free sector
                 _first_free_sector = _first_free_page * sectors_per_page;
             }
         }
+        //always erase selected free page (ensure, that page is really erased)
         erase_page(_first_free_page);
     }
 
@@ -156,8 +200,8 @@ public:
      * @retval false not found
      */
     template<typename T>
-     bool read_file(FileNr id, T &out_data) {
-        static_assert(sizeof(T) <= data_size && std::is_trivially_copy_constructible_v<T>);
+     bool read_file(unsigned int id, T &out_data) {
+        static_assert(sizeof(T) <= sector_data_size && std::is_trivially_copy_constructible_v<T>);
         if (id >= total_files) return false;
         //find file in file table
         FileInfo &f = _files[id];
@@ -187,14 +231,16 @@ public:
      * @retval false invalid file id
      */
     template<typename T>
-     bool write_file(FileNr id, const T &data) {
-        static_assert(sizeof(T) <= data_size && std::is_trivially_copy_constructible_v<T>);
+     bool write_file(unsigned int id, const T &data) {
+        static_assert(sizeof(T) <= sector_data_size && std::is_trivially_copy_constructible_v<T>);
         //create new sector
         Sector s;
+        s.header.file_nr = id;
+        s.header.type = SectorType::file;
         //copy data
         memcpy(s.data, &data, sizeof(T));
-
-        return write_file_sector(id, s);
+        //write
+        return write_file_sector(s);
     }
 
     ///Update file
@@ -211,56 +257,81 @@ public:
      */
 
     template<typename T>
-    bool update_file(FileNr id, const T &data) {
-        static_assert(sizeof(T) <= data_size && std::is_trivially_copy_constructible_v<T>);
-
+    bool update_file(unsigned int id, const T &data) {
+        static_assert(sizeof(T) <= sector_data_size && std::is_trivially_copy_constructible_v<T>);
+        //id out of range
         if (id >= total_files) return false;
+
         auto cur_sector = _files[id].sector;
-        if (cur_sector == invalid_sector) return write_file(id, data);
-        const char *new_bytes = reinterpret_cast<const char *>(&data);
-        Sector cur = read_sector(cur_sector);
-        bool need_write = false;
-        for (unsigned int i = 0; i < sizeof(T); ++i) {
-            need_write = need_write || (cur.data[i] != new_bytes[i]);
-            char r = cur.data[i] & new_bytes[i];
-            if (r != new_bytes[i]) {
-                memcpy(cur.data, new_bytes, sizeof(T));
-                return write_file_sector(id, cur);
+        //file must exists
+        if (cur_sector != invalid_sector) {
+            //read current sector
+            Sector cur = read_sector(cur_sector);
+            //must have valid crc
+            if (cur.header.crc == calc_crc_sector(cur)) {
+                //compare bytes
+                const char *new_bytes = reinterpret_cast<const char *>(&data);
+                if (std::equal(new_bytes, new_bytes+sizeof(T), cur.data)) {
+                    //bytes equal, no write is needed
+                    return true;
+                }
             }
-            cur.data[i] = r;
         }
-        if (need_write) {
-            //so we successfully merged without need to erase
-            cur.header.crc = calc_crc_sector(cur);
-            write_sector(cur_sector, cur);
-        }
-        return true;
+        //write new revision
+        return write_file(id, data);
     }
 
     ///Lists all active revisions of a file
     /**
      * This function can be used to retrieve old revision if they were not deleted.
-     * Function must scan whole eeprom to find all revisions (slow)
+     * Function must scan whole eeprom to find all revisions (slow).
+     *
+     * Revisions are ordered from oldest to newest
      *
      * @param id file id
-     * @param fn function receives revision id and content - you can read it
+     * @param fn function receives content - you can read it
      * as const T & or as Sector
      *
-     * @note result is not ordered, you need to order it by revision id. You can use
-     * is_newer function for ordering
+     *
+     *
      */
     template<typename Fn>
-    void list_revisions(FileNr id, Fn &&fn) {
-        static_assert(std::is_invocable_v<Fn, RevisionNr, const Sector &>);
-        for (SectorIndex idx = 0; idx < total_sectors; ++idx) {
+    void list_revisions(unsigned int id, Fn &&fn) {
+        //check type of lambda function
+        static_assert(std::is_invocable_v<Fn, const Sector &>, "void(const Sector &)");
+        //start oldest area
+        PageIndex start_page = _first_free_page + 1;
+        auto idx = start_page * sectors_per_page;
+        //until end
+        while (idx < total_sectors) {
             Sector s = read_sector(idx);
-            SectorInfo snfo = parse_header(s.header);
-            if (snfo.file_nr == id) {
-                fn(snfo.revision, s);
+            //read sector, check type and check file nr
+            if (s.header.type == SectorType::file && s.header.file_nr == id
+                    //and crc
+                    && s.header.crc == calc_crc_sector(s)) {
+                //then report
+               fn(s);
             }
+            ++idx;
+        }
+        //calculate end of second area
+        auto idx_end = _first_free_page * sectors_per_page;
+        //start by sector 0
+        idx = 0;
+        while (idx < idx_end) {
+            Sector s = read_sector(idx);
+            //read sector, check type and check file nr
+            if (s.header.type == SectorType::file && s.header.file_nr == id
+                    //and crc
+                    && s.header.crc == calc_crc_sector(s)) {
+                //then report
+               fn(s);
+            }
+            ++idx;
         }
     }
 
+    ///return true after begin() if eeprom is in error state
     constexpr bool is_error() const {
         return _error;
     }
@@ -275,17 +346,53 @@ public:
         return _crc_errors;
     }
 
-    ///Determines whether file is newer depend on revision
+    ///Erase file - so file appears erased
     /**
-     * @param n new file revision
-     * @param o old file revision
-     * @retval true n is newer
-     * @retval false n is not newer
+     * @param id file number
+     * @retval true file erased
+     * @retval false file not erased
+     *
+     * @note erased file may be not erased now, but eventually it is erased
+     * during wear leveling
      */
-     constexpr bool is_newer(RevisionNr n, RevisionNr o) {
-        RevisionNr diff = n - o;
-        return diff < (rev_mask >> 1);
+    bool erase_file(unsigned int id) {
+        //id out of range
+        if (id >= total_files) return false;
+        //file isn't deleted
+        if (_files[id].sector != invalid_sector) {
+            //write tombstone
+            Sector s;
+            s.header.file_nr = id;
+            s.header.type = SectorType::tombstone;
+            write_file_sector(s);
+        }
+        return true;
     }
+
+    ///returns count active files
+    unsigned int file_count() const {
+        unsigned int cnt = 0;
+        for (const auto &x: _files) {
+            if (x.sector != invalid_sector) ++cnt;
+        }
+        return cnt;
+    }
+
+    ///returns size occupied by files (including headers)
+    unsigned int size() const {
+        return file_count() * sector_size;
+    }
+
+    ///returns size of data
+    unsigned int data_size() const {
+        return file_count() * sector_data_size;
+    }
+
+    ///returns whether it is empty
+    bool empty() const {
+        return file_count() == 0;
+    }
+
 protected:
 
     BlockDevice &_flash_device;
@@ -303,21 +410,6 @@ protected:
         return s;
     }
 
-    ///Parses sector header
-     constexpr SectorInfo parse_header(HeaderType h) {
-        SectorInfo ret = {};
-        ret.file_nr = static_cast<FileNr>((h.tag >> file_nr_shift) & file_nr_mask);
-        ret.revision = static_cast<RevisionNr>((h.tag >> rev_shift) & rev_mask);
-        return ret;
-    }
-
-    ///Composes sector header
-     constexpr uint16_t compose_header_tag(const SectorInfo &nfo) {
-        return
-            static_cast<uint16_t>((static_cast<uint16_t>(nfo.file_nr & file_nr_mask) << file_nr_shift)
-            | (static_cast<uint16_t>(nfo.revision & rev_mask) << rev_shift));
-
-    }
 
 
     ///Finds unused page
@@ -332,7 +424,7 @@ protected:
      */
      constexpr PageIndex find_unused_page() const {
         bool page_map[page_count] = {};
-        for (FileNr i = 0 ; i < total_files; i++) {
+        for (unsigned int i = 0 ; i < total_files; i++) {
             const FileInfo &f = _files[i];
             if (f.sector != invalid_sector) {
                 PageIndex idx = f.sector / sectors_per_page;
@@ -396,20 +488,15 @@ protected:
      * @param exclude_file_nr file number to not copy
      * @return
      */
-     bool copy_page_except_file(PageIndex from_page, FileNr exclude_file_nr) {
+     bool copy_page_except_file(PageIndex from_page, unsigned int exclude_file_nr) {
         SectorIndex page_sector = from_page * sectors_per_page;
         bool found = false;
-        for (FileNr i = 0; i < total_files; ++i) {
+        for (unsigned int i = 0; i < total_files; ++i) {
             if (i != exclude_file_nr) {
                 FileInfo &f = _files[i];
                 if (f.sector >= page_sector && f.sector <= page_sector+sectors_per_page) {
                     Sector s = read_sector(f.sector);
-                    SectorInfo sinfo = parse_header(s.header);
-                    ++sinfo.revision;
-                    s.header.tag = compose_header_tag(sinfo);
-                    s.header.crc = calc_crc_sector(s);
                     SectorIndex new_s = append_sector(s);
-                    f.revision = sinfo.revision;
                     f.sector = new_s;
                 }
             } else {
@@ -428,8 +515,9 @@ protected:
         return _first_free_sector / sectors_per_page == _first_free_page;
     }
 
-     bool write_file_sector(FileNr id, Sector &s) {
+     bool write_file_sector(Sector &s) {
 
+        FileNr id = s.header.file_nr;
         if (id >= total_files) return false;
         FileInfo &f = _files[id];
         //check whether we need to create new page (next sector is on empty buffer page)
@@ -450,13 +538,11 @@ protected:
                 //and repeat process
             }
         }
-        //increase revision
-        ++f.revision;
-        //create header
-        s.header.tag = compose_header_tag({id,f.revision});
         s.header.crc = calc_crc_sector(s);
         //write sector and retrieve its index
         f.sector = append_sector(s);
+        //if sector type is tombstone, this means that file is deleted
+        if (s.header.type == SectorType::tombstone) f.sector = invalid_sector;
         //if we create free page, erase it now
         if (erase_at_end) erase_page(_first_free_page);
         //success
@@ -490,8 +576,6 @@ protected:
 
      static constexpr uint16_t calc_crc_sector(const Sector &sec) {
          uint16_t res = 0xFFFF;
-         res = crc16_update(res, sec.header.tag >> 8);
-         res = crc16_update(res, sec.header.tag & 0xFF);
          for (uint8_t x: sec.data) {
              res = crc16_update(res, x);
          }
@@ -499,3 +583,4 @@ protected:
      }
 
 };
+

@@ -7,6 +7,7 @@
 
 #include <DotMatrix.h>
 
+#include <optional>
 namespace kotel {
 
 
@@ -20,7 +21,7 @@ public:
     static constexpr Driver dot_driver = {};
 
     static constexpr unsigned int first_line = 0;
-    static constexpr unsigned int second_line = 0;
+    static constexpr unsigned int second_line = 7;
 
 
 
@@ -29,10 +30,10 @@ public:
     void begin() {
         DotMatrix::enable_auto_drive(dot_driver, display_state, frame_buffer);
     }
-   
+
     virtual TimeStampMs get_scheduled_time() const override;
     virtual void run(TimeStampMs cur_time) override;
-    
+
     /* {
         _next_change = cur_time + 1000;
         if (_ec) {
@@ -69,32 +70,13 @@ protected:
     const Controller &_cntr;
 
     TimeStampMs _next_change = 0;
+    bool _alternate = false;
+    bool _alternate_enable = false;
+    uint8_t _anim_phase = 0;
     using TR = DotMatrix::TextRender<>;
+    bool _wifi_shown = false;
 
-    void print_temp(std::uint8_t line, std::optional<float> numb) {
-        char txtbuf[3] = {};
-        if (numb.has_value()) {
-
-            int v = static_cast<int>(*numb+0.5f);
-            if (v > 99) {
-                txtbuf[0] = '1';
-                txtbuf[1] = '#';
-            } else if (v < -9) {
-                txtbuf[0] = '-';
-                txtbuf[1] = '9';
-            } else {
-                txtbuf[0] = v/10+'0';
-                txtbuf[1] = v%10+'0';
-            }
-
-        } else {
-            txtbuf[0] = '-';
-            txtbuf[1] = '-';
-        }
-
-        TR::render_text(frame_buffer, DotMatrix::font_5x3, 0, line, {txtbuf,2});
-    }
-
+    void print_temp(std::uint8_t line, std::optional<float> numb);
     void print_error(uint8_t line, ErrorCode code) {
         char txt[] = "E?";
         txt[1] = '0' + static_cast<uint8_t>(code);

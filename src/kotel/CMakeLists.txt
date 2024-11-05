@@ -5,6 +5,7 @@ set(COMMON_FILES
     http_server.cpp
     controller.cpp    
     display_control.cpp
+    motoruntime.cpp
 )
 
 

@@ -12,6 +12,8 @@
 #include "sensors.h"
 
 #include "pump.h"
+
+#include "motoruntime.h"
 namespace kotel {
 
 //controller
@@ -39,6 +41,15 @@ public:
     bool is_stop() const {return _is_stop;}
     bool is_manual() const {return _storage.config.operation_mode == 0;}
     bool is_tray_open() const {return _sensors.tray_open;}
+    bool is_wifi() const {return _wifi_mon.is_connected();}
+    auto get_input_temp() const {return _temp_sensors.get_input_temp();}
+    auto get_output_temp() const {return _temp_sensors.get_output_temp();}
+    bool is_feeder_on() const {return _feeder.is_active();}
+    bool is_pump_on() const {return _pump.is_active();}
+    bool is_fan_on() const {return _fan.is_active();}
+    bool is_attenuation() const {return _attenuation;}
+    int calc_tray_remain() const;
+    Storage &get_storage() {return _storage;}
 
 protected:
     Sensors _sensors;
@@ -53,6 +64,7 @@ protected:
     TempSensors _temp_sensors;
     WiFiMonitor _wifi_mon;
     DisplayControl _display;
+    MotoRunTime _motoruntime;
     Scheduler<6> _scheduler;
 
 

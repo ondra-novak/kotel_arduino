@@ -63,6 +63,7 @@ void test_3_files() {
     constexpr uint64_t canary = 0xABABABABABABUL;
     {
         TestableEEProm<sector_size> eeprom(flash);
+        eeprom.begin();
         eeprom.write_file(0,canary);
         for (int i = 0; i < 10000; ++i) {
             eeprom.write_file(1, i);
@@ -82,6 +83,7 @@ void test_3_files() {
     }
     {
         TestableEEProm<sector_size> eeprom(flash);
+        eeprom.begin();
         int x;
         bool b = eeprom.read_file(1, x);
         CHECK(b);
@@ -95,20 +97,24 @@ void test_3_files() {
         CHECK_EQUAL(c,canary);
 
         if constexpr(sector_size == 28) {
-            eeprom.list_revisions(2, [r = 839,ctx = 9868](auto rev, int x) mutable {
-                CHECK_EQUAL(rev, r);
+            eeprom.list_revisions(2, [ctx = 9868](int x) mutable {
                 CHECK_EQUAL(ctx, x);
-                ++r;
                 ctx = ctx + 2;
             });
         } else if constexpr(sector_size == 20) {
-            eeprom.list_revisions(2, [r = 813,ctx = 9816](auto rev, int x) mutable {
-                CHECK_EQUAL(rev, r);
+            eeprom.list_revisions(2, [ctx = 9816](int x) mutable {
                 CHECK_EQUAL(ctx, x);
-                ++r;
                 ctx = ctx + 2;
             });
         }
+        eeprom.erase_file(0);
+        CHECK(!eeprom.read_file(0,c));
+    }
+    {
+        uint64_t c;
+        TestableEEProm<sector_size> eeprom(flash);
+        eeprom.begin();
+        CHECK(!eeprom.read_file(0,c));
     }
 }
 

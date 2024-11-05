@@ -54,6 +54,7 @@ void output_frame(const T &fb) {
         }
         log_line(ln);
     }
+    log_line("DISPLAY: --------");
 }
 
 

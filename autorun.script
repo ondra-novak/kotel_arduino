@@ -1,0 +1,14 @@
+0 serial operation_mode=0
+0 serial wifi.ssid=aaaa&wifi.password=xyz
+0 temp_set 20 20
++1 config temp_sensor.input.addr=01-FD-7D-45-38-FC-89-40&temp_sensor.output.addr=02-6D-38-D9-78-EF-00-1E
++1 config tray.bag_fill_count = 15
++1 config tray.bag_consumption_time = 3600
++1 config operation_mode=1
++1800 temp_smooth 25 41
++500 temp_smooth 35 36
++1800 temp_smooth 73 80
++2000 temp_smooth 58 70
++2000 temp_smooth 73 80
+
++1000 tray_open
