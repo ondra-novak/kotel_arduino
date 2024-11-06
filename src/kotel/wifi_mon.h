@@ -4,6 +4,8 @@
 #include <WiFiS3.h>
 namespace kotel {
 
+
+
 class WiFiMonitor: public AbstractTimedTask {
 public:
 

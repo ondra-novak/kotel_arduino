@@ -5,10 +5,11 @@
 +1 config tray.bag_fill_count = 15
 +1 config tray.bag_consumption_time = 3600
 +1 config operation_mode=1
-+1800 temp_smooth 25 41
-+500 temp_smooth 35 36
-+1800 temp_smooth 73 80
-+2000 temp_smooth 58 70
-+2000 temp_smooth 73 80
++800 temp_smooth 25 41
++200 temp_smooth 35 36
++800 temp_smooth 62 75
++100 temp_smooth 62 80
++200 temp_smooth 59 70
++800 temp_smooth 59 90
 
 +1000 tray_open

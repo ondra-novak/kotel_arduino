@@ -50,12 +50,15 @@ public:
     bool is_attenuation() const {return _attenuation;}
     int calc_tray_remain() const;
     Storage &get_storage() {return _storage;}
+    void set_wifi_used() {_wifi_used = true;}
+    bool is_wifi_used() const {return _wifi_used;}
 
 protected:
     Sensors _sensors;
 
     bool _auto_stop_disabled = false;
     bool _is_stop = false;
+    bool _wifi_used = false;
 
     Storage _storage;
     Feeder _feeder;

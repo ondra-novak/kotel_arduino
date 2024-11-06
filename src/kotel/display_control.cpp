@@ -9,38 +9,116 @@ namespace kotel {
     return _next_change;
 }
 
+constexpr DotMatrix::Bitmap<5,6> fann_anim[] = {
+        "  X  "
+        "  X  "
+        "XXXXX"
+        "  X  "
+        "  X  "
+        "     ",
+        " X   "
+        " X XX"
+        "  X  "
+        "XX X "
+        "   X "
+        "     ",
+        "X   X"
+        " X X "
+        "  X  "
+        " X X "
+        "X   X"
+        "     ",
+        "   X "
+        "X X  "
+        " XXX "
+        "  X X"
+        " X   "
+        "     ",
+};
+
+constexpr DotMatrix::Bitmap<3,6> feed_anim[] = {
+        " xx"
+        " x "
+        " x "
+        " xx"
+        " x "
+        " x ",
+        " x "
+        " x "
+        " xx"
+        " x "
+        " x "
+        " xx",
+        " x "
+        " xx"
+        " x "
+        " x "
+        " xx"
+        " x ",
+};
+
+
 void DisplayControl::run(TimeStampMs cur_time) {
+
+    if (!_scroll_text.empty()) {
+        TR::render_text(frame_buffer, DotMatrix::font_5x3, 8-_scroll_text_pos, 4, _scroll_text);
+        _scroll_text_pos++;
+        if (_scroll_text_pos > (_scroll_text.size()+3)*4) {
+            _scroll_text.clear();
+            _scroll_text_pos = 0;
+        }
+        _next_change = cur_time+100;
+        return;
+    }
     _next_change = cur_time + 125;
     ++_anim_phase;
-    bool f = _cntr.is_feeder_on();
-    auto f1 = f?(_anim_phase>>1) & 1:0;
-    auto f2 = f?(1-f1):0;
-    frame_buffer.set_pixel(6,5,f1);
-    frame_buffer.set_pixel(7,6,f1);
-    frame_buffer.set_pixel(6,6,f2);
-    frame_buffer.set_pixel(7,5,f2);
 
-    if (_alternate_enable && (_anim_phase & 0x7) == 0x7) {
-        frame_buffer.draw_box(0, second_line, 7, 12, 0);
-    }
-    if (_anim_phase & 0x7) return;
-    _alternate = !_alternate;
-    _alternate_enable = false;
-    if (_alternate) {
-        if (_cntr.is_wifi()) {
-            if (!_wifi_shown) {
-                icon_network_ok.draw(frame_buffer, 0, second_line);
-                _wifi_shown = true;
-                return;
-            }
+    auto phase_pos = _anim_phase & 0x7;
+    bool alternate = !(_anim_phase & 0x8);
+
+    if (!_cntr.is_attenuation() && (_cntr.is_feeder_on() || _cntr.is_fan_on())) {
+        if (_cntr.is_feeder_on()) {
+            auto p = _anim_phase%3;
+            feed_anim[p].draw(frame_buffer, 5,second_line);
         } else {
-            _wifi_shown = false;
-            _alternate_enable = true;
+            frame_buffer.draw_box(5, second_line, 7, 12,0);
+        }
+
+        if (_cntr.is_fan_on()) {
+            auto p = _anim_phase%4;
+            fann_anim[p].draw(frame_buffer, 0,second_line);
+        } else {
+            frame_buffer.draw_box(0, second_line, 5, 12,0);
+        }
+        main_temp();
+        return;
+    }
+
+    if (!_cntr.is_wifi()) {
+        if (phase_pos == 0) {
+            frame_buffer.draw_box(0,second_line,7,11,0);
+            return;
+        } else if (alternate) {
+            _show_wifi_on = 20;
             icon_no_network.draw(frame_buffer, 0, second_line);
+            main_temp();
             return;
         }
-    } else if (!_cntr.is_wifi()) {
-        _alternate_enable = true;
+    } else {
+        if (_show_wifi_on) {
+            icon_network_ok.draw(frame_buffer, 0, second_line);
+            --_show_wifi_on;
+            main_temp();
+        }
+    }
+
+    if (_cntr.is_stop() || _cntr.is_manual()) {
+        if (alternate && !_cntr.is_wifi_used()) {
+                char buff[100];
+                auto ip = WiFi.localIP();
+                sprintf(buff,"http://%s", ip.toString().c_str());
+                begin_scroll(buff);
+        }
     }
     if (_cntr.is_stop()) {
         TR::render_text(frame_buffer, DotMatrix::font_5x3, 0, first_line, "ST");
@@ -61,8 +139,11 @@ void DisplayControl::run(TimeStampMs cur_time) {
     }
     auto rmn = _cntr.calc_tray_remain();
     if (rmn <= 4 && rmn >= 0) {
-        _alternate_enable = true;
-        if (_alternate) {
+        if (phase_pos == 0) {
+            frame_buffer.draw_box(0,second_line,7,11,0);
+            return;
+        }
+        if (alternate) {
             main_temp();
             char buff[2];
             buff[0] = rmn + '0';
@@ -101,6 +182,13 @@ void DisplayControl::print_temp(std::uint8_t line, std::optional<float> numb) {
 
 void DisplayControl::main_temp() {
     print_temp(first_line, _cntr.get_output_temp());
+}
+
+void DisplayControl::begin_scroll(const std::string_view text) {
+    _scroll_text = text;
+    _scroll_text_pos = 0;
+    _anim_phase = 0;
+    frame_buffer.clear();
 }
 
 }

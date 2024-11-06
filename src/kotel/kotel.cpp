@@ -37,6 +37,7 @@ constexpr const char *response_header = "HTTP/1.1 200 OK\r\n"
         "\r\n";
 
 void handle_server(MyHttpServer::Request &req) {
+    controller.set_wifi_used();
     if (req.request_line.path == "/config") {
             if (req.request_line.method == HttpMethod::GET) {
                 req.client.print(response_header);

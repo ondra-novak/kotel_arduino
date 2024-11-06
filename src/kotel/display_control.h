@@ -70,11 +70,9 @@ protected:
     const Controller &_cntr;
 
     TimeStampMs _next_change = 0;
-    bool _alternate = false;
-    bool _alternate_enable = false;
     uint8_t _anim_phase = 0;
     using TR = DotMatrix::TextRender<>;
-    bool _wifi_shown = false;
+    uint8_t _show_wifi_on = 0;
 
     void print_temp(std::uint8_t line, std::optional<float> numb);
     void print_error(uint8_t line, ErrorCode code) {
@@ -83,7 +81,11 @@ protected:
         TR::render_text(frame_buffer, DotMatrix::font_5x3, 0, line, {txt,2});
     }
     void main_temp();
+    std::string _scroll_text;
+    uint8_t _scroll_text_pos = 0;
 
+
+    void begin_scroll(const std::string_view text);
 };
 
 
