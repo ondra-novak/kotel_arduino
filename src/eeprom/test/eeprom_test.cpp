@@ -96,13 +96,13 @@ void test_3_files() {
         CHECK(b);
         CHECK_EQUAL(c,canary);
 
-        if constexpr(sector_size == 28) {
-            eeprom.list_revisions(2, [ctx = 9868](int x) mutable {
+        if constexpr(sector_size == 30) {
+            eeprom.list_revisions(2, [ctx = 9854](int x) mutable {
                 CHECK_EQUAL(ctx, x);
                 ctx = ctx + 2;
             });
-        } else if constexpr(sector_size == 20) {
-            eeprom.list_revisions(2, [ctx = 9816](int x) mutable {
+        } else if constexpr(sector_size == 22) {
+            eeprom.list_revisions(2, [ctx = 9822](int x) mutable {
                 CHECK_EQUAL(ctx, x);
                 ctx = ctx + 2;
             });
@@ -123,8 +123,8 @@ void test_3_files() {
 
 int main() {
     test_3_files<32>();
-    test_3_files<28>();
-    test_3_files<20>();
+    test_3_files<30>();
+    test_3_files<22>();
 
 
 
