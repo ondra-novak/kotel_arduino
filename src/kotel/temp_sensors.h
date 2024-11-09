@@ -33,6 +33,7 @@ public:
     virtual void run(TimeStampMs cur_time) override {
         std::optional<float> rdtmp;
 
+
         switch (_state) {
             case State::start:
                 _next_read_time = cur_time+1;
@@ -106,7 +107,7 @@ public:
     }
 
     bool is_reading() const {
-        return  _state != State::wait;
+        return  _state != State::write_request;
     }
 
     bool is_emergency_temp() const {

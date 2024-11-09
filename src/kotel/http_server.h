@@ -1,3 +1,4 @@
+#pragma once
 #include "http_utils.h"
 #include <WiFiS3.h>
 
@@ -41,6 +42,7 @@ protected:
     HttpRequestLine _rl;
     int _body_size = -1;    //-1 reading header, 0 = no body, else size of body
     bool _body_trunc = false;
+    unsigned long read_timeout_tp = 0;
     std::pair<std::string_view, std::string_view>  _header_lines[max_header_lines];
 
     void parse_header();
@@ -67,10 +69,19 @@ inline typename  HttpServer<max_request_size, max_header_lines>::Request
     HttpServer<max_request_size, max_header_lines>::get_request() {
 
     Request ret {};
+    auto curtm = millis();
+    if (static_cast<long>(curtm - read_timeout_tp) > 0 && _active_client) {
+        reset_server();
+        _active_client.stop();
+        _active_client = {};
+    }
 
     if (!_active_client) {
         _active_client = _srv.available();
-        if (!_active_client) return ret;
+        if (!_active_client) {
+            return ret;
+        }
+        read_timeout_tp = curtm+5000;    //total timeout
     }
     int b = _active_client.read();
     while (b != -1) {

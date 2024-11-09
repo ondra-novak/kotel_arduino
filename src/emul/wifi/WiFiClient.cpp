@@ -102,7 +102,7 @@ void WiFiClient::stop() {
     _ctx->_connected = false;
 }
 
-uint8_t WiFiClient::connected() {
+uint8_t WiFiClient::connected() const {
     return _ctx->_connected?1:0;
 }
 

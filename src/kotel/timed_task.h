@@ -21,5 +21,23 @@ public:
     unsigned long _run_time = 0;
 };
 
+template<typename X, TimeStampMs (X::*task)(TimeStampMs cur_time)>
+class TimedTaskMethod: public AbstractTimedTask {
+public:
+
+    TimedTaskMethod(X *object):_object(object) {}
+    virtual TimeStampMs get_scheduled_time() const override {
+        return _next_call;
+    }
+    virtual void run(TimeStampMs cur_time) override {
+        _next_call = cur_time + ((*_object).*task)(cur_time);
+    }
+
+
+protected:
+    X *_object;
+    TimeStampMs _next_call = 0;
+};
+
 
 }

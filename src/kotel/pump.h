@@ -8,6 +8,10 @@ class Pump {
 public:
     Pump(Storage &stor):_stor(stor) {}
 
+    void begin() {
+        set_active(false);
+    }
+
     void set_active(bool a) {
         if (a != _active) {
             _active = a;

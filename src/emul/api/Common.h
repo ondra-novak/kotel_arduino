@@ -11,11 +11,12 @@ unsigned long millis();
 #define INPUT 1
 #define OUTPUT 2
 #define INPUT_PULLUP 3
+#define LED_BUILTIN 13
 
 void digitalWrite(int pin, int mode);
 int digitalRead(int pin);
 void pinMode(int pin, int mode);
-
+inline void delay(int) {}
 
 #define PSTR(x) (x)
 
@@ -37,5 +38,6 @@ class UART : public Stream{
 };
 
 extern UART Serial;
+
 
 

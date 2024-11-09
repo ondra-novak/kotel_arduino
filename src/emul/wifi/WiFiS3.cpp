@@ -53,3 +53,6 @@ IPAddress CWifi::gatewayIP() {
 const char *CWifi::SSID() {
     return "SimulatedAP";
 }
+std::int32_t CWifi::RSSI() {
+    return -10;
+}

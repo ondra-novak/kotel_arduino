@@ -67,7 +67,7 @@ void DisplayControl::run(TimeStampMs cur_time) {
             _scroll_text.clear();
             _scroll_text_pos = 0;
         }
-        _next_change = cur_time+100;
+        _next_change = cur_time+50;
         return;
     }
     _next_change = cur_time + 125;
@@ -112,21 +112,24 @@ void DisplayControl::run(TimeStampMs cur_time) {
         }
     }
 
-    if (_cntr.is_stop() || _cntr.is_manual()) {
-        if (alternate && !_cntr.is_wifi_used()) {
+    auto md = _cntr.get_drive_mode();
+
+    if (md != Controller::DriveMode::automatic) {
+        if (_anim_phase>50 && !_cntr.is_wifi_used()) {
                 char buff[100];
                 auto ip = WiFi.localIP();
                 sprintf(buff,"http://%s", ip.toString().c_str());
                 begin_scroll(buff);
+                return;
         }
     }
-    if (_cntr.is_stop()) {
+    if (md == Controller::DriveMode::stop) {
         TR::render_text(frame_buffer, DotMatrix::font_5x3, 0, first_line, "ST");
         TR::render_text(frame_buffer, DotMatrix::font_5x3, 0, second_line,
                 "OP");
         return;
     }
-    if (_cntr.is_manual()) {
+    if (md == Controller::DriveMode::manual) {
         main_temp();
         TR::render_text(frame_buffer, DotMatrix::font_5x3, 0, second_line,
                 "RU");

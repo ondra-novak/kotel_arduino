@@ -8,23 +8,19 @@ class Feeder: public AbstractTimedTask {
 public:
 
 
-    enum Mode {
-        stop,
-        timed_run,
-        cycle,
-        cycle_after_atten
-    };
 
 
     Feeder(Storage &storage):_storage(storage) {}
 
+    void begin() {
+        set_active(false);
+    }
 
     virtual TimeStampMs get_scheduled_time() const override {
         return _next_call;
     }
     virtual void run(TimeStampMs cur_time) override {
-        if (_cur_mode == cycle ) {
-
+        if (_cycle) {
             set_active(!_active);
             if (_active) {
                 _next_call = cur_time + from_seconds(_storage.config.feeder_on_sec);
@@ -39,41 +35,38 @@ public:
         }
     }
 
-
-    void set_mode(IScheduler &sch, Mode mode) {
-        auto now = get_current_timestamp();
-        if (mode != _cur_mode) {
-            switch (mode) {
-                case stop: set_active(false);break;
-                case timed_run: if (set_active(true)) {
-                                    _next_call = now + from_minutes(2);
-                                    sch.reschedule();
-                                }
-                                break;
-
-                case cycle: if (set_active( true)) {
-                                    _next_call = now + from_seconds(_storage.config.feeder_on_sec);
-                                    sch.reschedule();
-                            }
-                            break;
-                case cycle_after_atten:
-                            if (set_active( true)) {
-                                _next_call = now + from_seconds(_storage.config.feeder_first_on_sec);
-                                sch.reschedule();
-                                mode = cycle;
-                            }
-                            break;
-            }
-            _cur_mode = mode;
-        }
+    void stop() {
+        set_active(false);
+        _cycle = false;
     }
 
+    void one_shot(IScheduler &sch, unsigned int seconds_to_run) {
+        set_active(true);
+        _next_call = get_current_timestamp() + from_seconds(seconds_to_run);
+        sch.reschedule();
+    }
+
+    void keep_running(IScheduler &sch) {
+        if (!is_cycling()) begin_cycle(sch, false);
+    }
+
+    void begin_cycle(IScheduler &sch, bool after_attenuation) {
+        if (after_attenuation) {
+            one_shot(sch, _storage.config.feeder_first_on_sec);
+        } else {
+            one_shot(sch, _storage.config.feeder_on_sec);
+        }
+        _cycle = true;
+    }
+
+
     bool is_active() const {return _active;}
+    bool is_cycling() const {return _cycle;}
 
 protected:
     Storage &_storage;
-    Mode _cur_mode;
     bool _active = false;
+    bool _cycle = false;
     TimeStampMs _next_call = 0;
 
     bool set_active(bool a) {

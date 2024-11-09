@@ -278,8 +278,8 @@ void pinMode(int pin, int mode) {
 
 int digitalRead(int pin) {
     switch (pin) {
-        case kotel::pin_in_motor_temp: return state_motor_temp_ok?HIGH:LOW;
-        case kotel::pin_in_tray: return state_tray_open?HIGH:LOW;
+        case kotel::pin_in_motor_temp: return state_motor_temp_ok?LOW:HIGH;
+        case kotel::pin_in_tray: return state_tray_open?LOW:HIGH;
         default:return HIGH;
     }
 }

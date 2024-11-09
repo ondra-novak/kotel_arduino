@@ -36,7 +36,7 @@ public:
   virtual int peek();
   virtual void flush();
   virtual void stop();
-  virtual uint8_t connected();
+  virtual uint8_t connected() const;
   virtual operator bool() {
     return !!_ctx;
   }

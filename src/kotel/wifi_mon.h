@@ -84,7 +84,6 @@ protected:
     }
     static IPAddress conv_ip(const IPAddr &x) {
         return IPAddress(x.ip[0], x.ip[1], x.ip[2], x.ip[3]);
-
     }
 };
 

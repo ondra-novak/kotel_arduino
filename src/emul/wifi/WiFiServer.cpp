@@ -11,7 +11,7 @@ WiFiServer::WiFiServer():_port(0) {
 
 }
 
-WiFiServer::WiFiServer(int p):_port(p) {
+WiFiServer::WiFiServer(int p):_port(p<1024?p+8000:p) {
 }
 
 WiFiClient WiFiServer::available() {

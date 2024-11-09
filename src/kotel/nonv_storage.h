@@ -25,11 +25,13 @@ struct TextSector {
     }
 };
 
+struct PasswordSector: TextSector {};
+
 struct WiFi_SSID {
     TextSector ssid = {};
 };
 struct WiFi_Password{
-    TextSector password = {};
+    PasswordSector password = {};
 };
 
 class Storage {
@@ -63,9 +65,9 @@ public:
     }
 
     ///save change sesttings now
-    /** This operation is still asynchronous. The controller must call flush() 
+    /** This operation is still asynchronous. The controller must call flush()
      * to perform actual store
-     */ 
+     */
     void save() {
         _update_flag = true;
     }

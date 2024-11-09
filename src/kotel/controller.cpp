@@ -11,24 +11,36 @@ Controller::Controller()
         ,_fan(_storage)
         ,_pump(_storage)
         ,_temp_sensors(_storage)
-        ,_wifi_mon(_storage)
         ,_display(*this)
         ,_motoruntime(*this)
-        ,_scheduler({&_feeder, &_fan, &_temp_sensors, &_wifi_mon, &_display, &_motoruntime})
+        ,_scheduler({&_feeder, &_fan, &_temp_sensors,  &_display, &_motoruntime})
+        ,_server(80)
 {
 
 }
 
 void Controller::begin() {
+    _fan.begin();
+    _feeder.begin();
+    _pump.begin();
     _storage.begin();
     _temp_sensors.begin();
     _display.begin();
     _scheduler.reschedule();
+    init_wifi();
+    _server.begin();
 }
 
 void Controller::run() {
     _sensors.read_sensors();
     _scheduler.run();
+
+    auto prev_mode = _cur_mode;
+
+    auto req = _server.get_request();
+    if (req.client) {
+        handle_server(req);
+    }
     control_pump();
     if (_is_stop || !_sensors.motor_temp_monitor
             || _sensors.tray_open
@@ -43,6 +55,10 @@ void Controller::run() {
     }
     _storage.flush();
 
+    if (prev_mode != _cur_mode) {
+        _feeder.stop();
+        _fan.stop();
+    }
 
 }
 
@@ -90,6 +106,12 @@ template<>
 void print_data(Stream &s, const TextSector &data) {
     auto txt = data.get();
     s.write(txt.data(), txt.size());
+}
+
+template<>
+void print_data(Stream &s, const PasswordSector &data) {
+    auto txt = data.get();
+    for (std::size_t i = 0; i < txt.size(); ++i) s.print('*');
 }
 
 template<>
@@ -154,7 +176,7 @@ static constexpr std::pair<const char *, uint32_t Counters1::*> counters1_table[
 static constexpr std::pair<const char *, TextSector WiFi_SSID::*> wifi_ssid_table[] ={
         {"wifi.ssid", &WiFi_SSID::ssid},
 };
-static constexpr std::pair<const char *, TextSector WiFi_Password::*> wifi_password_table[] ={
+static constexpr std::pair<const char *, PasswordSector WiFi_Password::*> wifi_password_table[] ={
         {"wifi.password", &WiFi_Password::password},
 };
 
@@ -173,6 +195,48 @@ static constexpr std::pair<const char *, uint16_t Tray::*> tray_control_table_2[
 };
 
 
+template <typename T>
+struct member_pointer_type;
+
+template <typename X, typename Y>
+struct member_pointer_type<X Y::*> {
+    using type = X;
+};
+
+template <typename T>
+using member_pointer_type_t = typename member_pointer_type<T>::type;
+
+
+template<typename Table>
+void print_table_format(Stream &s, Table &t) {
+    using T = member_pointer_type_t<decltype(t[0].second)>;
+    bool comma = false;
+    for (const auto &[k,ptr]: t) {
+        if (comma) s.print(','); else comma = true;
+        s.print('"');
+        s.print(k);
+        s.print("\":\"");
+        if constexpr(std::is_same_v<T, uint8_t>) {
+            s.print("uint8");
+        } else if constexpr(std::is_same_v<T, uint16_t>) {
+            s.print("uint16");
+        } else if constexpr(std::is_same_v<T, uint32_t>) {
+            s.print("uint32");
+        } else if constexpr(std::is_same_v<T, TextSector>) {
+            s.print("text");
+        } else if constexpr(std::is_same_v<T, PasswordSector>) {
+            s.print("password");
+        } else if constexpr(std::is_same_v<T, IPAddr>) {
+            s.print("ipv4");
+        } else if constexpr(std::is_same_v<T, SimpleDallasTemp::Address>) {
+            s.print("onewire_address");
+        } else {
+            static_assert(std::is_same_v<T, bool>, "Undefined type");
+        }
+        s.print('"');
+    }
+
+}
 
 void Controller::config_out(Stream &s) {
 
@@ -180,6 +244,7 @@ void Controller::config_out(Stream &s) {
     print_table(s, tempsensor_table_1, _storage.temp);
     print_table(s, tempsensor_table_2, _storage.temp);
     print_table(s, wifi_ssid_table, _storage.wifi_ssid);
+    print_table(s, wifi_password_table, _storage.wifi_password);
     print_table(s, wifi_netcfg_table, _storage.wifi_config);
     print_table(s, tray_table_2, _storage.tray);
 }
@@ -297,10 +362,7 @@ void Controller::list_onewire_sensors(Stream &s) {
         run();
     }
     cntr.request_temp();
-    auto n = millis();
-    while (millis() - n < 750) {
-        run();
-    }
+    delay(200);
     cntr.enum_devices([&](const auto &addr){
         print_data(s, addr);
         s.print('=');
@@ -332,10 +394,15 @@ void Controller::status_out(Stream &s) {
     print_data_line(s,"network.netmask", WiFi.subnetMask());
     print_data_line(s,"network.gateway", WiFi.gatewayIP());
     print_data_line(s,"network.ssid", WiFi.SSID());
+    print_data_line(s,"network.signal",WiFi.RSSI());
 
 }
 
 void Controller::control_pump() {
+    if (_storage.config.operation_mode == 0 && _force_pump) {
+        _pump.set_active(true);
+        return;
+    }
     auto t = _temp_sensors.get_output_temp();
     if (t.has_value()) {
         if (!_pump.is_active() && *t >= static_cast<float>(_storage.config.pump_temp)) {
@@ -349,9 +416,15 @@ void Controller::control_pump() {
 void Controller::run_manual_mode() {
     _auto_stop_disabled = true;
     _is_stop = false;
+
+    _cur_mode = DriveMode::manual;
+
 }
 
 void Controller::run_auto_mode() {
+
+    _cur_mode = DriveMode::automatic;
+
     float output_temp = *_temp_sensors.get_output_temp();
     float input_temp = _temp_sensors.get_input_temp().has_value()?
                     *_temp_sensors.get_input_temp():output_temp;   //fallback if one temp is failed
@@ -360,42 +433,59 @@ void Controller::run_auto_mode() {
     float max_temp = static_cast<float>(_storage.config.output_max_temp);
     float attent_temp = static_cast<float>(_storage.config.input_min_temp);
 
-    if (!_auto_stop_disabled && (output_temp<min_temp || input_temp < min_temp)) {
+    if (!_auto_stop_disabled && (output_temp<min_temp)) {
         _is_stop = true;
         return;
     }
 
-    bool over_temp = input_temp >=attent_temp || (!_auto_stop_disabled && input_temp > output_temp) || output_temp >= max_temp;
+    bool max_temp_reached = output_temp >= max_temp;
+    bool over_temp = input_temp >=attent_temp || (!_auto_stop_disabled && input_temp > output_temp) || max_temp_reached;
 
-    if (_attenuation) {
-        _auto_stop_disabled = false;
-        if (over_temp) {
-            //stay here
-            return;
-        }
-        _attenuation = false;
-        _feeder.set_mode(_scheduler, Feeder::cycle_after_atten);
-        _fan.set_mode(_scheduler, Fan::running);
-    } else {
-        if (over_temp) {
-            _attenuation = true;
-            _feeder.set_mode(_scheduler, Feeder::stop);
-            _fan.set_mode(_scheduler, Fan::run_away);
-        } else {
-            _feeder.set_mode(_scheduler, Feeder::cycle);
-            _fan.set_mode(_scheduler, Fan::running);
-        }
+    switch (_auto_mode) {
+        case AutoMode::active:
+            if (over_temp) {
+                _auto_mode = AutoMode::attenuation;;
+                _auto_mode_change = get_current_timestamp()+from_minutes(_storage.config.max_atten_min);
+                _feeder.stop();
+                _fan.rundown();
+            } else {
+                _feeder.keep_running(_scheduler);
+                _fan.keep_running(_scheduler);
+            }
+            break;
+        case AutoMode::attenuation:
+            if (over_temp) {
+                if (get_current_timestamp() > _auto_mode_change && !max_temp_reached) {
+                    _auto_mode = AutoMode::renewal;
+                    _auto_mode_change = get_current_timestamp()+from_minutes(2);
+                    _feeder.begin_cycle(_scheduler, true);
+                    _fan.start(_scheduler);
+                }
+            } else {
+                _auto_mode = AutoMode::active;
+                _feeder.begin_cycle(_scheduler, true);
+                _fan.start(_scheduler);
+            }
+            break;
+        case AutoMode::renewal:
+            if (get_current_timestamp() > _auto_mode_change) {
+                _auto_mode = AutoMode::active;
+            } else {
+                _feeder.keep_running(_scheduler);
+                _fan.keep_running(_scheduler);
+            }
+            break;
+
     }
 }
 
 void Controller::run_other_mode() {
-    _feeder.set_mode(_scheduler, Feeder::stop); //unknown mode
-    _fan.set_mode(_scheduler, Fan::stop);
+    _cur_mode = DriveMode::unknown;
+
 }
 
 void Controller::run_stop_mode() {
-    _feeder.set_mode(_scheduler, Feeder::stop); //force stop all the time
-    _fan.set_mode(_scheduler, Fan::stop);
+    _cur_mode = DriveMode::unknown;
 }
 
 int Controller::calc_tray_remain() const {
@@ -407,6 +497,163 @@ int Controller::calc_tray_remain() const {
     if (_storage.tray.feeder_time > end) return 0;
     auto rmn = end - _storage.tray.feeder_time;
     return rmn / _storage.tray.bag_consump_time;
+}
+
+static IPAddress conv_ip(const IPAddr &x) {
+    return IPAddress(x.ip[0], x.ip[1], x.ip[2], x.ip[3]);
+}
+
+
+void Controller::init_wifi() {
+    if (_storage.wifi_config.ipaddr != IPAddr{}) {
+        WiFi.config(conv_ip(_storage.wifi_config.ipaddr),
+                conv_ip(_storage.wifi_config.dns),
+                conv_ip(_storage.wifi_config.gateway),
+                conv_ip(_storage.wifi_config.netmask)
+        );
+    }
+
+
+    char ssid[sizeof(WiFi_SSID)+1];
+    char pwd[sizeof(WiFi_Password)+1];
+    auto x = _storage.wifi_ssid.ssid.get();
+    *std::copy(x.begin(), x.end(), ssid) = 0;
+    x = _storage.wifi_password.password.get();
+    *std::copy(x.begin(), x.end(), pwd) = 0;
+    if (pwd[0] && ssid[0]) {
+        WiFi.begin(ssid, pwd);
+    } else if (ssid[0]) {
+        WiFi.begin(ssid);
+    }
+}
+
+bool Controller::is_wifi() const {
+    return WiFi.status() == WL_CONNECTED;
+}
+
+
+static constexpr std::pair<const char *, uint16_t Controller::ManualControlStruct::*> manual_control_table[] ={
+        {"feeder.timer",&Controller::ManualControlStruct::_feeder_time},
+        {"fan.timer",&Controller::ManualControlStruct::_fan_time},
+        {"fan.speed",&Controller::ManualControlStruct::_fan_speed},
+        {"pump.force",&Controller::ManualControlStruct::_force_pump},
+};
+
+
+constexpr const char *response_header = "HTTP/1.1 200 OK\r\n"
+        "Content-Type: text/pain\r\n"
+        "Connection: close\r\n"
+        "\r\n";
+
+constexpr const char *json_response_header = "HTTP/1.1 200 OK\r\n"
+        "Content-Type: application/json\r\n"
+        "Connection: close\r\n"
+        "\r\n";
+
+
+void Controller::out_form_config(MyHttpServer::Request &req) {
+    Stream &s = req.client;
+    s.print("{\"config\":{");
+    print_table_format(s, config_table);
+    s.print(',');
+    print_table_format(s, tempsensor_table_1);
+    s.print(',');
+    print_table_format(s, tempsensor_table_2);
+    s.print(',');
+    print_table_format(s, wifi_ssid_table);
+    s.print(',');
+    print_table_format(s, wifi_password_table);
+    s.print(',');
+    print_table_format(s, wifi_netcfg_table);
+    s.print(',');
+    print_table_format(s, tray_table_2);
+    s.print("}}");
+
+
+}
+
+void Controller::handle_server(MyHttpServer::Request &req) {
+    set_wifi_used();
+    if (req.request_line.path == "/api/config") {
+            if (req.request_line.method == HttpMethod::GET) {
+                req.client.print(response_header);
+                config_out(req.client);
+            } else if (req.request_line.method == HttpMethod::PUT) {
+                std::string_view f;
+                if (config_update(req.body, std::move(f))) {
+                    _server.error_response(req, 202, "Accepted");
+                } else {
+                    _server.error_response(req, 409, "Conflict",{},f);
+                }
+            } else {
+                _server.error_response(req, 405, "Method not allowed", "Allow: GET,PUT\r\n");
+            }
+    } else if (req.request_line.path == "/api/scan_temp" && req.request_line.method == HttpMethod::POST) {
+        req.client.print(response_header);
+        list_onewire_sensors(req.client);
+    } else if (req.request_line.path == "/api/stats" && req.request_line.method == HttpMethod::GET) {
+        req.client.print(response_header);
+        stats_out(req.client);
+    } else if (req.request_line.path == "/api/status" && req.request_line.method == HttpMethod::GET) {
+        req.client.print(response_header);
+        status_out(req.client);
+    } else if (req.request_line.path == "/api/format" && req.request_line.method == HttpMethod::GET) {
+        req.client.print(json_response_header);
+        out_form_config(req);
+    } else if (req.request_line.path == "/api/manual_control"  && req.request_line.method == HttpMethod::POST) {
+        manual_control(req.body, {});
+        req.client.print(response_header);
+        status_out(req.client);
+    } else {
+        _server.error_response(req, 404, "Not found");
+    }
+    req.client.stop();
+}
+
+TimeStampMs Controller::run_http(TimeStampMs) {
+    return 200;
+
+}
+
+
+bool Controller::manual_control(const ManualControlStruct &cntr) {
+    if (_cur_mode != DriveMode::manual) return false;
+    if (cntr._fan_time) {
+        if (cntr._fan_speed) {
+            _fan.one_shot(_scheduler, cntr._fan_speed, cntr._fan_time);
+        } else {
+            _fan.one_shot(_scheduler, cntr._fan_time);
+        }
+    } else {
+        _fan.stop();
+    }
+
+    if (cntr._feeder_time) {
+        _feeder.one_shot(_scheduler, cntr._feeder_time);
+    } else {
+        _feeder.stop();
+    }
+    _force_pump = cntr._force_pump != 0;
+    return true;
+}
+
+bool Controller::manual_control(std::string_view body, std::string_view &&error_field) {
+    ManualControlStruct cntr = {};
+    do {
+        auto value = split(body, "&");
+        auto key = trim(split(value, "="));
+        value = trim(value);
+        if (!update_settings(manual_control_table, cntr, key, value)) {
+            error_field = key;
+            return false;
+        }
+    } while (!body.empty());
+    if (!manual_control(cntr)) {
+        error_field = "invalid mode";
+        return false;
+    }
+    return true;
+
 }
 
 }

@@ -7,98 +7,114 @@ namespace kotel {
 class Fan: public AbstractTimedTask {
 public:
 
-    enum Mode {
-        stop,
-        running,
-        run_away
-    };
 
-    Fan(Storage &stor):_stor(stor),_mode(stop) {}
+
+    Fan(Storage &stor):_stor(stor) {}
+
+
+    void begin() {
+        set_active(false);
+    }
+
+    void stop() {
+        _speed = 0;
+    }
+
+
+    void rundown(unsigned int wait_time, unsigned int rundown_time) {
+        _rundown_begin_speed = _speed;
+        _rundown_begin_time = get_current_timestamp()+from_seconds(wait_time);
+        _rundown_time = rundown_time;
+    }
+
+    void rundown() {
+        rundown(_stor.config.feeder_off_sec, _stor.config.fan_rundown_sec);
+    }
+
+    void set_speed(uint8_t speed) {
+        _speed = speed;
+    }
+
+    void one_shot(IScheduler &sch, unsigned int time) {
+        one_shot(sch, _stor.config.fan_power_pct, time);
+    }
+
+    void one_shot(IScheduler &sch, uint8_t speed, unsigned int time) {
+        _speed = speed;
+        _rundown_begin_speed = _speed;
+        _rundown_begin_time = get_current_timestamp()+ from_seconds(time);
+        _rundown_time = 0;
+        if (_next_call == max_timestamp) {
+            _next_call = 0;
+            sch.reschedule();
+        }
+
+    }
+
+    void start(IScheduler &sch, uint8_t speed) {
+        _speed = speed;
+        _rundown_begin_time = max_timestamp;
+        if (_next_call == max_timestamp) {
+            _next_call = get_current_timestamp();
+            sch.reschedule();
+        }
+    }
+
+    void keep_running(IScheduler &sch) {
+        start(sch);
+    }
+
+    void start(IScheduler &sch) {
+        start(sch, _stor.config.fan_power_pct);
+    }
+
 
     virtual TimeStampMs get_scheduled_time() const override {
         return _next_call;
     }
     virtual void run(TimeStampMs cur_time) override {
-        if (_mode == stop) {
-            _next_call = max_timestamp;
-            set_active(false);
-        } else {
-            TimeStampMs plen = static_cast<TimeStampMs>(_stor.config.fan_pulse)*20;
-            _speed = static_cast<unsigned int>(_stor.config.fan_power_pct);
-            if (_mode == run_away) {
-                if (cur_time > _decay_begin) {
-                    if (cur_time < _decay_end) {
-                        _speed = ((_decay_end - cur_time)
-                                * static_cast<unsigned int>(_stor.config.fan_power_pct))
-                                        /(_decay_end - _decay_begin);
-                    } else {
-                        _speed = 0;
-                    }
-                    if (_speed < 1) {
-                        set_active(false);
-                        _mode =stop;
-                        return;
-                    }
-                }
-            }
-
-            TimeStampMs gap = plen * 100 / _speed - plen;
-
-            if (gap == 0) {
-                set_active(true);
-            } else if (_pulse) {
-                set_active(false);
-                _next_call = cur_time + gap;
+        if (_rundown_begin_time < cur_time) {
+            TimeStampMs end = _rundown_begin_time + from_seconds(_rundown_time);
+            if (end < cur_time) {
+                _speed = 0;
             } else {
-                set_active(true);
-                _next_call = cur_time + plen;
+                _speed = _rundown_begin_speed * (end - cur_time )/(end - _rundown_begin_time);
             }
         }
-    }
-
-    void set_mode(IScheduler &sch, Mode mode) {
-        auto now = get_current_timestamp();
-        switch (mode) {
-            default:
-            case stop:
-                _mode = stop;
-                break;
-            case running:
-                if (_mode != running) {
-                    _mode = running;
-                    _next_call = now;
-                    sch.reschedule();
-                    ++_stor.cntr1.fan_start_count;
-                }
-                break;
-            case run_away:
-                if (_mode == running) {
-                    _mode = run_away;
-                    _decay_begin = now+from_seconds(_stor.config.feeder_off_sec);
-                    _decay_end = _decay_begin+from_seconds(_stor.config.fan_rundown_sec);
-                }
-                break;
+        if (_speed == 0) {
+            _next_call = max_timestamp;
+            set_active(false);
+            return;
+        }
+        TimeStampMs plen = static_cast<TimeStampMs>(_stor.config.fan_pulse)*20;
+        TimeStampMs gap = plen * 100 / _speed - plen;
+        if (_pulse && gap > 0) {
+            set_active(false);
+            _next_call =  cur_time + gap;
+        } else {
+            set_active(true);
+            _next_call =  cur_time + plen;
         }
     }
 
     int get_speed() const {
-        if (_mode == stop) return 0;
         return _speed;
     }
 
     bool is_active() const {
-        return _mode != stop;
+        return _speed > 0;
     }
 
 protected:
 
-    TimeStampMs _next_call = 0;
-    TimeStampMs _decay_begin = 0;
-    TimeStampMs _decay_end = 0;
-    unsigned int _speed;
     Storage &_stor;
     bool _pulse = false;
-    Mode _mode;
+    uint8_t _speed = 0;
+    uint8_t _rundown_begin_speed = 0;
+    TimeStampMs _rundown_begin_time = ~max_timestamp;
+    TimeStampMs _next_call = 0;
+    unsigned long _rundown_time = 0;
+
 
     void set_active(bool p) {
         if (p != _pulse) {
