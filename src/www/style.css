@@ -1,0 +1,274 @@
+
+html {
+    background-color: #2f2a2a;
+    color: white;
+    font-family: sans-serif;
+}
+
+.ovladace {
+    height: 3em;
+    display: flex;
+    align-items: stretch;
+    cursor: pointer;
+    gap: 2px;
+}
+
+.ovladace > div {
+    text-align: center;
+    flex-grow: 1;
+    align-content: center;
+    border-radius: 1em;
+    background-color: #444;
+    color: #888;
+}
+
+.ovladace > div.on {
+    background-color: #477f30;
+    color: yellow;
+    font-weight: bold;
+}
+
+.teplomerspopisem {
+    text-align: center;
+}
+
+.teplomerspopisem > span {
+    display: block;
+    padding: 1em
+}
+
+.dashboard {
+    display: flex;
+    gap: 5px;
+    justify-content: space-around;
+}
+
+.teplomer {
+    border-top: 2px solid;
+    border-left: 2px solid;
+    border-right: 2px solid;
+    border-bottom: 2px solid #0000;
+    width: 10em;
+    height: 10em;
+    border-radius: 10em;
+    position: relative;
+}
+
+.teplomer .label {
+    position:absolute;   
+    left:0;
+    right: 0;
+}
+
+.teplomer .label.cur_temp {
+    bottom: 2rem;
+    text-align: center;
+    font-size: 1.5em;
+    border:  1px solid #888;
+    width: 2.5em;
+    margin:  auto;
+    border-radius: 0.5em;
+}
+.teplomer .label.t20 {
+    bottom: 1.5em;
+    text-align:left;
+    padding-left: 1.3em;
+}
+.teplomer .label.t40 {
+    bottom: 6em;
+    text-align:left;
+    padding-left: 0.5em;
+}
+.teplomer .label.t60 {
+    top: 0.1em;
+    text-align:center;
+}
+.teplomer .label.t80 {
+    bottom: 6em;
+    text-align:right;
+    padding-right: 0.5em;
+}
+.teplomer .label.t100 {
+    bottom: 1.5em;
+    text-align:right;
+    padding-right: 1.3em;
+}
+.teplomer .needle {
+    width: 9em;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    margin: auto;
+    height: 0px;
+    transition: 1s transform;
+}
+
+.teplomer .max.needle::before {
+    border: 1px solid red;     
+}
+.teplomer .min.needle::before {
+    border: 1px solid green;    
+}
+
+.teplomer .needle::before {
+    border: 2px solid;
+    display: block;
+    content: "";
+    font-size: 0px;
+    width: 50%;
+    margin-top: -2px;
+}
+.teplomer .needle::after {
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 1em;
+    height: 1em;
+    position:absolute;
+    content: "";
+    background-color: currentcolor;
+    margin:auto;
+    border-radius: 1em;
+    
+}
+
+body {
+    margin: 0;
+}
+
+.header {
+    text-align: center;
+    background-color: #393c4fd4;
+    padding: 5px;
+    border-bottom: 1px solid #585f8d;
+    font-weight: bold;
+    font-variant: all-petite-caps;
+}
+
+#stav::before {
+    display:block;
+    font-variant-caps:small-caps;
+    font-weight: bold;
+    text-align: center;
+    flex-grow: 1;
+}
+
+div#stav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid;
+}
+
+div#stav > * {
+    height: 3em;
+    width: 6em;
+}
+
+#stav button {
+    background-color:#878181;
+    color:#ffffff;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+#stav.mode1 button {
+    background-color:green;
+    color:#ffffff;
+}
+
+#stav.mode2 button {
+    background-color:red;
+    color:yellow;
+    font-weight: bold;
+}
+
+#stav.mode0::before {
+    content:"Neznámý";
+}
+#stav.mode1::before {
+    content:"Ruční ovládání";
+    color: #ff9b9b;
+}
+
+
+#stav button::before {
+    content: "RUČNĚ";
+}
+
+#stav.mode2 button::before {
+    content: "STOP";
+}
+
+#stav.mode1 button::before {
+    content: "AUTOMAT";
+}
+
+#stav.mode2{
+    background-color: #445344;
+}
+
+#stav.mode2.automode0::before {
+    content:"Automaticky / Topí";
+}
+#stav.mode2.automode1::before {
+    content:"Automaticky / Útlum";
+}
+#stav.mode2.automode2::before {
+    content:"Automaticky / Obnova";
+}
+#stav.mode3::before {
+    content:"STOP";
+}
+#stav.mode4::before {
+    content:"Ostatní";
+}
+
+.sub_section .sectionname {
+    text-align: center;
+    border-bottom: 1px gray solid;
+}
+
+.section >.sectionname {
+    position: absolute;
+    top: -0.8em;
+    left: 0.5em;
+    padding: 0.2em;
+    background-color: #2f2a2a;
+}
+
+.section label {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px;
+    gap: 1em;
+}
+
+.section {
+    border: 1px solid;
+    /* min-width: 30em; */
+    margin-top: 1em;
+    padding-top: 1em;
+    position: relative;
+}
+
+
+.sect_container {
+    display: flex;
+}
+
+input {
+    border: 1px solid;
+    font-size: larger;
+    color: wheat;
+    background-color: black;
+}
+
+
+input[type=number]{
+    text-align: center;
+    width: 5em;
+}

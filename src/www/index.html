@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Kotel</title>
+     <link rel="stylesheet" href="style.css">
+     <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body onload="main()">
+    <script src="code.js" type="text/javascript"></script>
+    <span id="stringtable" 
+        data-cur_mode0="Neznámý stav"
+        data-cur_mode1="Ručně"
+        data-cur_mode2="Automaticky"
+        data-cur_mode3="STOP"
+        data-cur_mode4="Ostatní"
+        data-auto_mode0="Topení"
+        data-auto_mode1="Útlum"
+        data-auto_mode2="Obnova plamene"></span>
+    <div class="header">Kotel</div>
+    <div id="stav" class="header_stav"><button id="prepnout_rezim"></button></div>
+    <div class="dashboard">
+        <div class="teplomerspopisem">
+            <span>Výstupní teplota</span>
+        <div class="teplomer" id="vystupni_teplota">
+            <div class="label t20">20</div>
+            <div class="label t40">40</div>
+            <div class="label t60">60</div>
+            <div class="label t80">80</div>
+            <div class="label t100">100</div>
+            <div class="max ref needle"></div>
+            <div class="cur needle"></div>
+            <div class="label cur_temp">60</div>
+        </div>
+        </div>
+        <div class="teplomerspopisem">
+            <span>Vstupní teplota</span>
+        <div class="teplomer" id="vstupni_teplota">
+        <div class="label t20">20</div>
+        <div class="label t40">40</div>
+        <div class="label t60">60</div>
+        <div class="label t80">80</div>
+        <div class="label t100">100</div>
+        <div class="min ref needle" ></div>
+        <div class="cur needle" ></div>
+        <div class="label cur_temp">60</div>
+    </div>
+    </div>
+    </div>
+        <div class="ovladace">
+        <div id="ovladac_feeder">Podavač</div>
+        <div id="ovladac_fan">Ventilátor</div>
+        <div id="ovladac_pump">Čerpadlo</div>        
+    </div>
+    
+    
+    
+    <div class="sect_container">
+    <div class="section">
+        <div class="sectionname">Nastavení</div>
+        <div class="sub_section">
+            <div class="sectionname">Teploty</div>
+            <label>
+                <span>Max. výstupní teplota</span>
+                <input type="number" min="40" max="90" step="1" name="temperature.max_output" />
+            </label>
+            <label>
+                <span>Min. vstupní teplota</span>
+                <input type="number" min="40" max="90" step="1" name="temperature.min_input" />
+            </label>
+            <label>
+                <span>Teplota zapnutí čerpadla</span>
+                <input type="number" min="40" max="90" step="1" name="temperature.pump_on" />
+            </label>
+            
+        </div>        
+        <div class="sub_section">
+            <div class="sectionname">Provoz</div>
+            <label>
+                <span>Ventilátor rychlost [%]</span>
+                <input type="number" min="10" max="100" step="1" name="fan.power_pct" />
+            </label>
+            <label>
+                <span>Ventilátor doběh [sec]</span>
+                <input type="number" min="0" max="255" step="1" name="fan.rundown_sec" />
+            </label>
+            <label>
+                <span>Čas přikládání [sec]</span>
+                <input type="number" min="0" max="255" step="1" name="feeder.on_sec" />
+            </label>
+            <label>
+                <span>Čas dohořívání [sec]</span>
+                <input type="number" min="0" max="255" step="1" name="feeder.off_sec" />
+            </label>
+            <label>
+                <span>Čas prvního přiložení [sec]</span>
+                <input type="number" min="0" max="255" step="1" name="feeder.first_on_sec" />
+            </label>
+            <label>
+                <span>Maximální doba útlunu [min]</span>
+                <input type="number" min="0" max="255" step="1" name="attenuation.max_minutes" />
+            </label>
+            
+        </div>        
+        
+        
+    </div
+    </div>
+    
+</body>
+</html>

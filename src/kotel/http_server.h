@@ -1,16 +1,18 @@
 #pragma once
 #include "http_utils.h"
 #include <WiFiS3.h>
+#include "print_hlp.h"
+#include "combined_container.h"
 
 namespace kotel {
 
-template<unsigned int max_request_size = 8192,
-         unsigned int max_header_lines = 32>
-class HttpServer {
+
+
+class HttpServerBase {
 public:
 
-    HttpServer(int port);
-    void begin();
+    using HeaderPair = std::pair<std::string_view, std::string_view>;
+    using HeaderIL = std::initializer_list<HeaderPair>;
 
     struct Request {
         WiFiClient client = {};
@@ -20,14 +22,86 @@ public:
         std::string_view body = {};
     };
 
-    Request get_request();
-
-
-    void error_response(const Request &req,
+    static void error_response(Request &req,
             int code,
             std::string_view message,
-            std::string_view extra_headers = {},
+            const HeaderIL &extra_headers = {},
             std::string_view extra_message = {});
+
+    template<typename KeyValueHeader>
+    static void send_header(Request &req,
+            const KeyValueHeader &header,
+            int code = 200, std::string_view message = "");
+
+    static void send_header(Request &req,
+            const HeaderIL &header,
+            int code = 200, std::string_view message = "");
+
+
+    constexpr static std::string_view get_message(int code) {
+        switch(code) {
+            case 200: return "OK";
+            case 202: return "Accepted";
+            case 400: return "Bad request";
+            case 404: return "Not found";
+            case 405: return "Method not allowed";
+            case 409: return "Conflict";
+            default: return "Unknown error";
+        }
+    }
+
+    struct ContentType {
+        static constexpr char text[]= "text/plain;charset=utf-8";
+        static constexpr char html[]= "text/html;charset=utf-8";
+        static constexpr char json[]= "application/json";
+        static constexpr char css[]= "text/css";
+        static constexpr char javascript[]= "text/javascript";
+        static constexpr char png[]= "image/png";
+        static constexpr char gif[]= "image/gif";
+        static constexpr char jpeg[]= "image/jpeg";
+    };
+
+    static void send_simple_header(Request &req, std::string_view content_type, int content_len = -1) {
+        HeaderPair hp[2];
+        char buff[20];
+        char *c = std::end(buff);
+        *(--c) = 0;
+        hp[0].first = "Content-Type";
+        hp[0].second = content_type;
+        if (content_len < 0) {
+            send_header(req, {hp[0]}, 200, {});
+        } else {
+            hp[1].first = "Content-Length";
+            if (content_len == 0) *(--c) = '0';
+            else while (content_len != 0) {
+                *(--c) = (content_len % 10) + '0';
+                content_len/=10;
+            }
+            hp[1].second = c;
+            send_header(req, {hp[0],hp[1]}, 200, {});
+        }
+    }
+
+    static void send_file(Request &req, std::string_view content_type, std::string_view content) {
+        send_simple_header(req, content_type, content.size());
+        req.client.write(content.data(), content.size());
+    }
+
+
+};
+
+
+template<unsigned int max_request_size = 8192,
+         unsigned int max_header_lines = 32>
+class HttpServer: public HttpServerBase {
+public:
+
+    HttpServer(int port);
+    void begin();
+
+
+    Request get_request();
+
 
 
 
@@ -71,9 +145,9 @@ inline typename  HttpServer<max_request_size, max_header_lines>::Request
     Request ret {};
     auto curtm = millis();
     if (static_cast<long>(curtm - read_timeout_tp) > 0 && _active_client) {
-        reset_server();
         _active_client.stop();
-        _active_client = {};
+        reset_server();
+        return ret;
     }
 
     if (!_active_client) {
@@ -96,9 +170,14 @@ inline typename  HttpServer<max_request_size, max_header_lines>::Request
                     _write_pos-=2;  //save 2 bytes for body (empty header line)
                     _hdr_end = _write_pos;
                     parse_header();
+                    if (_rl.version.empty()) {
+                        _active_client.stop();
+                        reset_server();
+                        return ret;
+                    }
             } else if (_write_pos == max_request_size) {
                 _active_client.stop();
-                _active_client = {};
+                reset_server();
                 return ret;
             }
         } else {
@@ -117,6 +196,7 @@ inline typename  HttpServer<max_request_size, max_header_lines>::Request
             if (_body_trunc) {
                 reset_server();
                 error_response(ret, 413, "Content Too Large");
+                ret.client.stop();
                 ret = {};
                 return ret;
             } else {
@@ -131,36 +211,22 @@ inline typename  HttpServer<max_request_size, max_header_lines>::Request
 
 
 
-template<unsigned int max_request_size, unsigned int max_header_lines>
-inline void HttpServer<max_request_size, max_header_lines>::error_response(
-        const Request &req,
+
+inline void HttpServerBase::error_response(
+        Request &req,
         int code,
         std::string_view message,
-        std::string_view extra_headers,
+        const HeaderIL &extra_header,
         std::string_view extra_message) {
 
-    WiFiClient client = req.client;
-    auto emit_msg = [&] {
-        client.print(code);
-        client.print(' ');
-        client.write(message.data(), message.size());
-
+    if (message.empty()) message = get_message(code);
+    std::initializer_list<std::pair<std::string_view, std::string_view> > hdr = {
+            {"Content-Type","text/html; charset=utf-8"}
     };
-    client.write(req.request_line.version.data(),req.request_line.version.size());
-    client.print(' ');
-    emit_msg();
-    client.println();
-    client.println("Connection: close");
-    client.println("Content-Type: text/html;charset=utf-8");
-    client.write(extra_headers.data(), extra_headers.size());
-    client.println();
-    client.print("<!DOCTYPE html><html><head><title>");
-    emit_msg();
-    client.print("</title></head><body><h1>");
-    emit_msg();
-    client.print("</h1><pre>");
-    client.write(extra_message.data(), extra_message.size());
-    client.print("</pre></body></html>");
+    send_header(req, CombinedContainers<HeaderIL,HeaderIL>(hdr, extra_header), code, message);
+    print(req.client, "<!DOCTYPE html><html><head><title>",
+            code," ",message,"</title></head><body><h1>",
+            code," ",message,"</h1><ptr>",extra_message,"</pre></body></html>");
 
 
 }
@@ -190,5 +256,31 @@ inline void HttpServer<max_request_size, max_header_lines>::reset_server() {
     _hdr_count = 0;
     _body_trunc = false;
 }
+
+template<typename KeyValueHeader>
+inline void HttpServerBase::send_header(Request &req,
+        const KeyValueHeader &header,
+        int code, std::string_view message) {
+    if (message.empty()) message = get_message(code);
+    print(req.client,req.request_line.version, " ",code, " ", message,"\r\n");
+    bool keep_alive = false;
+    for (const auto &[k, v]: header) {
+        print(req.client, k, ": ", v, "\r\n");
+        keep_alive = keep_alive || icmp(k, "Content-Length");
+    }
+    if (!keep_alive) {
+        print(req.client, "Connection: close\r\n");
+    }
+    req.client.print("\r\n");
+
+}
+
+inline void HttpServerBase::send_header(Request &req,
+        const HeaderIL &header,
+        int code, std::string_view message) {
+    send_header<decltype(header)>(req, header, code, message);
+}
+
+
 
 }

@@ -44,21 +44,6 @@ int WiFiClient::available() {
         fd.fd = _ctx->_sock;
         fd.revents = 0;
         if (poll(&fd, 1, 0) <= 0) return 0;
-        return read(nullptr, 0);
-    } else {
-        return _ctx->_data.size();
-    }
-}
-
-int WiFiClient::read() {
-    uint8_t b;
-    if (read(&b, 1) == 1) return b;
-    return -1;
-
-}
-
-int WiFiClient::read(uint8_t *buf, size_t size) {
-    if (_ctx->_data.empty()) {
         do {
             int r =::recv(_ctx->_sock,_ctx->_buff,sizeof(_ctx->_buff),0);
             if (r > 0) {
@@ -74,8 +59,21 @@ int WiFiClient::read(uint8_t *buf, size_t size) {
                 break;
             }
         } while (true);
+        return _ctx->_data.size();
+    } else {
+        return _ctx->_data.size();
     }
-    if (_ctx->_data.empty()) return 0;
+}
+
+int WiFiClient::read() {
+    uint8_t b;
+    if (read(&b, 1) == 1) return b;
+    return -1;
+
+}
+
+int WiFiClient::read(uint8_t *buf, size_t size) {
+    if (!available() || !_ctx->_connected) return 0;
     if (size == 0) return _ctx->_data.size();
     auto sz = std::min(size, _ctx->_data.size());
     auto sub = _ctx->_data.substr(0, sz);
@@ -98,8 +96,10 @@ void WiFiClient::flush() {
 }
 
 void WiFiClient::stop() {
-    shutdown(_ctx->_sock, SHUT_WR);
-    _ctx->_connected = false;
+    if (_ctx) {
+        shutdown(_ctx->_sock, SHUT_WR);
+        _ctx->_connected = false;
+    }
 }
 
 uint8_t WiFiClient::connected() const {

@@ -2,6 +2,12 @@
 
 #include "http_utils.h"
 #include "icons.h"
+#include "web_page.h"
+#include "hash_cnt_stream.h"
+
+#ifdef WEB_DEVEL
+#include <fstream>
+#endif
 namespace kotel {
 
 
@@ -42,12 +48,14 @@ void Controller::run() {
         handle_server(req);
     }
     control_pump();
-    if (_is_stop || !_sensors.motor_temp_monitor
+    if (!_sensors.motor_temp_monitor
             || _sensors.tray_open
             || !_temp_sensors.get_output_temp().has_value()) {
         run_stop_mode();
     } else if (_storage.config.operation_mode == 0) {
         run_manual_mode();
+    } else if (_is_stop) {
+        run_stop_mode();
     } else if (_storage.config.operation_mode == 1) {
         run_auto_mode();
     } else {
@@ -69,7 +77,7 @@ static constexpr std::pair<const char *, uint8_t Config::*> config_table[] ={
         {"feeder.first_on_sec", &Config::feeder_first_on_sec},
         {"feeder.on_sec", &Config::feeder_on_sec},
         {"feeder.off_sec", &Config::feeder_off_sec},
-        {"temperature.max_output_max", &Config::output_max_temp},
+        {"temperature.max_output", &Config::output_max_temp},
         {"temperature.min_input", &Config::input_min_temp},
         {"temperature.pump_on", &Config::pump_temp},
         {"attenuation.max_minutes", &Config::max_atten_min},
@@ -380,7 +388,8 @@ void Controller::clear_error()
 }
 
 void Controller::status_out(Stream &s) {
-    print_data_line(s,"error_code", static_cast<int>(_storage.status.error));
+    print_data_line(s,"mode", static_cast<int>(_cur_mode));
+    print_data_line(s,"auto_mode", static_cast<int>(_auto_mode));
     print_data_line(s,"temp.output.value", _temp_sensors.get_output_temp());
     print_data_line(s,"temp.output.status", static_cast<int>(_temp_sensors.get_output_status()));
     print_data_line(s,"temp.input.value", _temp_sensors.get_input_temp());
@@ -395,6 +404,7 @@ void Controller::status_out(Stream &s) {
     print_data_line(s,"network.gateway", WiFi.gatewayIP());
     print_data_line(s,"network.ssid", WiFi.SSID());
     print_data_line(s,"network.signal",WiFi.RSSI());
+
 
 }
 
@@ -480,12 +490,12 @@ void Controller::run_auto_mode() {
 }
 
 void Controller::run_other_mode() {
-    _cur_mode = DriveMode::unknown;
+    _cur_mode = DriveMode::other;
 
 }
 
 void Controller::run_stop_mode() {
-    _cur_mode = DriveMode::unknown;
+    _cur_mode = DriveMode::stop;
 }
 
 int Controller::calc_tray_remain() const {
@@ -540,15 +550,10 @@ static constexpr std::pair<const char *, uint16_t Controller::ManualControlStruc
 };
 
 
-constexpr const char *response_header = "HTTP/1.1 200 OK\r\n"
-        "Content-Type: text/pain\r\n"
-        "Connection: close\r\n"
-        "\r\n";
 
-constexpr const char *json_response_header = "HTTP/1.1 200 OK\r\n"
-        "Content-Type: application/json\r\n"
-        "Connection: close\r\n"
-        "\r\n";
+
+
+
 
 
 void Controller::out_form_config(MyHttpServer::Request &req) {
@@ -568,15 +573,35 @@ void Controller::out_form_config(MyHttpServer::Request &req) {
     s.print(',');
     print_table_format(s, tray_table_2);
     s.print("}}");
-
-
 }
+#ifdef WEB_DEVEL
+
+static void send_file(Controller::MyHttpServer::Request &req, std::string_view content_type, std::string_view file_name) {
+    std::string path = "./src/www";
+    path.append(file_name);
+    std::ifstream f(path);
+    if (!f) {
+        HttpServerBase::error_response(req, 404, {}, {}, path);
+    } else {
+        HttpServerBase::send_simple_header(req, content_type, -1);
+        int i = f.get();
+        while (i != EOF) {
+            req.client.print(static_cast<char>(i));
+            i = f.get();
+        }
+    }
+    req.client.stop();
+}
+#endif
 
 void Controller::handle_server(MyHttpServer::Request &req) {
+
+    using Ctx = MyHttpServer::ContentType;
+
     set_wifi_used();
     if (req.request_line.path == "/api/config") {
             if (req.request_line.method == HttpMethod::GET) {
-                req.client.print(response_header);
+                _server.send_simple_header(req, Ctx::text);
                 config_out(req.client);
             } else if (req.request_line.method == HttpMethod::PUT) {
                 std::string_view f;
@@ -586,24 +611,45 @@ void Controller::handle_server(MyHttpServer::Request &req) {
                     _server.error_response(req, 409, "Conflict",{},f);
                 }
             } else {
-                _server.error_response(req, 405, "Method not allowed", "Allow: GET,PUT\r\n");
+                _server.error_response(req, 405, "Method not allowed", {{"Allow","GET,PUT"}});
             }
     } else if (req.request_line.path == "/api/scan_temp" && req.request_line.method == HttpMethod::POST) {
-        req.client.print(response_header);
+        _server.send_simple_header(req, Ctx::text);
         list_onewire_sensors(req.client);
     } else if (req.request_line.path == "/api/stats" && req.request_line.method == HttpMethod::GET) {
-        req.client.print(response_header);
+        _server.send_simple_header(req, Ctx::text);
         stats_out(req.client);
     } else if (req.request_line.path == "/api/status" && req.request_line.method == HttpMethod::GET) {
-        req.client.print(response_header);
+        _server.send_simple_header(req, Ctx::text);
         status_out(req.client);
     } else if (req.request_line.path == "/api/format" && req.request_line.method == HttpMethod::GET) {
-        req.client.print(json_response_header);
+        _server.send_simple_header(req, Ctx::json);
         out_form_config(req);
     } else if (req.request_line.path == "/api/manual_control"  && req.request_line.method == HttpMethod::POST) {
         manual_control(req.body, {});
-        req.client.print(response_header);
+        _server.send_simple_header(req, Ctx::text);
         status_out(req.client);
+    } else if (req.request_line.path == "/") {
+#ifdef WEB_DEVEL
+        send_file(req, Ctx::html, "/index.html");
+#else
+        _server.send_file(req, HttpServerBase::ContentType::html, index_html);
+#endif
+        return; //do not stop
+    } else if (req.request_line.path == "/code.js") {
+#ifdef WEB_DEVEL
+        send_file(req, Ctx::javascript, req.request_line.path);
+#else
+        _server.send_file(req, HttpServerBase::ContentType::html, code_js);
+#endif
+        return; //do not stop
+    } else if (req.request_line.path == "/style.css") {
+#ifdef WEB_DEVEL
+        send_file(req, Ctx::css, req.request_line.path);
+#else
+        _server.send_file(req, HttpServerBase::ContentType::html, style_css);
+#endif
+        return; //do not stop
     } else {
         _server.error_response(req, 404, "Not found");
     }
