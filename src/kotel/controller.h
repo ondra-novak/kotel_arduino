@@ -121,6 +121,7 @@ protected:
     void init_wifi();
 
     void handle_server(MyHttpServer::Request &req);
+    void send_file(MyHttpServer::Request &req, std::string_view content_type, std::string_view file_name);
 };
 
 }

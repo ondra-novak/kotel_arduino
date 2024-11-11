@@ -5,6 +5,8 @@
 #include "web_page.h"
 #include "hash_cnt_stream.h"
 
+#include "stringstream.h"
+
 #ifdef WEB_DEVEL
 #include <fstream>
 #endif
@@ -576,14 +578,14 @@ void Controller::out_form_config(MyHttpServer::Request &req) {
 }
 #ifdef WEB_DEVEL
 
-static void send_file(Controller::MyHttpServer::Request &req, std::string_view content_type, std::string_view file_name) {
+void Controller::send_file(MyHttpServer::Request &req, std::string_view content_type, std::string_view file_name) {
     std::string path = "./src/www";
     path.append(file_name);
     std::ifstream f(path);
     if (!f) {
-        HttpServerBase::error_response(req, 404, {}, {}, path);
+        _server.error_response(req, 404, {}, {}, path);
     } else {
-        HttpServerBase::send_simple_header(req, content_type, -1);
+        _server.send_simple_header(req, content_type, -1);
         int i = f.get();
         while (i != EOF) {
             req.client.print(static_cast<char>(i));
@@ -627,8 +629,10 @@ void Controller::handle_server(MyHttpServer::Request &req) {
         out_form_config(req);
     } else if (req.request_line.path == "/api/manual_control"  && req.request_line.method == HttpMethod::POST) {
         manual_control(req.body, {});
-        _server.send_simple_header(req, Ctx::text);
-        status_out(req.client);
+        StringStream<512> ss;
+        status_out(ss);
+        _server.send_file(req, Ctx::text, ss.get_text());
+        return;
     } else if (req.request_line.path == "/") {
 #ifdef WEB_DEVEL
         send_file(req, Ctx::html, "/index.html");

@@ -3,6 +3,7 @@
 #include <WiFiS3.h>
 #include "print_hlp.h"
 #include "combined_container.h"
+#include "stringstream.h"
 
 namespace kotel {
 
@@ -21,21 +22,6 @@ public:
         std::size_t headers_count = {};
         std::string_view body = {};
     };
-
-    static void error_response(Request &req,
-            int code,
-            std::string_view message,
-            const HeaderIL &extra_headers = {},
-            std::string_view extra_message = {});
-
-    template<typename KeyValueHeader>
-    static void send_header(Request &req,
-            const KeyValueHeader &header,
-            int code = 200, std::string_view message = "");
-
-    static void send_header(Request &req,
-            const HeaderIL &header,
-            int code = 200, std::string_view message = "");
 
 
     constexpr static std::string_view get_message(int code) {
@@ -61,32 +47,6 @@ public:
         static constexpr char jpeg[]= "image/jpeg";
     };
 
-    static void send_simple_header(Request &req, std::string_view content_type, int content_len = -1) {
-        HeaderPair hp[2];
-        char buff[20];
-        char *c = std::end(buff);
-        *(--c) = 0;
-        hp[0].first = "Content-Type";
-        hp[0].second = content_type;
-        if (content_len < 0) {
-            send_header(req, {hp[0]}, 200, {});
-        } else {
-            hp[1].first = "Content-Length";
-            if (content_len == 0) *(--c) = '0';
-            else while (content_len != 0) {
-                *(--c) = (content_len % 10) + '0';
-                content_len/=10;
-            }
-            hp[1].second = c;
-            send_header(req, {hp[0],hp[1]}, 200, {});
-        }
-    }
-
-    static void send_file(Request &req, std::string_view content_type, std::string_view content) {
-        send_simple_header(req, content_type, content.size());
-        req.client.write(content.data(), content.size());
-    }
-
 
 };
 
@@ -103,8 +63,69 @@ public:
     Request get_request();
 
 
+    ///Send header
+    /**
+     * @param req request
+     * @param header container which contains header lines, std::pair<string, string>
+     * @param code status code
+     * @param message status message
+     *
+     * @note reuses server's buffer. You should avoid to reference any string
+     * retrieved by request. It also destroys the request content
+     */
+    template<typename KeyValueHeader>
+    void send_header(Request &req,
+            const KeyValueHeader &header,
+            int code = 200, std::string_view message = "");
 
+    ///Send header
+    /**
+     * @param req request
+     * @param header container which contains header lines, std::pair<string, string>
+     * @param code status code
+     * @param message status message
+     *
+     * @note reuses server's buffer. You should avoid to reference any string
+     * retrieved by request. It also destroys the request content
+     */
+    void send_header(Request &req,
+            const HeaderIL &header,
+            int code = 200, std::string_view message = "");
 
+    ///Send error response
+    /**
+     * @param req
+     * @param code
+     * @param message
+     * @param extra_headers
+     * @param extra_message
+     *
+     * @note reuses server's buffer. You should avoid to reference any string
+     * retrieved by request. It also destroys the request content
+     */
+    void error_response(Request &req,
+            int code,
+            std::string_view message,
+            const HeaderIL &extra_headers = {},
+            std::string_view extra_message = {});
+
+    ///send simple header for serve a content
+    /**
+     * @param req request
+     * @param content_type content type
+     * @param content_len content length, if -1 then Connection: close is added
+     * @note reuses server's buffer. You should avoid to reference any string
+     * retrieved by request. It also destroys the request content
+     */
+    void send_simple_header(Request &req, std::string_view content_type, int content_len = -1);
+
+    ///send file
+    /**
+     * @param req request
+     * @param content_type content type
+     * @param content content
+     */
+    void send_file(Request &req, std::string_view content_type, std::string_view content);
 
 protected:
     WiFiServer _srv = {};
@@ -210,9 +231,29 @@ inline typename  HttpServer<max_request_size, max_header_lines>::Request
 }
 
 
+template<typename KeyValueHeader>
+inline void send_header_impl(Stream &s,
+        std::string_view ver,
+        int code,
+        std::string_view message,
+        const KeyValueHeader &header) {
+
+    print(s,ver, " ",code, " ", message,"\r\n");
+    bool keep_alive = false;
+    for (const auto &[k, v]: header) {
+        print(s, k, ": ", v, "\r\n");
+        keep_alive = keep_alive || icmp(k, "Content-Length");
+    }
+    if (!keep_alive) {
+        print(s, "Connection: close\r\n");
+    }
+    s.print("\r\n");
+}
 
 
-inline void HttpServerBase::error_response(
+
+template<unsigned int max_request_size, unsigned int max_header_lines>
+inline void HttpServer<max_request_size, max_header_lines>::error_response(
         Request &req,
         int code,
         std::string_view message,
@@ -220,13 +261,19 @@ inline void HttpServerBase::error_response(
         std::string_view extra_message) {
 
     if (message.empty()) message = get_message(code);
+    StringStreamExt buff(_input_buff, max_request_size);
+
     std::initializer_list<std::pair<std::string_view, std::string_view> > hdr = {
             {"Content-Type","text/html; charset=utf-8"}
     };
-    send_header(req, CombinedContainers<HeaderIL,HeaderIL>(hdr, extra_header), code, message);
-    print(req.client, "<!DOCTYPE html><html><head><title>",
+    send_header_impl(buff, req.request_line.version, code, message,
+            CombinedContainers<HeaderIL,HeaderIL>(hdr, extra_header));
+
+    print(buff, "<!DOCTYPE html><html><head><title>",
             code," ",message,"</title></head><body><h1>",
-            code," ",message,"</h1><ptr>",extra_message,"</pre></body></html>");
+            code," ",message,"</h1><pre>",extra_message,"</pre></body></html>");
+    auto data = buff.get_text();
+    req.client.write(data.data(), data.size());
 
 
 }
@@ -257,29 +304,55 @@ inline void HttpServer<max_request_size, max_header_lines>::reset_server() {
     _body_trunc = false;
 }
 
+template<unsigned int max_request_size, unsigned int max_header_lines>
 template<typename KeyValueHeader>
-inline void HttpServerBase::send_header(Request &req,
+inline void HttpServer<max_request_size, max_header_lines>::send_header(Request &req,
         const KeyValueHeader &header,
         int code, std::string_view message) {
+
     if (message.empty()) message = get_message(code);
-    print(req.client,req.request_line.version, " ",code, " ", message,"\r\n");
-    bool keep_alive = false;
-    for (const auto &[k, v]: header) {
-        print(req.client, k, ": ", v, "\r\n");
-        keep_alive = keep_alive || icmp(k, "Content-Length");
-    }
-    if (!keep_alive) {
-        print(req.client, "Connection: close\r\n");
-    }
-    req.client.print("\r\n");
+    StringStreamExt buff(this->_input_buff, max_request_size);
+    send_header_impl(buff, req.request_line.version, code, message, header);
+    auto txt = buff.get_text();
+    req.client.write(txt.data(), txt.size());
 
 }
 
-inline void HttpServerBase::send_header(Request &req,
+template<unsigned int max_request_size, unsigned int max_header_lines>
+inline void HttpServer<max_request_size, max_header_lines>::send_header(Request &req,
         const HeaderIL &header,
         int code, std::string_view message) {
     send_header<decltype(header)>(req, header, code, message);
 }
+
+template<unsigned int max_request_size, unsigned int max_header_lines>
+void HttpServer<max_request_size, max_header_lines>::send_simple_header(Request &req, std::string_view content_type, int content_len) {
+    HeaderPair hp[2];
+    char buff[20];
+    char *c = std::end(buff);
+    *(--c) = 0;
+    hp[0].first = "Content-Type";
+    hp[0].second = content_type;
+    if (content_len < 0) {
+        send_header(req, {hp[0]}, 200, {});
+    } else {
+        hp[1].first = "Content-Length";
+        if (content_len == 0) *(--c) = '0';
+        else while (content_len != 0) {
+            *(--c) = (content_len % 10) + '0';
+            content_len/=10;
+        }
+        hp[1].second = c;
+        send_header(req, {hp[0],hp[1]}, 200, {});
+    }
+}
+
+template<unsigned int max_request_size, unsigned int max_header_lines>
+void HttpServer<max_request_size, max_header_lines>::send_file(Request &req, std::string_view content_type, std::string_view content) {
+    send_simple_header(req, content_type, content.size());
+    req.client.write(content.data(), content.size());
+}
+
 
 
 

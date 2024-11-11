@@ -3,6 +3,7 @@ html {
     background-color: #2f2a2a;
     color: white;
     font-family: sans-serif;
+
 }
 
 .ovladace {
@@ -137,7 +138,27 @@ html {
 
 body {
     margin: 0;
+    overflow-x:hidden;
 }
+
+.button {
+    cursor: pointer;
+    align-content: center;
+    text-align: center;
+    position: relative;
+    box-sizing:content-box;
+}
+
+.button:hover {
+    border: 2px solid;
+    margin: -2px -2px;   
+}
+
+.button:active {
+    transform: translate(1px,1px);
+    border: 2px groove;
+}
+
 
 .header {
     text-align: center;
@@ -166,21 +187,21 @@ div#stav {
 div#stav > * {
     height: 3em;
     width: 6em;
+    align-content: center;
 }
 
-#stav button {
+#stav .button {
     background-color:#878181;
     color:#ffffff;
     font-weight: bold;
-    cursor: pointer;
 }
 
-#stav.mode1 button {
+#stav.mode1 .button {
     background-color:green;
     color:#ffffff;
 }
 
-#stav.mode2 button {
+#stav.mode2 .button {
     background-color:red;
     color:yellow;
     font-weight: bold;
@@ -199,11 +220,11 @@ div#stav > * {
     content: "RUČNĚ";
 }
 
-#stav.mode2 button::before {
+#stav.mode2 .button::before {
     content: "STOP";
 }
 
-#stav.mode1 button::before {
+#stav.mode1 .button::before {
     content: "AUTOMAT";
 }
 
