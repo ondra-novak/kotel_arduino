@@ -248,14 +248,17 @@ async function nastav_teplomer(field) {
         resp = parse_response(await resp.text());
         Object.keys(resp).forEach(addr=>{
             let temp = resp[addr];
+            let sp = document.createElement("span");
             let lb = document.createElement("label");            
             let elem = document.createElement("input");
             elem.setAttribute("type","radio");
             elem.setAttribute("name","t");
             elem.onselect = ()=>selected=addr;   
-            lb.appendChild(elem);
+            sp.appendChild(elem);
+            sp.appendChild(document.createTextNode(temp));
+            lb.appendChild(sp);
             list.appendChild(lb);
-            lb.appendChild(document.createTextNode(addr + ": " + temp));            
+            lb.appendChild(document.createTextNode(addr));            
         });
     }
 } 
