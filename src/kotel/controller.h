@@ -113,6 +113,7 @@ protected:
     TimedTaskMethod<Controller, &Controller::update_motorhours> _motoruntime;
     Scheduler<5> _scheduler;
     MyHttpServer _server;
+    std::optional<WiFiClient> _list_temp_async;
 
 
 

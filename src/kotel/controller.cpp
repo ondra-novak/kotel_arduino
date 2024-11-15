@@ -69,6 +69,11 @@ void Controller::run() {
         _feeder.stop();
         _fan.stop();
     }
+    if (_list_temp_async && _temp_sensors.is_reading()) {
+        list_onewire_sensors(*_list_temp_async);
+        _list_temp_async->stop();
+        _list_temp_async.reset();
+    }
 
 }
 
@@ -375,9 +380,6 @@ bool Controller::config_update(std::string_view body, std::string_view &&failed_
 
 void Controller::list_onewire_sensors(Stream &s) {
     auto cntr = _temp_sensors.get_controller();
-    while (_temp_sensors.is_reading()) {
-        run();
-    }
     cntr.request_temp();
     delay(200);
     cntr.enum_devices([&](const auto &addr){
@@ -623,8 +625,13 @@ void Controller::handle_server(MyHttpServer::Request &req) {
                 _server.error_response(req, 405, "Method not allowed", {{"Allow","GET,PUT"}});
             }
     } else if (req.request_line.path == "/api/scan_temp" && req.request_line.method == HttpMethod::POST) {
-        _server.send_simple_header(req, Ctx::text);
-        list_onewire_sensors(req.client);
+        if (_list_temp_async.has_value()) {
+            _server.error_response(req, 503, "Service unavailable" , {}, {});
+        } else {
+            _server.send_simple_header(req, Ctx::text);
+            _list_temp_async.emplace(std::move(req.client));
+            return;
+        }
     } else if (req.request_line.path == "/api/stats" && req.request_line.method == HttpMethod::GET) {
         _server.send_simple_header(req, Ctx::text);
         stats_out(req.client);
