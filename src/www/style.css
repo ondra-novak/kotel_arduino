@@ -6,12 +6,110 @@ html {
 
 }
 
+.chyba {
+    font-size:  0.8em;
+    color:  red;
+    text-align: right;
+    display: none;
+}
+
+.chyba.zobrazena {
+    display: block;
+}
+
+.buttonpanel {
+    display: flex;
+    justify-content: flex-end;
+    gap: 5px;
+    margin-top: 1em;
+}
+
+.buttonpanel > button {
+    min-width: 5em;
+}
+
+button {
+    font-size: 1.1em;
+    padding: 0.5em;
+}
+
+.okno.section {
+    position:absolute;
+    border: 1px solid gray;
+    width: 20em;
+    left:0;
+    right:0;
+    margin: auto;
+    top:30%;
+    padding: 2em 1em 1em 1em;
+    background-color:black;
+    box-shadow: 5px 5px 5px 0px #00000091;
+}
+
+.zasobnik .label {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+}
+
+.zasobnik .fill {
+    background-color: #a98559;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.zasobnik .bok1  {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height:0;
+    width:0;
+    border-top: 7rem solid transparent;
+    border-left: 5rem solid;
+}
+
+.zasobnik .bok1.b {
+    color: #2f2a2a;
+    transform: translate(-2px,2px)
+}
+
+.zasobnik .bok2  {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    height:0;
+    width:0;
+    border-top: 8rem solid transparent;
+    border-right: 2rem solid;
+}
+
+.zasobnik .bok2.b {
+    color: #2f2a2a;
+    transform: translate(2px,2px)
+}
+
+div.zasobnik {
+    width: 10em;
+    height: 8.7em;
+    border-left: 2px solid;
+    border-right: 2px solid;
+    border-bottom: 2px solid;
+    position: relative;
+}
+
 .ovladace {
-    height: 3em;
     display: flex;
     align-items: stretch;
     cursor: pointer;
     gap: 2px;
+    flex-direction: column;
+    width: 10em;
+    height: 10em;
+    padding-top: 2.7em;
+    padding-bottom: 1.5em;
 }
 
 .ovladace > div {
@@ -29,19 +127,38 @@ html {
     font-weight: bold;
 }
 
-.teplomerspopisem {
+.prvekspopisem {
     text-align: center;
+    position: relative;
+cursor: pointer;
 }
 
-.teplomerspopisem > span {
+.prvekspopisem > span {
     display: block;
-    padding: 1em
+    padding: 1em;
+}
+
+.prvekspopisem:active {
+    transform: translate(1px,1px);
+}
+
+.prvekspopisem:hover::after {
+    position: absolute;
+    background-color: #88888852;
+    left: 0;
+    top: 30px;
+    right: 0px;
+    bottom: 30px;
+    content:"";
+    display:block;
+    box-shadow: 0 0 10px 14px #8885;
 }
 
 .dashboard {
     display: flex;
     gap: 5px;
     justify-content: space-around;
+    flex-wrap: wrap;
 }
 
 .teplomer {
@@ -166,7 +283,37 @@ body {
     padding: 5px;
     border-bottom: 1px solid #585f8d;
     font-weight: bold;
-    font-variant: all-petite-caps;
+}
+.header::after {
+    content: "";
+    display:inline-block;
+    width: 0.7em;
+    height: 0.7em;
+    background-color: green;
+    border-radius: 1em;
+    margin-left: 0.5em;
+    vertical-align: baseline;
+}
+
+.header.neterror::after {
+    background-color: red;
+}
+
+.header.netconnecting::after {
+    animation: netconnectingAnimation 4s;
+    animation-fill-mode: both;
+}
+
+@keyframes netconnectingAnimation {
+    0% {
+        background-color: green;
+    }
+    50% {
+        background-color: green;
+    }
+    100% {
+        background-color: yellow;
+    }
 }
 
 #stav::before {
@@ -175,6 +322,7 @@ body {
     font-weight: bold;
     text-align: center;
     flex-grow: 1;
+    font-size: 1.2em;
 }
 
 div#stav {
@@ -216,7 +364,7 @@ div#stav > * {
 }
 
 
-#stav button::before {
+#stav .button::before {
     content: "RUČNĚ";
 }
 
@@ -253,12 +401,48 @@ div#stav > * {
     border-bottom: 1px gray solid;
 }
 
+.sub_section.unhide {
+    max-height: 1.3rem;
+    overflow-y: hidden;
+    transition: 0.5s;
+}
+.sub_section.unhide.unhidden {
+    max-height: 10em;
+}
+.sub_section.unhide .sectionname {
+    cursor: pointer;
+}
+
+.sub_section.unhide .sectionname::after {
+    content: "▾";
+    padding: 0 0 0  1em;
+}
+
+.sub_section.unhide.unhidden .sectionname::after {
+    content: "▴";
+}
+
 .section >.sectionname {
     position: absolute;
     top: -0.8em;
     left: 0.5em;
+    font-size: 1.2em;
     padding: 0.2em;
     background-color: #2f2a2a;
+}
+
+.okno.vystupni .vstupni.sectionname.black {
+    display: none;
+}
+.okno.vstupni .vystupni.sectionname.black {
+    display: none;
+}
+
+.section.okno >.sectionname {
+    background-color:black;
+    border-radius: 1em;
+    padding: 0.2em 1em;
+    border-top: 2px solid gray;
 }
 
 .section label {
@@ -266,6 +450,7 @@ div#stav > * {
     justify-content: space-between;
     padding: 5px;
     gap: 1em;
+    align-items: center;
 }
 
 .section {
@@ -283,7 +468,7 @@ div#stav > * {
 
 input {
     border: 1px solid;
-    font-size: larger;
+    font-size: 1.4em;
     color: wheat;
     background-color: black;
 }

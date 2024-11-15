@@ -20,7 +20,7 @@ Controller::Controller()
         ,_pump(_storage)
         ,_temp_sensors(_storage)
         ,_display(*this)
-        ,_motoruntime(*this)
+        ,_motoruntime(this)
         ,_scheduler({&_feeder, &_fan, &_temp_sensors,  &_display, &_motoruntime})
         ,_server(80)
 {
@@ -340,6 +340,13 @@ bool update_settings(const Table &table, Config &config, std::string_view key, s
     return false;
 }
 
+template<typename Table, typename Config>
+bool update_settings_kv(const Table &table, Config &config, std::string_view keyvalue) {
+    auto key = split(keyvalue,"=");
+    auto value = keyvalue;
+    return update_settings(table, config, trim(key), trim(value));
+}
+
 bool Controller::config_update(std::string_view body, std::string_view &&failed_field) {
 
     do {
@@ -633,6 +640,17 @@ void Controller::handle_server(MyHttpServer::Request &req) {
         status_out(ss);
         _server.send_file(req, Ctx::text, ss.get_text());
         return;
+    } else if (req.request_line.path == "/api/fuel"  && req.request_line.method == HttpMethod::POST) {
+        std::string_view f;
+        if (set_fuel(req.body, std::move(f))) {
+            _server.error_response(req, 202, "Accepted");
+        } else {
+            if (f == "kalib") {
+                _server.error_response(req, 406, "Not acceptable",{},f);
+            } else {
+                _server.error_response(req, 409, "Conflict",{},f);
+            }
+        }
     } else if (req.request_line.path == "/") {
 #ifdef WEB_DEVEL
         send_file(req, Ctx::html, "/index.html");
@@ -690,11 +708,9 @@ bool Controller::manual_control(const ManualControlStruct &cntr) {
 bool Controller::manual_control(std::string_view body, std::string_view &&error_field) {
     ManualControlStruct cntr = {};
     do {
-        auto value = split(body, "&");
-        auto key = trim(split(value, "="));
-        value = trim(value);
-        if (!update_settings(manual_control_table, cntr, key, value)) {
-            error_field = key;
+        auto ln = split(body,"&");
+        if (!update_settings_kv(manual_control_table, cntr, ln)) {
+            error_field = ln;
             return false;
         }
     } while (!body.empty());
@@ -703,6 +719,76 @@ bool Controller::manual_control(std::string_view body, std::string_view &&error_
         return false;
     }
     return true;
+
+}
+
+TimeStampMs Controller::update_motorhours(TimeStampMs now) {
+    bool fd = is_feeder_on();
+    bool pm = is_pump_on();
+    bool fa = is_fan_on();
+    bool at = is_attenuation();
+    Storage &stor = get_storage();
+    ++stor.utlz.active_time;
+    if (fd) ++stor.tray.feeder_time;
+    if (pm) ++stor.utlz.pump_time;
+    if (fa) ++stor.utlz.fan_time;
+    if (at) ++stor.utlz.attent_time;
+
+
+
+    bool anything_running = fd || pm || fa ;
+
+    if (anything_running && _flush_time == max_timestamp) {
+        _flush_time = now+60000;
+    } else if (now >= _flush_time) {
+        stor.save();
+        if (!anything_running) _flush_time = max_timestamp;
+        else _flush_time = now+60000;
+    }
+    return 1000;
+}
+
+
+struct SetFuelParams {
+    uint8_t bagcount = 0;
+    uint8_t kalib = 0;
+    uint8_t absnow = 0;
+};
+
+static constexpr std::pair<const char *, uint8_t SetFuelParams::*> set_fuel_params_table[] = {
+        {"bagcount", &SetFuelParams::bagcount},
+        {"kalib", &SetFuelParams::kalib},
+        {"absnow", &SetFuelParams::absnow},
+};
+
+bool Controller::set_fuel(std::string_view body, std::string_view &&error) {
+    SetFuelParams sfp;
+    do {
+        auto ln = split(body,"&");
+        if (!update_settings_kv(set_fuel_params_table, sfp, ln)) {
+            error = ln;
+            return false;
+        }
+    } while (!body.empty());
+
+    auto filltime  = sfp.absnow?_storage.tray.feeder_time:_storage.tray.tray_fill_time;
+    if (sfp.kalib) {
+        error = "kalib";
+        if (_storage.tray.bag_fill_count == 0) {
+            return false;
+        }
+        auto total_time = filltime - _storage.tray.tray_fill_time;
+        auto consump = total_time / _storage.tray.bag_fill_count;
+        if (consump > 0xFFFF || consump == 0) {
+            return false;
+        }
+        _storage.tray.bag_consump_time = consump;
+    }
+    _storage.tray.tray_fill_time = filltime;
+    _storage.tray.bag_fill_count = sfp.bagcount;
+    _storage.save();
+    return true;
+
 
 }
 

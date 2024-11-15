@@ -13,7 +13,7 @@
 
 #include "pump.h"
 
-#include "motoruntime.h"
+
 #include "http_server.h"
 #include "http_utils.h"
 
@@ -88,6 +88,9 @@ public:
 
     TimeStampMs run_http(TimeStampMs tmsp);
 
+    TimeStampMs update_motorhours(TimeStampMs  now);
+
+
 protected:
     Sensors _sensors;
 
@@ -99,6 +102,7 @@ protected:
     DriveMode _cur_mode = DriveMode::unknown;
     AutoMode _auto_mode = AutoMode::active;
     TimeStampMs _auto_mode_change = 0;
+    TimeStampMs _flush_time = 0;
 
     Storage _storage;
     Feeder _feeder;
@@ -106,7 +110,7 @@ protected:
     Pump _pump;
     TempSensors _temp_sensors;
     DisplayControl _display;
-    MotoRunTime _motoruntime;
+    TimedTaskMethod<Controller, &Controller::update_motorhours> _motoruntime;
     Scheduler<5> _scheduler;
     MyHttpServer _server;
 
@@ -122,6 +126,8 @@ protected:
 
     void handle_server(MyHttpServer::Request &req);
     void send_file(MyHttpServer::Request &req, std::string_view content_type, std::string_view file_name);
+
+    bool set_fuel(std::string_view req, std::string_view &&error);
 };
 
 }
