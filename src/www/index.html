@@ -28,6 +28,7 @@
                 <div class="max ref needle"></div>
                 <div class="cur needle"></div>
                 <div class="label cur_temp">60</div>
+                <div class="label amp_temp">60</div>
             </div>
         </div>
         <div class="prvekspopisem">
@@ -41,6 +42,7 @@
                 <div class="min ref needle"></div>
                 <div class="cur needle"></div>
                 <div class="label cur_temp">60</div>
+                <div class="label amp_temp">60</div>
             </div>
         </div>
         <div class="prvekspopisem">
@@ -93,6 +95,10 @@
         <div class="vystupni sectionname black">Maximální výstupní teplota</div>
         <div class="sub_section unhide">
             <div class="sectionname" onclick="unhide_section.call(this);">Pokročilé volby</div>
+            <label><span>Síla trendu</span><input type="number" step="0.1" min="0" max="25"></label>
+            <div class="chyba trnd_male">Moc malá hodnota</div>
+            <div class="chyba trnd_velke">Moc velká hodnota</div>
+            <div class="chyba trnd_prazdne">Musíš něco napsat</div>
             <label><span>HW adresa teploměru</span><button>Změnit</button></label>
         </div>
         <label><span>Teplota</span><input type="number" value="60" step="1" min="40" max="90" size="3"></label>
@@ -119,6 +125,7 @@
         <label><span>Max doba útlumu [m]</span><input type="number" min="1" max="255" step="1" name="attenuation.max_minutes"></label>
         <div class="buttonpanel"><button onclick="nastav_feeder_ok.call(this)">OK</button> <button
                 onclick="close_window.call(this)">Storno</button></div>    
+        <div class="chyba fail">Neplatná hodnota nebo hodnota mimo rozsah</div>
     </div>
 
 

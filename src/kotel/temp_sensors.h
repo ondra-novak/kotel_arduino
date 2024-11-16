@@ -2,9 +2,11 @@
 
 #include "constants.h"
 #include "nonv_storage.h"
+#include "linreg.h"
 #include <SimpleDallasTemp.h>
 #include <OneWire.h>
 
+#include "combined_container.h"
 
 namespace kotel {
 
@@ -36,6 +38,7 @@ public:
 
         switch (_state) {
             case State::start:
+                _next_measure_time = cur_time + 2000;
                 _next_read_time = cur_time+1;
                 _state = State::write_request;
                 break;
@@ -45,35 +48,18 @@ public:
                 _next_read_time = cur_time + 200;
                 break;
             case State::read_temp1:
-                rdtmp = _temp_reader.read_temp_celsius(_stor.temp.input_temp);
-                _input_status = _temp_reader.get_last_error();
-                if (rdtmp.has_value()) {
-                    if (_input_temp.has_value()) {
-                        _input_change = calc_change(*rdtmp, *_input_temp);
-                        _input_temp = rdtmp;
-                    } else {
-                        _input_temp = rdtmp;
-                    }
-                }
+                _input.read(_temp_reader, _stor.temp.input_temp);
                 _state = State::read_temp2;
                 _next_read_time = cur_time + 1;
                 break;
             case State::read_temp2:
-                rdtmp = _temp_reader.read_temp_celsius(_stor.temp.output_temp);
-                _output_status = _temp_reader.get_last_error();
-                if (rdtmp.has_value()) {
-                    if (_output_temp.has_value()) {
-                        _output_change = calc_change(*rdtmp, *_output_temp);
-                        _output_temp = rdtmp;
-                    } else {
-                        _output_temp = rdtmp;
-                    }
-                }
+                _output.read(_temp_reader, _stor.temp.output_temp);
                 _state = State::wait;
                 _next_read_time = cur_time + 1;
                 break;
             default:
-                _next_read_time = cur_time + 1000;
+                _next_read_time = _next_measure_time;
+                _next_measure_time += 2000;
                 _state = State::write_request;
 
 
@@ -87,19 +73,19 @@ public:
     }
 
     SimpleDallasTemp::Status get_input_status() const {
-        return _input_status;
+        return _input._status;
     }
 
      std::optional<float> get_input_temp() const {
-        return _input_temp;
+        return _input._value;
     }
 
     SimpleDallasTemp::Status get_output_status() const {
-        return _output_status;
+        return _output._status;
     }
 
     std::optional<float> get_output_temp() const {
-        return _output_temp;
+        return _output._value;
     }
 
     unsigned int get_read_count() const {
@@ -110,49 +96,76 @@ public:
         return  _state != State::write_request;
     }
 
-    bool is_emergency_temp() const {
-        return !_output_temp.has_value() || *_output_temp >= static_cast<float>(_stor.config.output_max_temp);
+    float get_input_ampl() const {
+        return _input.extrapolate(static_cast<int>(_stor.config.input_temp_ampl)*10);
     }
 
-    bool is_attent_temp() const {
-        if (_output_temp.has_value() && _input_temp.has_value()) {
-            auto tmin = static_cast<float>(_stor.config.input_min_temp);
-            auto tmax = static_cast<float>(_stor.config.output_max_temp);
-            if (*_output_temp >= tmax || *_input_temp>=tmax) return true;
-            if (*_input_temp <= tmin) return false;
-            float cur_center = ((*_output_temp) + (*_input_temp)) / 2.0;
-            float optimal_center = (tmin + tmax)/2.0;
-            return (cur_center >= optimal_center);
-        }
-        return true;
+    float get_output_ampl() const {
+        return _output.extrapolate(static_cast<int>(_stor.config.output_temp_ampl)*10);
     }
-
-    bool is_start_temp() const {
-        if (_output_temp.has_value() && _input_temp.has_value()) {
-            auto tmin = static_cast<float>(_stor.config.input_min_temp);
-            auto tmax = static_cast<float>(_stor.config.output_max_temp);
-            if (*_output_temp >= tmax) return false;
-            return (*_input_temp <= tmin);
-        }
-        return false;
-    }
-
-
 
 
 protected:
+
+    static constexpr unsigned int history_count = 128;
+
+
+
+    struct TempDeviceState {
+        std::optional<float> _value = {};
+        SimpleDallasTemp::Status _status = {};
+        unsigned int _wrpos = history_count - 1;
+        float _history[history_count] = {};
+        bool _first_value = true;
+        mutable bool _dirty = true;
+        mutable LinReg _lnr;
+
+        void read(SimpleDallasTemp &reader, const SimpleDallasTemp::Address &addr) {
+            _value = reader.read_temp_celsius(addr);
+            _status = reader.get_last_error();
+            auto newpos = (_wrpos + 1) % history_count;
+            if (_value.has_value()) {
+                if (_first_value) {
+                    _first_value = false;
+                    for (unsigned int i = 0; i < history_count; ++i) {
+                        _history[i] = *_value;
+                    }
+                } else {
+                    _history[newpos] = *_value;
+                }
+            } else {
+                _history[newpos] = _history[_wrpos];
+            }
+            _wrpos = newpos;
+            _dirty = true;
+        }
+
+        float extrapolate(int x) const {
+            x+=history_count;
+            if (_dirty) {
+                auto beg = (_wrpos+1) % history_count;
+                std::basic_string_view<float> s1(_history+beg, history_count-beg);
+                std::basic_string_view<float> s2(_history, beg);
+                CombinedContainers<std::basic_string_view<float>,std::basic_string_view<float> > cont(s1,s2);
+
+                _lnr = LinReg(cont.begin(), cont.end());
+                _dirty = false;
+            }
+            return _lnr(x);
+        }
+
+
+
+    };
 
     State _state = State::start;
     Storage &_stor;
     OneWire _wire;
     SimpleDallasTemp _temp_reader;
-    std::optional<float> _input_temp = {};
-    std::optional<float> _output_temp = {};
-    float _input_change = 0;
-    float _output_change = 0;
-    SimpleDallasTemp::Status _input_status = {};
-    SimpleDallasTemp::Status _output_status = {};
+    TempDeviceState _input;
+    TempDeviceState _output;
     TimeStampMs _next_read_time = 0;
+    TimeStampMs _next_measure_time = 0;
     unsigned int _read_count = 0;
 
     float calc_change(float n, float o) const {

@@ -95,7 +95,6 @@ protected:
     Sensors _sensors;
 
     bool _auto_stop_disabled = false;
-    bool _is_stop = false;
     bool _wifi_used = false;
     bool _force_pump = false;
 

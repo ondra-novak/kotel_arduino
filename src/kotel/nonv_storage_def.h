@@ -16,9 +16,9 @@ constexpr unsigned int file_directory_len = 9;
 namespace kotel {
 
 enum class ErrorCode: uint8_t {
-    no_error = 0,   
-    stop_low_temp = 1,  
-    motor_high_temp = 2,    
+    no_error = 0,
+    stop_low_temp = 1,
+    motor_high_temp = 2,
 };
 
 
@@ -31,11 +31,13 @@ struct Config {
     uint8_t max_atten_min  = 30; //maximalni doba utlumu v minutach
     uint8_t input_min_temp  = 60;  //minimalni teplota na vstupu
     uint8_t output_max_temp = 85;  //maximalni teplota na vystupu
-    uint8_t stop_temp = 35;   //teplota pod kterou se vypne automatika a musi se rucne zapnout
     uint8_t pump_temp = 40;   //zapinaci teplota cerpadla
     uint8_t default_bag_count = 15; //vychozi plneni
-    uint8_t operation_mode = 1;     //0 - manual, 1 - automatic
+    uint8_t operation_mode = 0;     //0 - manual, 1 - automatic
     uint8_t fan_pulse = 5;          //delka pulzu ventilátoru ve vlnach 50Hz
+    uint8_t input_temp_ampl = 10; //60 * 10 == 600 seconds
+    uint8_t output_temp_ampl = 10; //60 * 10 == 600 seconds
+    uint8_t factory_reset = 0;      //set this to 1 and reset
 
 };
 
@@ -68,7 +70,7 @@ struct Counters1 {
 };
 
 struct Status {
-    ErrorCode error = ErrorCode::no_error;             
+    ErrorCode error = ErrorCode::no_error;
 };
 
 /*

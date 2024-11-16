@@ -50,16 +50,24 @@ void Controller::run() {
         handle_server(req);
     }
     control_pump();
-    if (!_sensors.motor_temp_monitor
-            || _sensors.tray_open
-            || !_temp_sensors.get_output_temp().has_value()) {
+    if (!_sensors.motor_temp_monitor //motor temperature check
+            || _sensors.tray_open    //tray is open
+            || !_temp_sensors.get_output_temp().has_value() //we don't have output temperature
+    ) {
         run_stop_mode();
     } else if (_storage.config.operation_mode == 0) {
         run_manual_mode();
-    } else if (_is_stop) {
-        run_stop_mode();
     } else if (_storage.config.operation_mode == 1) {
-        run_auto_mode();
+        if ((_temp_sensors.get_output_temp().has_value() //output temperature is less than input temperature
+                    && _temp_sensors.get_input_temp().has_value()
+                    && *_temp_sensors.get_output_temp() < *_temp_sensors.get_input_temp())
+            || (_temp_sensors.get_output_temp().has_value() //output temp is too low
+                    && *_temp_sensors.get_output_temp() < _storage.config.pump_temp
+                    && !_auto_stop_disabled)){
+            run_stop_mode();
+        } else {
+            run_auto_mode();
+        }
     } else {
         run_other_mode();
     }
@@ -86,6 +94,8 @@ static constexpr std::pair<const char *, uint8_t Config::*> config_table[] ={
         {"feeder.off_sec", &Config::feeder_off_sec},
         {"temperature.max_output", &Config::output_max_temp},
         {"temperature.min_input", &Config::input_min_temp},
+        {"temperature.ampl_output", &Config::output_temp_ampl},
+        {"temperature.ampl_input", &Config::input_temp_ampl},
         {"temperature.pump_on", &Config::pump_temp},
         {"attenuation.max_minutes", &Config::max_atten_min},
         {"default_bag_count", &Config::default_bag_count},
@@ -403,16 +413,16 @@ void Controller::status_out(Stream &s) {
     print_data_line(s,"auto_mode", static_cast<int>(_auto_mode));
     print_data_line(s,"temp.output.value", _temp_sensors.get_output_temp());
     print_data_line(s,"temp.output.status", static_cast<int>(_temp_sensors.get_output_status()));
+    print_data_line(s,"temp.output.ampl", _temp_sensors.get_output_ampl());
     print_data_line(s,"temp.input.value", _temp_sensors.get_input_temp());
     print_data_line(s,"temp.input.status", static_cast<int>(_temp_sensors.get_input_status()));
+    print_data_line(s,"temp.input.ampl", _temp_sensors.get_input_ampl());
     print_data_line(s,"tray_open", _sensors.tray_open);
     print_data_line(s,"motor_temp_ok", _sensors.motor_temp_monitor);
     print_data_line(s,"pump", _pump.is_active());
     print_data_line(s,"feeder", _feeder.is_active());
     print_data_line(s,"fan", _fan.get_speed());
     print_data_line(s,"network.ip", WiFi.localIP());
-    print_data_line(s,"network.netmask", WiFi.subnetMask());
-    print_data_line(s,"network.gateway", WiFi.gatewayIP());
     print_data_line(s,"network.ssid", WiFi.SSID());
     print_data_line(s,"network.signal",WiFi.RSSI());
 
@@ -436,8 +446,6 @@ void Controller::control_pump() {
 
 void Controller::run_manual_mode() {
     _auto_stop_disabled = true;
-    _is_stop = false;
-
     _cur_mode = DriveMode::manual;
 
 }
@@ -446,25 +454,33 @@ void Controller::run_auto_mode() {
 
     _cur_mode = DriveMode::automatic;
 
-    float output_temp = *_temp_sensors.get_output_temp();
-    float input_temp = _temp_sensors.get_input_temp().has_value()?
-                    *_temp_sensors.get_input_temp():output_temp;   //fallback if one temp is failed
+    bool we_have_input = _temp_sensors.get_input_temp().has_value();
 
-    float min_temp = static_cast<float>(_storage.config.stop_temp);
+    float raw_output_temp = *_temp_sensors.get_output_temp();
+    float output_temp = _temp_sensors.get_output_ampl();
+    float input_temp = we_have_input?_temp_sensors.get_input_ampl():_temp_sensors.get_output_ampl();
+
+
     float max_temp = static_cast<float>(_storage.config.output_max_temp);
     float attent_temp = static_cast<float>(_storage.config.input_min_temp);
 
-    if (!_auto_stop_disabled && (output_temp<min_temp)) {
-        _is_stop = true;
+
+    bool raw_max_temp_reached = raw_output_temp >= max_temp;
+    bool max_temp_reached = output_temp >= max_temp ;
+    bool over_temp = input_temp >=attent_temp || max_temp_reached || raw_max_temp_reached;
+
+    if (raw_max_temp_reached) {
+        _feeder.stop();
+        _fan.stop();
+        _auto_mode = AutoMode::attenuation;
+        _auto_stop_disabled = false;
         return;
     }
-
-    bool max_temp_reached = output_temp >= max_temp;
-    bool over_temp = input_temp >=attent_temp || (!_auto_stop_disabled && input_temp > output_temp) || max_temp_reached;
 
     switch (_auto_mode) {
         case AutoMode::active:
             if (over_temp) {
+                _auto_stop_disabled = false;
                 _auto_mode = AutoMode::attenuation;;
                 _auto_mode_change = get_current_timestamp()+from_minutes(_storage.config.max_atten_min);
                 _feeder.stop();

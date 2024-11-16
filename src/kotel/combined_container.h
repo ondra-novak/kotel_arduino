@@ -15,6 +15,7 @@ public:
     class Iterator {
     public:
 
+        using iterator_category = std::forward_iterator_tag;
         using value_type = typename Cont1::value_type;
 
         Iterator(Iter1 iter1, Iter1 end1, Iter2 iter2)

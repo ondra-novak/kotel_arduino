@@ -13,8 +13,8 @@ function delay(millis) {
     });
 }
 
-function parse_response(text) {
-    return text.split("\r\n").reduce((obj,line)=>{
+function parse_response(text, sep="\r\n") {
+    return text.split(sep).reduce((obj,line)=>{
         let kv = line.split('=',2).map(x=>x.trim());
         if (kv[0]) {
             obj[kv[0]] = kv[1];
@@ -100,7 +100,7 @@ let Controller = {
                     body: body
                 });
                 if (resp.status == 202) {
-                    let config_conv = parse_response(body);
+                    let config_conv = parse_response(body,"&");
                     Object.assign(this.config, config_conv);
                     return true;
                 } else {
@@ -126,17 +126,20 @@ let Controller = {
 }
 
 
-function update_temperature(id, temp, ref_temp){
+function update_temperature(id, temp, ref_temp, ampl_temp){
     const el = document.getElementById(id);
     const cur = el.getElementsByClassName("cur")[0];
     const ref = el.getElementsByClassName("ref")[0];
     const label = el.getElementsByClassName("cur_temp")[0];
+    const ampl = el.getElementsByClassName("amp_temp")[0];
     
     temp = parseFloat(temp);
     ref_temp = parseFloat(ref_temp);
+    ampl_temp = parseFloat(ampl_temp);
+    
     
     function angle(temp) {        
-        const a = (temp-20)*270/80;
+        let a = (temp-20)*270/80;
         if (a < 0) a = 0;
         if (a > 270) a = 270;
         return (a - 45)+"deg";
@@ -146,6 +149,7 @@ function update_temperature(id, temp, ref_temp){
     cur.setAttribute("style","transform: rotate("+angle(temp)+");");
     ref.setAttribute("style","transform: rotate("+angle(ref_temp)+");");
     label.textContent = isNaN(temp)?"--.-":temp.toFixed(1);    
+    ampl.textContent = ampl_temp.toFixed(1);
 }
 
 function update_fuel(id, value) {
@@ -274,15 +278,16 @@ async function nastav_teplomer(field) {
     }
 } 
 
-function dialog_nastaveni_teploty(field, hw_field) {
+function dialog_nastaveni_teploty(field, hw_field, trend_field) {
     let el = document.getElementById("nastav_teplotu");
     hide_error(el);
     el.hidden = false;
     el.dataset.field=field;
     el.dataset.hwfield=hw_field;
-    let imp = el.getElementsByTagName("input")[0]
-    imp.dataset.name="temperature.max_output";
+    let imp = el.getElementsByTagName("input")[1]
+    let trnd = el.getElementsByTagName("input")[0];
     imp.value=Controller.config[field];
+    trnd.value = parseFloat(Controller.config[trend_field])/10.0;
     let btm = el.getElementsByTagName("button");
     btm[0].onclick = ()=>{
         nastav_teplomer(hw_field);
@@ -290,20 +295,53 @@ function dialog_nastaveni_teploty(field, hw_field) {
     btm[1].onclick = async ()=>{
         let cfg = {};
         let val = imp.valueAsNumber;
+        let trnd_val = trnd.valueAsNumber;                
         if (isNaN(val)) {
             show_error(el,"prazdne")
         } else if (val < 30) {
             show_error(el,"male")
         } else if (val > 90) {
             show_error(el,"velke")
+        } else if (isNaN(trnd_val)) {
+            show_error(el,"trnd_prazdne")
+        } else if (trnd_val < 0) {
+            show_error(el,"trnd_male")
+        } else if (trnd_val > 25) {
+            show_error(el,"trnd_velke")        
         } else {
             cfg[field] = val;
+            cfg[trend_field]=(trnd_val * 10).toFixed(0);
             btm[1].disabled = true;
             await Controller.set_config(cfg);
             el.hidden = true;
         }
     }
     btm[1].disabled = false;
+}
+
+async function nastav_feeder_ok() {
+    let cfg = {};
+    let win = this.parentElement.parentElement;
+    let inputs = win.getElementsByTagName("input");
+    let err = false; 
+    Array.prototype.forEach.call(inputs,x=>{
+        let val = x.valueAsNumber;
+        let name = x.name;
+        if (isNaN(val) || val < 1 || val > 255) {
+            err = true;
+        } else {
+            cfg[name] = val;
+        }        
+    });
+    if (err) {
+        show_error(win,"fail");
+    } else {
+        this.disabled = true;
+        await Controller.set_config(cfg);
+        this.disabled = false;        
+        win.hidden = true;
+    }
+    
 }
 
 function main() {
@@ -316,8 +354,10 @@ function main() {
     Controller.on_status_update = function(st) {
         let stav = document.getElementById("stav");
         stav.className="mode"+st.mode+" "+"automode"+st.auto_mode;
-        update_temperature("vystupni_teplota", st["temp.output.value"], Controller.config["temperature.max_output"]);
-        update_temperature("vstupni_teplota", st["temp.input.value"], Controller.config["temperature.min_input"]);
+        update_temperature("vystupni_teplota", st["temp.output.value"], 
+                        Controller.config["temperature.max_output"], st["temp.output.ampl"]);
+        update_temperature("vstupni_teplota", st["temp.input.value"], 
+                        Controller.config["temperature.min_input"], st["temp.input.ampl"]);
         update_fuel("zasobnik",calculate_fuel_remain()); 
         document.getElementById("ovladac_feeder").classList.toggle("on", st.feeder != "0");
         document.getElementById("ovladac_fan").classList.toggle("on", st.fan != "0");
@@ -349,16 +389,17 @@ function main() {
     });
     el = document.getElementById("vystupni_teplota").parentNode;
     el.addEventListener("click",function(){
-        dialog_nastaveni_teploty("temperature.max_output","temp_sensor.output.addr");
+        dialog_nastaveni_teploty("temperature.max_output","temp_sensor.output.addr","temperature.ampl_output");
         
     });
     el = document.getElementById("vstupni_teplota").parentNode;
     el.addEventListener("click",function(){
-        dialog_nastaveni_teploty("temperature.min_input","temp_sensor.input.addr");        
+        dialog_nastaveni_teploty("temperature.min_input","temp_sensor.input.addr","temperature.ampl_input");        
     });
     el = document.getElementById("ovladac_feeder");
     el.addEventListener("click", function(){
         let el = document.getElementById("nastav_podavac");
+        hide_error(el);
         el.hidden = false;
         let inputs = el.getElementsByTagName("input"); 
         Array.prototype.forEach.call(inputs,x=>{

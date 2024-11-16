@@ -230,6 +230,16 @@ cursor: pointer;
     background-color: #444;
     color: yellow;
 }
+.teplomer .label.amp_temp::before {
+    content:"trend: ";
+}
+.teplomer .label.amp_temp {
+    bottom: 1rem;
+    text-align: center;
+    font-size: 0.8em;
+    width: 6em;
+    margin:  auto;
+}
 .teplomer .label.t20 {
     bottom: 1.5em;
     text-align:left;
