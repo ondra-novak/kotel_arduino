@@ -6,6 +6,44 @@ html {
 
 }
 
+.wifi {
+    width: 32px;
+    height: 30px;
+    border: 2px solid transparent;
+    border-top: 2px solid currentColor;
+    border-radius: 30px;
+    position: relative;
+    box-sizing: border-box;
+}
+
+.wifi::before {
+    box-sizing: border-box;
+    width: 24px;
+    height: 22px;
+    border: 2px solid transparent;
+    border-top: 2px solid currentColor;
+    border-radius: 30px;    
+    position: absolute;
+    content: "";
+    left:2px;
+    top: 3px;
+}
+.wifi::after {
+    box-sizing: border-box;
+    width: 16px;
+    height: 14px;
+    border: 2px solid transparent;
+    border-top: 2px solid currentColor;
+    border-radius: 30px;
+    position: absolute;
+    content: "•";
+    left:6px;
+    top: 8px;
+    text-align: center;
+    line-height: 9px;
+    vertical-align:middle;
+}
+
 .chyba {
     font-size:  0.8em;
     color:  red;
@@ -107,9 +145,9 @@ div.zasobnik {
     gap: 2px;
     flex-direction: column;
     width: 10em;
-    height: 10em;
-    padding-top: 2.7em;
-    padding-bottom: 1.5em;
+    height: 12em;
+    /* padding-top: 2.7em; */
+    /* padding-bottom: 1.5em; */
 }
 
 .ovladace > div {
@@ -133,7 +171,7 @@ div.zasobnik {
 cursor: pointer;
 }
 
-.prvekspopisem > span {
+.prvekspopisem > span, .ovladace > span {
     display: block;
     padding: 1em;
 }
@@ -161,6 +199,10 @@ cursor: pointer;
     flex-wrap: wrap;
 }
 
+.dashboard > div {
+    width: 10em;
+    text-align: center;
+}
 .teplomer {
     border-top: 2px solid;
     border-left: 2px solid;
@@ -182,10 +224,11 @@ cursor: pointer;
     bottom: 2rem;
     text-align: center;
     font-size: 1.5em;
-    border:  1px solid #888;
     width: 2.5em;
     margin:  auto;
     border-radius: 0.5em;
+    background-color: #444;
+    color: yellow;
 }
 .teplomer .label.t20 {
     bottom: 1.5em;
@@ -431,11 +474,15 @@ div#stav > * {
     background-color: #2f2a2a;
 }
 
-.okno.vystupni .vstupni.sectionname.black {
-    display: none;
+#nastav_teplotu .sectionname.black {
+    display:none;
 }
-.okno.vstupni .vystupni.sectionname.black {
-    display: none;
+
+#nastav_teplotu[data-field="temperature.min_input"] .vstupni {
+    display: block;
+}
+#nastav_teplotu[data-field="temperature.max_output"] .vystupni {
+    display: block;
 }
 
 .section.okno >.sectionname {
@@ -465,6 +512,30 @@ div#stav > * {
 .sect_container {
     display: flex;
 }
+
+.wifiinfo {
+    position: relative;
+}
+
+.wifiinfo .wifi {
+    position: absolute;
+    left: 0;
+    top: 1em;
+    right: 0;
+    bottom: 0;
+    margin: auto;
+    transform: scale(2.0);
+    
+}
+
+.wifiinfo .label {
+    text-align: center;
+    font-size: 1.1em;
+    margin-top:  5rem;
+    border-radius: 0.5em;
+    background-color: #444;
+}
+
 
 input {
     border: 1px solid;

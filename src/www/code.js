@@ -125,6 +125,7 @@ let Controller = {
     });
 }
 
+
 function update_temperature(id, temp, ref_temp){
     const el = document.getElementById(id);
     const cur = el.getElementsByClassName("cur")[0];
@@ -134,16 +135,17 @@ function update_temperature(id, temp, ref_temp){
     temp = parseFloat(temp);
     ref_temp = parseFloat(ref_temp);
     
-    function angle(temp) {
+    function angle(temp) {        
         const a = (temp-20)*270/80;
         if (a < 0) a = 0;
         if (a > 270) a = 270;
         return (a - 45)+"deg";
     }
     
+    cur.hidden = isNaN(temp);    
     cur.setAttribute("style","transform: rotate("+angle(temp)+");");
     ref.setAttribute("style","transform: rotate("+angle(ref_temp)+");");
-    label.textContent = temp.toFixed(1);    
+    label.textContent = isNaN(temp)?"--.-":temp.toFixed(1);    
 }
 
 function update_fuel(id, value) {
@@ -234,10 +236,16 @@ function unhide_section() {
 
 async function nastav_teplomer(field) {
     let win = document.getElementById("nastav_hw_teplomer");
+    let btn = win.getElementsByTagName("button"); 
     win.hidden = false;
-    win.getElementsByTagName("button")[0].onclick = ()=>{
-        
+    btn[0].onclick = ()=>{
+        let cfg = {};
+        cfg[field] = selected;
+        btn[0].disabled = true;
+        Controller.set_config(cfg);
+        win.hidden = true;
     };
+    btn[0].disabled = true;    
     let list = win.getElementsByClassName("list")[0];
     list.innerHTML="";
     let resp = await fetch("/api/scan_temp",{
@@ -253,7 +261,10 @@ async function nastav_teplomer(field) {
             let elem = document.createElement("input");
             elem.setAttribute("type","radio");
             elem.setAttribute("name","t");
-            elem.onselect = ()=>selected=addr;   
+            elem.onchange = ()=>{
+                selected=addr;
+                btn[0].disabled = false;
+            }   
             sp.appendChild(elem);
             sp.appendChild(document.createTextNode(temp));
             lb.appendChild(sp);
@@ -263,10 +274,42 @@ async function nastav_teplomer(field) {
     }
 } 
 
+function dialog_nastaveni_teploty(field, hw_field) {
+    let el = document.getElementById("nastav_teplotu");
+    hide_error(el);
+    el.hidden = false;
+    el.dataset.field=field;
+    el.dataset.hwfield=hw_field;
+    let imp = el.getElementsByTagName("input")[0]
+    imp.dataset.name="temperature.max_output";
+    imp.value=Controller.config[field];
+    let btm = el.getElementsByTagName("button");
+    btm[0].onclick = ()=>{
+        nastav_teplomer(hw_field);
+    };
+    btm[1].onclick = async ()=>{
+        let cfg = {};
+        let val = imp.valueAsNumber;
+        if (isNaN(val)) {
+            show_error(el,"prazdne")
+        } else if (val < 30) {
+            show_error(el,"male")
+        } else if (val > 90) {
+            show_error(el,"velke")
+        } else {
+            cfg[field] = val;
+            btm[1].disabled = true;
+            await Controller.set_config(cfg);
+            el.hidden = true;
+        }
+    }
+    btm[1].disabled = false;
+}
+
 function main() {
     Controller.update_status_cycle();
     Controller.update_stats_cycle();
-    Controller.read_config().then(update_config_form);
+    Controller.read_config();
     
 //    var stringtable = document.getElementById("stringtable");
     
@@ -306,24 +349,22 @@ function main() {
     });
     el = document.getElementById("vystupni_teplota").parentNode;
     el.addEventListener("click",function(){
-        let el = document.getElementById("nastav_teplotu");
-        el.hidden = false;
-        el.dataset.typ="vystupni";
-        let imp = el.getElementsByTagName("input")[0]
-        imp.dataset.name="temperature.max_output";
-        imp.value=Controller.config[imp.dataset.name];
+        dialog_nastaveni_teploty("temperature.max_output","temp_sensor.output.addr");
         
     });
     el = document.getElementById("vstupni_teplota").parentNode;
     el.addEventListener("click",function(){
-        let el = document.getElementById("nastav_teplotu");
-        el.hidden = false;
-        el.dataset.typ="vstupni";
-        let imp = el.getElementsByTagName("input")[0]
-        imp.dataset.name="temperature.min_input";
-        imp.value=Controller.config[imp.dataset.name];
-        
+        dialog_nastaveni_teploty("temperature.min_input","temp_sensor.input.addr");        
     });
+    el = document.getElementById("ovladac_feeder");
+    el.addEventListener("click", function(){
+        let el = document.getElementById("nastav_podavac");
+        el.hidden = false;
+        let inputs = el.getElementsByTagName("input"); 
+        Array.prototype.forEach.call(inputs,x=>{
+            x.value = Controller.config[x.name]; 
+        });
+    })
     
 }
 
