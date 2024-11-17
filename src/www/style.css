@@ -6,6 +6,30 @@ html {
 
 }
 
+
+#manualcontrolpanel {
+    position: sticky;
+    border: 1px solid;
+    bottom: 5px;
+    background-color: #000000;
+    margin: 0 auto;
+    width: 90vw;
+    max-width: 500px;
+    text-align: center;
+}
+
+#manualcontrolpanel .buttons {
+    display: flex;
+    justify-content: space-around;
+    height: 5em;
+    align-items: stretch;
+}
+#manualcontrolpanel .buttons > div {width: 40%;}
+
+div#rssi::after {
+    content: "dbm";
+}
+
 .wifi {
     width: 32px;
     height: 30px;
@@ -150,13 +174,31 @@ div.zasobnik {
     /* padding-bottom: 1.5em; */
 }
 
+div#mototempmax {
+    position: absolute;
+    right: 0.7em;
+    top:  0;
+    bottom: 0;
+    height: 1.4em;
+    margin: auto;
+    width: 1.4em;
+    background-color: red;
+    border-radius: 1em;
+    border:  3px solid red;
+}
+div#mototempmax::before {
+    content: "\1F321";
+    color: yellow;
+    font-size: 1.1em;
+}
+
 .ovladace > div {
-    text-align: center;
     flex-grow: 1;
     align-content: center;
     border-radius: 1em;
     background-color: #444;
     color: #888;
+    position: relative;
 }
 
 .ovladace > div.on {
@@ -319,6 +361,85 @@ body {
     box-sizing:content-box;
 }
 
+#manualcontrolpanel .button {
+    background-color: #444;
+    border-radius: 1em;
+}
+
+#manualcontrolpanel .button.active {
+    background-color: #9fff26;
+    border-radius: 1em;
+    color: black;
+}
+
+.iconfan::after {
+    content:"\274A";
+    display:block;
+    font-size: 1.4em;
+    margin-top:  -0.2em;
+    margin-bottom:  -0.2em;
+}
+
+ .iconfeeder {
+    display:block;
+    border: 1px solid;
+    height: 0.4em;
+    width: 1.4em;
+    margin: 0.4em auto;
+    position: relative;
+    background-color: currentColor;
+    border-radius: 5px;
+}
+.iconfeeder::before,
+.iconfeeder::after {
+    content: "";
+    display: block;
+    position: absolute;
+    border: 1px solid;
+    height: 1.4em;
+    width: 2px;
+    top: -0.55em;
+    left: 0.25em;
+    background-color: currentColor;
+    transform: rotate(40deg)
+}
+
+.iconfeeder::after {
+    left: 0.9em;
+}
+
+.ovladace  .icon {
+    width: 1.5em;
+    height: 1.4em;
+    margin-left: 1em;
+    position: absolute;
+    left: 0.7em;
+    top:  0;
+    bottom: 0;
+    margin: auto;
+}
+
+.iconpump {
+    display: block;
+    width: 1.4em;
+    height: 1.4em;
+    border:  1px solid;
+    box-sizing: border-box;
+    border-radius: 1em;
+    position: relative;
+}
+.iconpump::after {
+    position: absolute;
+    width: 0;
+    height: 0;
+    left: 0;
+    top: 0;
+    border-top: 0.9em solid;
+    border-left: 0.9em solid transparent;
+    content: "";
+    transform: translate(-0.1em, 0.18em) scale(1.5, 1) rotate(45deg);
+}
+
 .button:hover {
     border: 2px solid;
     margin: -2px -2px;   
@@ -460,7 +581,7 @@ div#stav > * {
     transition: 0.5s;
 }
 .sub_section.unhide.unhidden {
-    max-height: 10em;
+    max-height: 13em;
 }
 .sub_section.unhide .sectionname {
     cursor: pointer;
@@ -548,14 +669,31 @@ div#stav > * {
 
 
 input {
-    border: 1px solid;
-    font-size: 1.4em;
+    border: 1px solid transparent;
     color: wheat;
-    background-color: black;
+    font-size: 1.1em;
+    background-color: #212121;
+    border-bottom: 1px solid #888;
+    border-radius: 5px;
+}
+
+#manualcontrolpanel .slider input {
+    width: 100%;
+    box-sizing:border-box;    
+}
+#manualcontrolpanel .slider {    
+    margin-right: 10px;
+    margin-left: 50%;
+    margin-top: 0.5em;
 }
 
 
 input[type=number]{
     text-align: center;
+    font-size: 1.4em;
     width: 5em;
+}
+
+#nastav_wifi input {
+    text-align: center;
 }

@@ -78,7 +78,7 @@ public:
         uint16_t _feeder_time = 0;
         uint16_t _fan_time = 0;
         uint16_t _fan_speed = 0;
-        uint16_t _force_pump = 0;
+        uint16_t _force_pump = 0xFF;
     };
 
     ///for manual control, this must be called repeatedly
@@ -90,6 +90,7 @@ public:
 
     TimeStampMs update_motorhours(TimeStampMs  now);
 
+    void factory_reset();
 
 protected:
     Sensors _sensors;

@@ -51,14 +51,14 @@ void Controller::run() {
     }
     control_pump();
     if (!_sensors.motor_temp_monitor //motor temperature check
-            || _sensors.tray_open    //tray is open
-            || !_temp_sensors.get_output_temp().has_value() //we don't have output temperature
-    ) {
+) {
         run_stop_mode();
     } else if (_storage.config.operation_mode == 0) {
         run_manual_mode();
     } else if (_storage.config.operation_mode == 1) {
-        if ((_temp_sensors.get_output_temp().has_value() //output temperature is less than input temperature
+        if (_sensors.tray_open    //tray is open
+            || (!_temp_sensors.get_output_temp().has_value()) //we don't have output temperature
+            || (_temp_sensors.get_output_temp().has_value() //output temperature is less than input temperature
                     && _temp_sensors.get_input_temp().has_value()
                     && *_temp_sensors.get_output_temp() < *_temp_sensors.get_input_temp())
             || (_temp_sensors.get_output_temp().has_value() //output temp is too low
@@ -333,7 +333,7 @@ bool parse_to_field(IPAddr &fld, std::string_view value) {
 }
 
 bool parse_to_field(TextSector &fld, std::string_view value) {
-    fld.set(value);
+    fld.set_url_dec(value);
     return true;
 }
 
@@ -542,6 +542,7 @@ static IPAddress conv_ip(const IPAddr &x) {
 
 
 void Controller::init_wifi() {
+    WiFi.setTimeout(0);
     if (_storage.wifi_config.ipaddr != IPAddr{}) {
         WiFi.config(conv_ip(_storage.wifi_config.ipaddr),
                 conv_ip(_storage.wifi_config.dns),
@@ -622,14 +623,16 @@ void Controller::send_file(MyHttpServer::Request &req, std::string_view content_
 #endif
 
 void Controller::handle_server(MyHttpServer::Request &req) {
+    StringStream<1024> ss;
 
     using Ctx = MyHttpServer::ContentType;
 
     set_wifi_used();
     if (req.request_line.path == "/api/config") {
             if (req.request_line.method == HttpMethod::GET) {
-                _server.send_simple_header(req, Ctx::text);
-                config_out(req.client);
+                config_out(ss);
+                _server.send_file(req, Ctx::text, ss.get_text());
+                return;
             } else if (req.request_line.method == HttpMethod::PUT) {
                 std::string_view f;
                 if (config_update(req.body, std::move(f))) {
@@ -649,17 +652,17 @@ void Controller::handle_server(MyHttpServer::Request &req) {
             return;
         }
     } else if (req.request_line.path == "/api/stats" && req.request_line.method == HttpMethod::GET) {
-        _server.send_simple_header(req, Ctx::text);
-        stats_out(req.client);
+        stats_out(ss);
+        _server.send_file(req, Ctx::text, ss.get_text());
+        return;
     } else if (req.request_line.path == "/api/status" && req.request_line.method == HttpMethod::GET) {
-        _server.send_simple_header(req, Ctx::text);
-        status_out(req.client);
+        status_out(ss);
+        _server.send_file(req, Ctx::text, ss.get_text());
     } else if (req.request_line.path == "/api/format" && req.request_line.method == HttpMethod::GET) {
         _server.send_simple_header(req, Ctx::json);
         out_form_config(req);
     } else if (req.request_line.path == "/api/manual_control"  && req.request_line.method == HttpMethod::POST) {
         manual_control(req.body, {});
-        StringStream<512> ss;
         status_out(ss);
         _server.send_file(req, Ctx::text, ss.get_text());
         return;
@@ -678,21 +681,21 @@ void Controller::handle_server(MyHttpServer::Request &req) {
 #ifdef WEB_DEVEL
         send_file(req, Ctx::html, "/index.html");
 #else
-        _server.send_file(req, HttpServerBase::ContentType::html, index_html);
+        _server.send_file(req, HttpServerBase::ContentType::html, embedded_index_html);
 #endif
         return; //do not stop
     } else if (req.request_line.path == "/code.js") {
 #ifdef WEB_DEVEL
         send_file(req, Ctx::javascript, req.request_line.path);
 #else
-        _server.send_file(req, HttpServerBase::ContentType::html, code_js);
+        _server.send_file(req, Ctx::javascript, embedded_code_js);
 #endif
         return; //do not stop
     } else if (req.request_line.path == "/style.css") {
 #ifdef WEB_DEVEL
         send_file(req, Ctx::css, req.request_line.path);
 #else
-        _server.send_file(req, HttpServerBase::ContentType::html, style_css);
+        _server.send_file(req, Ctx::css, embedded_style_css);
 #endif
         return; //do not stop
     } else {
@@ -713,7 +716,12 @@ bool Controller::manual_control(const ManualControlStruct &cntr) {
         if (cntr._fan_speed) {
             _fan.one_shot(_scheduler, cntr._fan_speed, cntr._fan_time);
         } else {
-            _fan.one_shot(_scheduler, cntr._fan_time);
+            auto spd = _fan.get_speed();
+            if (spd) {
+                _fan.one_shot(_scheduler, spd, cntr._fan_time);
+            } else {
+                _fan.one_shot(_scheduler, cntr._fan_time);
+            }
         }
     } else {
         _fan.stop();
@@ -724,7 +732,9 @@ bool Controller::manual_control(const ManualControlStruct &cntr) {
     } else {
         _feeder.stop();
     }
-    _force_pump = cntr._force_pump != 0;
+    if (cntr._force_pump != 0xFF) {
+        _force_pump = cntr._force_pump != 0;
+    }
     return true;
 }
 
@@ -813,6 +823,13 @@ bool Controller::set_fuel(std::string_view body, std::string_view &&error) {
     return true;
 
 
+}
+
+void Controller::factory_reset() {
+    _storage.get_eeprom().erase_all();
+    while (true) {
+        delay(1);
+    }
 }
 
 }

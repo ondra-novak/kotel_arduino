@@ -53,7 +53,11 @@ protected:
 
 
     static bool compare(const Item &a, const Item &b) {
-        return a._tp+a._task->_run_time < b._tp+b._task->_run_time;
+        auto aa = a._tp;
+        auto ab = b._tp;
+        if (~TimeStampMs(0)-a._task->_run_time > a._tp) aa+=a._task->_run_time;
+        if (~TimeStampMs(0)-b._task->_run_time > b._tp) ab+=b._task->_run_time;
+        return aa < ab;
     }
 
     Item _items[N];

@@ -26,43 +26,56 @@ function parse_response(text, sep="\r\n") {
 
 let Controller = {
     man: {
-        force_pump: false,
+/*        force_pump: false,
         feeder: false,
         fan: false,
-        fan_speed: null,
+        fan_speed: null,*/
     },
     
     status:{},
     config:{},
     stats:{},
-    update_status_cycle: async function() {
-        
-        let req = {
-            "feeder.timer": this.man.feeder?3:0,
-            "fan.timer": this.man.fan?3:0,
-            "pump.force": this.man.force_pump?1:0,
-            "fan.speed": this.man.fan_speed?this.man.fan_speed:0
-        }       
+        update_status_cycle: async function() {
+        if (this._status_timer) clearTimeout(this._status_timer);
+        let req = {};
+        if (this.man.feeder !== undefined) {
+            req["feeder.timer"] = this.man.feeder?3:0;
+            if (!this.man.feeder) delete this.man.feeder;
+        }
+        if (this.man.fan !== undefined) {
+            req["fan.timer"] = this.man.fan?3:0;
+            if (!this.man.fan) delete this.man.fan;
+        }
+        if (this.man.fan_speed !==undefined) {
+            req["fan.speed"] = this.man.fan_speed?this.man.fan_speed:0;
+            delete this.man.fan_speed;
+        }
+        if (this.man.force_pump !==undefined) {
+            req["pump.force"] = this.man.force_pump?1:0;
+            delete this.man.force_pump;
+        } 
         try {
             this.on_begin_refresh("status");
             let resp = await fetch("/api/manual_control", {
                 headers:{"Content-Type":"application/x-www-form-urlencoded"},
                 method: "POST",
-                body: convert_to_form_urlencode(req)                
+                body: convert_to_form_urlencode(req),
+                signal: AbortSignal.timeout(5000)                
             });            
             this.status = parse_response(await resp.text());
             this.on_status_update(this.status);
         } catch (e) {
             this.on_error("status",e);
         }
-        setTimeout(this.update_status_cycle.bind(this), 1000); 
+        this._status_timer = setTimeout(this.update_status_cycle.bind(this), 1000);
+        this._man_copy = Object.assign({}, this.man); 
     },
     
     update_stats_cycle: async function() {
         if (this._stat_timer) killTimer(this._stat_timer);
         try {
             this.on_begin_refresh("stats");
-            let resp = await fetch("/api/stats");            
+            let resp = await fetch("/api/stats",{signal: AbortSignal.timeout(5000)});            
             this.stats = parse_response(await resp.text());
             this.on_stats_update(this.state);
         } catch (e) {
@@ -97,7 +110,8 @@ let Controller = {
                 let resp = await fetch("/api/config", {
                     headers:{"Content-Type":"application/x-www-form-urlencoded"},
                     method: "PUT",
-                    body: body
+                    body: body,
+                    signal: AbortSignal.timeout(5000)
                 });
                 if (resp.status == 202) {
                     let config_conv = parse_response(body,"&");
@@ -111,6 +125,8 @@ let Controller = {
             } catch (e) {
                 console.error(e);
             }
+            await delay(1000);
+            
         }
     }
         
@@ -319,30 +335,88 @@ function dialog_nastaveni_teploty(field, hw_field, trend_field) {
     btm[1].disabled = false;
 }
 
-async function nastav_feeder_ok() {
-    let cfg = {};
-    let win = this.parentElement.parentElement;
-    let inputs = win.getElementsByTagName("input");
-    let err = false; 
+async function nastav_parametry(id) {
+    let win = document.getElementById(id);
+    hide_error(win);
+    win.hidden = false;
+    let inputs = win.getElementsByTagName("input"); 
+    let buttons = win.getElementsByTagName("button"); 
     Array.prototype.forEach.call(inputs,x=>{
-        let val = x.valueAsNumber;
-        let name = x.name;
-        if (isNaN(val) || val < 1 || val > 255) {
-            err = true;
-        } else {
-            cfg[name] = val;
-        }        
+        x.value = Controller.config[x.name]; 
     });
-    if (err) {
-        show_error(win,"fail");
-    } else {
-        this.disabled = true;
-        await Controller.set_config(cfg);
-        this.disabled = false;        
-        win.hidden = true;
+    buttons[0].onclick= async ()=>{
+        let cfg = {};
+        let err = false; 
+        Array.prototype.forEach.call(inputs,x=>{
+            if (x.getAttribute("type") == "number") {
+                let val = x.valueAsNumber;
+                let name = x.name;
+                if (isNaN(val) 
+                        || (val < parseFloat(x.getAttribute("min"))) 
+                        || (val > parseFloat(x.getAttribute("max")))) {
+                    err = true;
+                } else {
+                    cfg[name] = val;
+                }
+            }        
+        });
+        if (err) {
+            show_error(win,"fail");
+        } else {
+            buttons[0].disabled = true;
+            await Controller.set_config(cfg);
+            buttons[0].disabled = false;        
+            win.hidden = true;
+        }    
     }
-    
 }
+
+async function nastav_wifi() {
+    let win = document.getElementById("nastav_wifi");
+    hide_error(win);
+    win.hidden = false;
+    let inputs = win.getElementsByTagName("input"); 
+    let buttons = win.getElementsByTagName("button"); 
+    Array.prototype.forEach.call(inputs,x=>{
+        x.value = Controller.config[x.name] || ""; 
+    });
+    let current_password = Controller.config["wifi.password"]; 
+    inputs[0].checked = Controller.config["net.ip"] == "0.0.0.0";
+    buttons[0].onclick= async ()=>{
+        let cfg = {};
+        let err = false; 
+        Array.prototype.forEach.call(inputs,x=>{
+            if (x.getAttribute("type") == "text") {
+                let val = x.value
+                let name = x.name;                
+                if (name.startsWith("net.")) {
+                    const fld = val.split('.');
+                    const e = fld.find(x=>{
+                        const v = parseInt(x);
+                        return isNaN(v) || v < 0 || v > 255;
+                    })
+                    if (e !== undefined) err = true;
+                }
+                cfg[name] = val;
+            }        
+        });
+        if (err) {
+            show_error(win,"addrerror");
+        } else {
+            if (cfg["wifi.password"] == current_password) {
+                delete cfg["wifi.password"];
+            }
+            if (inputs[0].checked) {
+                cfg["net.ip"] = "0.0.0.0";
+            }
+            buttons[0].disabled = true;
+            await Controller.set_config(cfg);
+            buttons[0].disabled = false;        
+            win.hidden = true;
+        }    
+    }    
+}
+
 
 function main() {
     Controller.update_status_cycle();
@@ -362,7 +436,18 @@ function main() {
         document.getElementById("ovladac_feeder").classList.toggle("on", st.feeder != "0");
         document.getElementById("ovladac_fan").classList.toggle("on", st.fan != "0");
         document.getElementById("ovladac_pump").classList.toggle("on", st.pump != "0");
+        document.getElementById("ssid").textContent = st["network.ssid"];
+        document.getElementById("rssi").textContent = st["network.signal"];
         document.getElementById("netstatus").classList.remove("netconnecting");
+        document.getElementById("mototempmax").hidden = st["motor_temp_ok"] == "1";
+        document.getElementById("manualcontrolpanel").hidden = st.mode != "1";
+        document.getElementById("man_feeder").classList.toggle("active",st.feeder != "0");
+        document.getElementById("man_fan").classList.toggle("active",st.fan != "0");
+        if (st.fan != "0" && st.mode != "1") document.getElementById("man_fan_speed").value=st.fan;
+        if (st.mode != '1') {
+            Controller.man.fan = 0;
+            Controller.man.feeder = 0;
+        }
     };
     Controller.on_error = function(x,y) {
         document.getElementById("netstatus").classList.add("neterror");
@@ -379,6 +464,7 @@ function main() {
         await Controller.set_config({"operation_mode":new_mode});
         update_config_form(Controller.config);
         this.disabled = false; 
+        Controller.update_status_cycle();
     });
 
     let el = document.getElementById("zasobnik").parentNode;
@@ -398,15 +484,40 @@ function main() {
     });
     el = document.getElementById("ovladac_feeder");
     el.addEventListener("click", function(){
-        let el = document.getElementById("nastav_podavac");
-        hide_error(el);
-        el.hidden = false;
-        let inputs = el.getElementsByTagName("input"); 
-        Array.prototype.forEach.call(inputs,x=>{
-            x.value = Controller.config[x.name]; 
-        });
-    })
-    
+        nastav_parametry("nastav_podavac");
+    });
+    el = document.getElementById("ovladac_fan");
+    el.addEventListener("click", function(){
+        nastav_parametry("nastav_ventilator");
+    });
+    el = document.getElementById("ovladac_pump");
+    el.addEventListener("click", function(){
+        nastav_parametry("nastav_cerpadlo");
+    });
+    el = document.getElementById("wifi");
+    el.addEventListener("click", function(){
+        nastav_wifi();
+    });
+    el = document.getElementById("man_feeder");
+    el.addEventListener("click", function() {
+        Controller.man.feeder = Controller.status.feeder == "0";
+        Controller.update_status_cycle();
+    });
+    el = document.getElementById("man_fan");
+    el.addEventListener("click", function() {
+        Controller.man.fan = Controller.status.fan == "0";
+        Controller.update_status_cycle();
+    });
+    el = document.getElementById("man_fan_speed");    
+    el.addEventListener("change",function(){
+        Controller.man.fan_speed = this.value; 
+    });
+    el.value = 100;
+    el = document.getElementById("pump_active_forever");
+    el.addEventListener("change",function(){
+        Controller.man.force_pump = this.checked;
+        
+    })    
 }
 
  

@@ -19,6 +19,34 @@ struct TextSector {
             }
         }
     }
+
+    static char from_hex_digit(char c) {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'A' && c <= 'F') return c - 'A';
+        if (c >= 'a' && c <= 'f') return c - 'a';
+        return 2;
+    }
+
+    void set_url_dec(std::string_view txt) {
+        auto b = txt.begin();
+        auto e = txt.end();
+        for (char &c: text) {
+            if (b == e) {
+                c = '\0';
+            } else {
+                c = *b;
+                ++b;
+                if (c == '%' && b != e) {
+                    c = from_hex_digit(*b);
+                    ++b;
+                    if (b != e) {
+                        c = (c << 4) | from_hex_digit(*b);
+                    }
+                    ++b;
+                }
+            }
+        }
+    }
     std::string_view get() const {
         auto iter = std::find(std::begin(text), std::end(text), '\0');
         return std::string_view(text, std::distance(std::begin(text), iter));
@@ -33,6 +61,8 @@ struct WiFi_SSID {
 struct WiFi_Password{
     PasswordSector password = {};
 };
+
+
 
 class Storage {
 public:

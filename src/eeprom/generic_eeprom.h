@@ -379,6 +379,17 @@ public:
         return file_count() == 0;
     }
 
+    void erase_all() {
+        for (unsigned int i = 0; i < page_count; ++i) {
+            erase_page(i);
+        }
+        for (unsigned int i = 0; i < directory_size; ++i) {
+            _files[i].sector = invalid_sector;
+        }
+        _write_pos = 0;
+        _free_page = 0;
+    }
+
 protected:
 
     BlockDevice &_flash_device;
