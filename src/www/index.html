@@ -16,6 +16,7 @@
     <div id="stav" class="header_stav">
         <div class="button" id="prepnout_rezim"></div>
     </div>
+    <div class="varovani" id="simul_temp" hidden="hidden">POZOR: Simulovaná teplota, pouze test!!!</div>
     <div class="dashboard">
         <div class="prvekspopisem">
             <span>Výstupní teplota</span>
@@ -27,8 +28,8 @@
                 <div class="label t100">100</div>
                 <div class="max ref needle"></div>
                 <div class="cur needle"></div>
-                <div class="label cur_temp">60</div>
-                <div class="label amp_temp">60</div>
+                <div class="label cur_temp">--.-</div>
+                <div class="label amp_temp">--.-</div>
             </div>
         </div>
         <div class="prvekspopisem">
@@ -41,33 +42,33 @@
                 <div class="label t100">100</div>
                 <div class="min ref needle"></div>
                 <div class="cur needle"></div>
-                <div class="label cur_temp">60</div>
-                <div class="label amp_temp">60</div>
+                <div class="label cur_temp">--.-</div>
+                <div class="label amp_temp">--.-</div>
             </div>
         </div>
         <div class="prvekspopisem">
             <span>Zásobník</span>
             <div class="zasobnik" id="zasobnik">
-                <div class="fill" style="height: 60%"></div>
+                <div class="fill" style="height: 0"></div>
                 <div class="bok1 a"></div>
                 <div class="bok1 b"></div>
                 <div class="bok2 a"></div>
                 <div class="bok2 b"></div>
-                <div class="label">100%</div>
+                <div class="label">--</div>
             </div>
         </div>
-        <div class="ovladace">
-            <span>Zařízení</span>
-            <div id="ovladac_feeder" class="button">Podavač<div class="icon"> 
+        <div class="ovladace prvekspopisem" id="horeni">
+            <span>Ovládání hoření</span>
+            <div id="ovladac_feeder">Podavač<div class="icon">
                     <div class="iconfeeder"></div>
                 </div>
                 <div id="mototempmax" hidden="hidden"></div>
             </div>
-            <div id="ovladac_fan" class="button">Ventilátor<div class="icon">
+            <div id="ovladac_fan">Ventilátor<div class="icon">
                     <div class="iconfan"></div>
                 </div>
             </div>
-            <div id="ovladac_pump" class="button">Čerpadlo<div class="icon">
+            <div id="ovladac_pump">Čerpadlo<div class="icon">
                     <div class="iconpump"></div>
                 </div>
             </div>
@@ -76,12 +77,12 @@
             <span>Připojení </span>
             <div class="wifi"></div>
             <div class="label">
-                <div id="ssid">novakovi</div>
-                <div id="rssi">-80dbm</div>
+                <div id="ssid">---</div>
+                <div id="rssi">---</div>
             </div>
         </div>
     </div>
-    <div id="manualcontrolpanel">
+    <div id="manualcontrolpanel" hidden="hidden">
         <p>Panel ručního ovládání</p>
         <div class="buttons">
             <div class="button" id="man_feeder">Podavač<div class="iconfeeder"></div>
@@ -104,13 +105,14 @@
             <label><span>Kalibrovat (zásobník je prázdný)</span><input type="checkbox" name="kalib"></label>
             <div class="chyba kalibselhal">Kalibrace selhala, zásobník byl na začátku prázdný</div>
         </div>
-        <label><span>Počet pytlů</span><input type="number" value="1" step="1" min="1" max="255" size="3"
-                name="pytle"></label>
-        <div class="chyba zaporne">Nesmí být záporné číslo</div>
+        <label><span>Přidaný počet pytlů</span><input type="number" value="0" step="1" min="-15" max="15" size="3" name="pytle"></label>
+        <div class="chyba male">Nesmí být záporné číslo</div>
         <div class="chyba velke">Moc velká hodnota</div>
         <div class="chyba prazdne">Musíš něco napsat</div>
-        <div class="buttonpanel"><button onclick="nastav_zasobnik_ok.call(this)">OK</button> <button
-                onclick="close_window.call(this)">Storno</button></div>
+        <div class="buttonpanel">
+                <button>Plně naloženo</button>
+                <button>OK</button> 
+                <button onclick="close_window.call(this)">Storno</button></div>
     </div>
 
     <div class="okno section" id="nastav_teplotu" hidden="hidden">
@@ -140,39 +142,6 @@
         <div class="buttonpanel"><button>OK</button> <button onclick="close_window.call(this)">Storno</button></div>
 
     </div>
-    <div class="okno section" id="nastav_podavac" hidden="hidden">
-        <div class="sectionname black">Nastavení podavače</div>
-        <label><span>Doba přikládání [s]</span><input type="number" min="1" max="255" step="1"
-                name="feeder.on_sec"></label>
-        <label><span>Doba dohořívání [s]</span><input type="number" min="1" max="255" step="1"
-                name="feeder.off_sec"></label>
-        <label><span>Doba první přiložení [s]</span><input type="number" min="1" max="255" step="1"
-                name="feeder.first_on_sec"></label>
-        <label><span>Max doba útlumu [m]</span><input type="number" min="1" max="255" step="1"
-                name="attenuation.max_minutes"></label>
-        <div class="buttonpanel"><button>OK</button> <button onclick="close_window.call(this)">Storno</button></div>
-        <div class="chyba fail">Neplatná hodnota nebo hodnota mimo rozsah</div>
-    </div>
-    <div class="okno section" id="nastav_ventilator" hidden="hidden">
-        <div class="sectionname black">Nastavení ventilátoru</div>
-        <label><span>Výkon [%]</span><input type="number" min="1" max="100" step="1" name="fan.power_pct"></label>
-        <label><span>Doběh ventilátoru [s]</span><input type="number" min="1" max="255" step="1"
-                name="fan.rundown_sec"></label>
-        <div class="buttonpanel"><button>OK</button> <button onclick="close_window.call(this)">Storno</button></div>
-        <div class="chyba fail">Neplatná hodnota nebo hodnota mimo rozsah</div>
-    </div>
-    <div class="okno section" id="nastav_cerpadlo" hidden="hidden">
-        <div class="sectionname black">Nastavení čerpadla</div>
-        <div class="sub_section unhide">
-            <div class="sectionname" onclick="unhide_section.call(this);">Pokročilé volby</div>
-            <label><span>V ručním ovládání čerpadlo trvale zapnuté</span><input type="checkbox"
-                    id="pump_active_forever"></label>
-        </div>
-        <label><span>Spínací výstupní teplota</span><input type="number" min="30" max="90" step="1"
-                name="temperature.pump_on"></label>
-        <div class="buttonpanel"><button>OK</button> <button onclick="close_window.call(this)">Storno</button></div>
-        <div class="chyba fail">Neplatná hodnota nebo hodnota mimo rozsah</div>
-    </div>
     <div class="okno section" id="nastav_wifi" hidden="hidden">
         <div class="sectionname black">Nastavení připojení</div>
         <div class="sub_section unhide">
@@ -187,6 +156,48 @@
         <label><span>Wifi SSID</span><input type="text" maxlength="20" size="17" name="wifi.ssid"></label>
         <label><span>Wifi heslo</span><input type="text" maxlength="20" size="17" name="wifi.password"></label>
         <p>Změny nastavení připojení se projeví po restartu zařízení</p>
+        <div class="buttonpanel"><button>OK</button> <button onclick="close_window.call(this)">Storno</button></div>
+    </div>
+    <div class="okno section" id="nastav_topeni" hidden="hidden">
+        <div class="sectionname black">Ovládání hoření</div>
+        <label><span>Výhřevnost MJ/kg</span><input type="number" min="5" max="25.5" step="0.1"
+                name="heat_value"></label>
+
+        <div class="subsection">
+            <div class="sectionname">Plný výkon</div>
+            <label><span>Výkon kW</span><input type="number" min="1" max="25" step="0.5"
+                    name="full.power_value" data-local="1"></label>
+            <label><span>Ventilátor [%]</span><input type="number" min="1" max="100" step="1"
+                    name="full.fan_power"></label>
+        </div>
+        <div class="subsection">
+            <div class="sectionname">Snížený výkon</div>
+            <label><span>Výkon kW</span><input type="number" min="0.5" max="25" step="0.5" 
+                name="low.power_value" data-local="1"></label>
+            <label><span>Výkon ventilátoru [%]</span><input type="number" min="1" max="100" step="1"
+                    name="low.fan_power"></label>
+        </div>
+        <div class="subsection">
+            <div class="sectionname">Čerpadlo</div>
+            <label><span>Spínací výstupní teplota</span><input type="number" min="30" max="90" step="1"
+                    name="temperature.pump_on"></label>
+            <div class="sub_section unhide">
+                <div class="sectionname" onclick="unhide_section.call(this);">Pokročilé volby</div>
+                <label><span>V ručním ovládání čerpadlo trvale zapnuté</span><input type="checkbox"
+                        id="pump_active_forever"></label>
+                        <label><span>Ventilátor freq.dělič</span><input type="number" min="1" max="255" step="1"
+                                name="fan.pulse_count"></label>
+                    <label><span>Plný výkon - přikládání [s]</span><input type="number" min="1" max="255" step="1"
+                            name="full.fueling"></label>
+                    <label><span>Plný výkon - prohořívání [s]</span><input type="number" min="1" max="255" step="1"
+                            name="full.burnout"></label>
+                    <label><span>Snížený výkon - přikládání [s]</span><input type="number" min="1" max="255" step="1"
+                            name="low.fueling"></label>
+                    <label><span>Snížený výkon - prohořívání [s]</span><input type="number" min="1" max="255" step="1"
+                            name="low.burnout"></label>
+            </div>
+        </div>
+        <div class="chyba fail">Některé hodnoty jsou chybně zadané nebo jsou mimo rozsah</div>
         <div class="buttonpanel"><button>OK</button> <button onclick="close_window.call(this)">Storno</button></div>
     </div>
 </body>

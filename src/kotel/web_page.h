@@ -49,6 +49,7 @@ constexpr auto embedded_index_html = string_constant(R"###(<!DOCTYPE html>
     <div id="stav" class="header_stav">
         <div class="button" id="prepnout_rezim"></div>
     </div>
+    <div class="varovani" id="simul_temp" hidden="hidden">POZOR: Simulovaná teplota, pouze test!!!</div>
     <div class="dashboard">
         <div class="prvekspopisem">
             <span>Výstupní teplota</span>
@@ -60,8 +61,8 @@ constexpr auto embedded_index_html = string_constant(R"###(<!DOCTYPE html>
                 <div class="label t100">100</div>
                 <div class="max ref needle"></div>
                 <div class="cur needle"></div>
-                <div class="label cur_temp">60</div>
-                <div class="label amp_temp">60</div>
+                <div class="label cur_temp">--.-</div>
+                <div class="label amp_temp">--.-</div>
             </div>
         </div>
         <div class="prvekspopisem">
@@ -74,33 +75,33 @@ constexpr auto embedded_index_html = string_constant(R"###(<!DOCTYPE html>
                 <div class="label t100">100</div>
                 <div class="min ref needle"></div>
                 <div class="cur needle"></div>
-                <div class="label cur_temp">60</div>
-                <div class="label amp_temp">60</div>
+                <div class="label cur_temp">--.-</div>
+                <div class="label amp_temp">--.-</div>
             </div>
         </div>
         <div class="prvekspopisem">
             <span>Zásobník</span>
             <div class="zasobnik" id="zasobnik">
-                <div class="fill" style="height: 60%"></div>
+                <div class="fill" style="height: 0"></div>
                 <div class="bok1 a"></div>
                 <div class="bok1 b"></div>
                 <div class="bok2 a"></div>
                 <div class="bok2 b"></div>
-                <div class="label">100%</div>
+                <div class="label">--</div>
             </div>
         </div>
-        <div class="ovladace">
-            <span>Zařízení</span>
-            <div id="ovladac_feeder" class="button">Podavač<div class="icon"> 
+        <div class="ovladace prvekspopisem" id="horeni">
+            <span>Ovládání hoření</span>
+            <div id="ovladac_feeder">Podavač<div class="icon">
                     <div class="iconfeeder"></div>
                 </div>
                 <div id="mototempmax" hidden="hidden"></div>
             </div>
-            <div id="ovladac_fan" class="button">Ventilátor<div class="icon">
+            <div id="ovladac_fan">Ventilátor<div class="icon">
                     <div class="iconfan"></div>
                 </div>
             </div>
-            <div id="ovladac_pump" class="button">Čerpadlo<div class="icon">
+            <div id="ovladac_pump">Čerpadlo<div class="icon">
                     <div class="iconpump"></div>
                 </div>
             </div>
@@ -109,12 +110,12 @@ constexpr auto embedded_index_html = string_constant(R"###(<!DOCTYPE html>
             <span>Připojení </span>
             <div class="wifi"></div>
             <div class="label">
-                <div id="ssid">novakovi</div>
-                <div id="rssi">-80dbm</div>
+                <div id="ssid">---</div>
+                <div id="rssi">---</div>
             </div>
         </div>
     </div>
-    <div id="manualcontrolpanel">
+    <div id="manualcontrolpanel" hidden="hidden">
         <p>Panel ručního ovládání</p>
         <div class="buttons">
             <div class="button" id="man_feeder">Podavač<div class="iconfeeder"></div>
@@ -137,13 +138,14 @@ constexpr auto embedded_index_html = string_constant(R"###(<!DOCTYPE html>
             <label><span>Kalibrovat (zásobník je prázdný)</span><input type="checkbox" name="kalib"></label>
             <div class="chyba kalibselhal">Kalibrace selhala, zásobník byl na začátku prázdný</div>
         </div>
-        <label><span>Počet pytlů</span><input type="number" value="1" step="1" min="1" max="255" size="3"
-                name="pytle"></label>
-        <div class="chyba zaporne">Nesmí být záporné číslo</div>
+        <label><span>Přidaný počet pytlů</span><input type="number" value="0" step="1" min="-15" max="15" size="3" name="pytle"></label>
+        <div class="chyba male">Nesmí být záporné číslo</div>
         <div class="chyba velke">Moc velká hodnota</div>
         <div class="chyba prazdne">Musíš něco napsat</div>
-        <div class="buttonpanel"><button onclick="nastav_zasobnik_ok.call(this)">OK</button> <button
-                onclick="close_window.call(this)">Storno</button></div>
+        <div class="buttonpanel">
+                <button>Plně naloženo</button>
+                <button>OK</button> 
+                <button onclick="close_window.call(this)">Storno</button></div>
     </div>
 
     <div class="okno section" id="nastav_teplotu" hidden="hidden">
@@ -173,39 +175,6 @@ constexpr auto embedded_index_html = string_constant(R"###(<!DOCTYPE html>
         <div class="buttonpanel"><button>OK</button> <button onclick="close_window.call(this)">Storno</button></div>
 
     </div>
-    <div class="okno section" id="nastav_podavac" hidden="hidden">
-        <div class="sectionname black">Nastavení podavače</div>
-        <label><span>Doba přikládání [s]</span><input type="number" min="1" max="255" step="1"
-                name="feeder.on_sec"></label>
-        <label><span>Doba dohořívání [s]</span><input type="number" min="1" max="255" step="1"
-                name="feeder.off_sec"></label>
-        <label><span>Doba první přiložení [s]</span><input type="number" min="1" max="255" step="1"
-                name="feeder.first_on_sec"></label>
-        <label><span>Max doba útlumu [m]</span><input type="number" min="1" max="255" step="1"
-                name="attenuation.max_minutes"></label>
-        <div class="buttonpanel"><button>OK</button> <button onclick="close_window.call(this)">Storno</button></div>
-        <div class="chyba fail">Neplatná hodnota nebo hodnota mimo rozsah</div>
-    </div>
-    <div class="okno section" id="nastav_ventilator" hidden="hidden">
-        <div class="sectionname black">Nastavení ventilátoru</div>
-        <label><span>Výkon [%]</span><input type="number" min="1" max="100" step="1" name="fan.power_pct"></label>
-        <label><span>Doběh ventilátoru [s]</span><input type="number" min="1" max="255" step="1"
-                name="fan.rundown_sec"></label>
-        <div class="buttonpanel"><button>OK</button> <button onclick="close_window.call(this)">Storno</button></div>
-        <div class="chyba fail">Neplatná hodnota nebo hodnota mimo rozsah</div>
-    </div>
-    <div class="okno section" id="nastav_cerpadlo" hidden="hidden">
-        <div class="sectionname black">Nastavení čerpadla</div>
-        <div class="sub_section unhide">
-            <div class="sectionname" onclick="unhide_section.call(this);">Pokročilé volby</div>
-            <label><span>V ručním ovládání čerpadlo trvale zapnuté</span><input type="checkbox"
-                    id="pump_active_forever"></label>
-        </div>
-        <label><span>Spínací výstupní teplota</span><input type="number" min="30" max="90" step="1"
-                name="temperature.pump_on"></label>
-        <div class="buttonpanel"><button>OK</button> <button onclick="close_window.call(this)">Storno</button></div>
-        <div class="chyba fail">Neplatná hodnota nebo hodnota mimo rozsah</div>
-    </div>
     <div class="okno section" id="nastav_wifi" hidden="hidden">
         <div class="sectionname black">Nastavení připojení</div>
         <div class="sub_section unhide">
@@ -220,6 +189,48 @@ constexpr auto embedded_index_html = string_constant(R"###(<!DOCTYPE html>
         <label><span>Wifi SSID</span><input type="text" maxlength="20" size="17" name="wifi.ssid"></label>
         <label><span>Wifi heslo</span><input type="text" maxlength="20" size="17" name="wifi.password"></label>
         <p>Změny nastavení připojení se projeví po restartu zařízení</p>
+        <div class="buttonpanel"><button>OK</button> <button onclick="close_window.call(this)">Storno</button></div>
+    </div>
+    <div class="okno section" id="nastav_topeni" hidden="hidden">
+        <div class="sectionname black">Ovládání hoření</div>
+        <label><span>Výhřevnost MJ/kg</span><input type="number" min="5" max="25.5" step="0.1"
+                name="heat_value"></label>
+
+        <div class="subsection">
+            <div class="sectionname">Plný výkon</div>
+            <label><span>Výkon kW</span><input type="number" min="1" max="25" step="0.5"
+                    name="full.power_value" data-local="1"></label>
+            <label><span>Ventilátor [%]</span><input type="number" min="1" max="100" step="1"
+                    name="full.fan_power"></label>
+        </div>
+        <div class="subsection">
+            <div class="sectionname">Snížený výkon</div>
+            <label><span>Výkon kW</span><input type="number" min="0.5" max="25" step="0.5" 
+                name="low.power_value" data-local="1"></label>
+            <label><span>Výkon ventilátoru [%]</span><input type="number" min="1" max="100" step="1"
+                    name="low.fan_power"></label>
+        </div>
+        <div class="subsection">
+            <div class="sectionname">Čerpadlo</div>
+            <label><span>Spínací výstupní teplota</span><input type="number" min="30" max="90" step="1"
+                    name="temperature.pump_on"></label>
+            <div class="sub_section unhide">
+                <div class="sectionname" onclick="unhide_section.call(this);">Pokročilé volby</div>
+                <label><span>V ručním ovládání čerpadlo trvale zapnuté</span><input type="checkbox"
+                        id="pump_active_forever"></label>
+                        <label><span>Ventilátor freq.dělič</span><input type="number" min="1" max="255" step="1"
+                                name="fan.pulse_count"></label>
+                    <label><span>Plný výkon - přikládání [s]</span><input type="number" min="1" max="255" step="1"
+                            name="full.fueling"></label>
+                    <label><span>Plný výkon - prohořívání [s]</span><input type="number" min="1" max="255" step="1"
+                            name="full.burnout"></label>
+                    <label><span>Snížený výkon - přikládání [s]</span><input type="number" min="1" max="255" step="1"
+                            name="low.fueling"></label>
+                    <label><span>Snížený výkon - prohořívání [s]</span><input type="number" min="1" max="255" step="1"
+                            name="low.burnout"></label>
+            </div>
+        </div>
+        <div class="chyba fail">Některé hodnoty jsou chybně zadané nebo jsou mimo rozsah</div>
         <div class="buttonpanel"><button>OK</button> <button onclick="close_window.call(this)">Storno</button></div>
     </div>
 </body>
@@ -530,7 +541,7 @@ function dialog_nastaveni_teploty(field, hw_field, trend_field) {
     let imp = el.getElementsByTagName("input")[1]
     let trnd = el.getElementsByTagName("input")[0];
     imp.value=Controller.config[field];
-    trnd.value = parseFloat(Controller.config[trend_field])/10.0;
+    trnd.value = parseFloat(Controller.config[trend_field]);
     let btm = el.getElementsByTagName("button");
     btm[0].onclick = ()=>{
         nastav_teplomer(hw_field);
@@ -553,7 +564,7 @@ function dialog_nastaveni_teploty(field, hw_field, trend_field) {
             show_error(el,"trnd_velke")        
         } else {
             cfg[field] = val;
-            cfg[trend_field]=(trnd_val * 10).toFixed(0);
+            cfg[trend_field]=(trnd_val).toFixed(0);
             btm[1].disabled = true;
             await Controller.set_config(cfg);
             el.hidden = true;
@@ -582,8 +593,10 @@ async function nastav_parametry(id) {
                         || (val < parseFloat(x.getAttribute("min"))) 
                         || (val > parseFloat(x.getAttribute("max")))) {
                     err = true;
+                    x.classList.add("valerror")
                 } else {
-                    cfg[name] = val;
+                    if (!x.dataset.local) cfg[name] = val;
+                    x.classList.remove("valerror")
                 }
             }        
         });
@@ -642,15 +655,108 @@ async function nastav_wifi() {
             win.hidden = true;
         }    
     }    
+} 
+
+
+function power_to_params(vyhrevnost_el, power_el, fueling_el, burnout_el) {
+    const ref_power = 70*vyhrevnost_el.valueAsNumber/17.0;
+    const ref_power10 = Math.floor(ref_power * 10);
+    const need_power10 = Math.floor(power_el.value*10);
+    let a = 1;
+    let b = 20;    
+    while (b < 60) {
+        a = b / (ref_power10/need_power10);
+        if (a >4  && b - a >= 20 && a == Math.round(a)) break;
+        b = b + 1;
+    }
+    if (b < 60) {
+        fueling_el.value = a;
+        burnout_el.value = b - a;
+        return;        
+    }
+    const fueling = Math.max(2.0,Math.floor(power_el.valueAsNumber*(30+power_el.valueAsNumber)/ref_power));
+    const cycle = Math.round(fueling*ref_power/power_el.valueAsNumber);
+    const burnout = cycle - fueling;
+    fueling_el.value = fueling.toFixed(0);
+    burnout_el.value = burnout.toFixed(0);
 }
 
+function params_to_power(vyhrevnost_el, power_el, fueling_el, burnout_el) {
+    const ref_power = 70*vyhrevnost_el.valueAsNumber/17.0;
+    power_el.value = (fueling_el.valueAsNumber * ref_power / (fueling_el.valueAsNumber + burnout_el.valueAsNumber)).toFixed(1);   
+}
 
-function main() {
-    Controller.update_status_cycle();
-    Controller.update_stats_cycle();
-    Controller.read_config();
+function power_conv_init(el) {
+    const lst = el.getElementsByTagName("input");
+    let controls = {};
+    Array.prototype.forEach.call(lst, x=>controls[x.name] = x);
+    let hh = [];
+    ["full","low"].forEach(pfx=>{
+        let power_value = controls[pfx+".power_value"];
+        let heat_value = controls["heat_value"];
+        let fueling = controls[pfx+".fueling"];
+        let burnout = controls[pfx+".burnout"];
+        let p2w = params_to_power.bind(this,heat_value,power_value,fueling, burnout);
+        let w2p = power_to_params.bind(this,heat_value,power_value,fueling, burnout);
+        [fueling, burnout].forEach(x=>x.onchange=p2w);
+        [fueling, burnout].forEach(x=>x.oninput=p2w);
+        power_value.onchange=w2p;
+        power_value.oninput=w2p;
+        hh.push(w2p);
+        p2w();
+    });    
+    controls["heat_value"].onchange = ()=>{
+        hh.forEach(x=>x());
+    };
+}
+
+function dialog_nastaveni_zasobniku() {
+    let win = document.getElementById("nastav_zasobnik");
+    hide_error(win);
+    win.hidden = false;
+    let inputs = {};
+    Array.prototype.forEach.call(win.getElementsByTagName("input"),x=>{
+        inputs[x.name] = x;
+        x.checked = false;
+        x.value="0";
+    }); 
+    let buttons = win.getElementsByTagName("button"); 
+
+    async function do_req(full) {
+        const kalib = inputs.kalib.checked;   
+        const absnow = inputs.absnow.checked;
+        const bagcount = inputs.pytle.valueAsNumber;
+        if (!full) {
+            hide_error(win);
+            if (isNaN(bagcount)) return show_error(win,"prazdne");
+            if (bagcount < -15) return show_error(win,"male");
+            if (bagcount > 15) return show_error(win,"velke");
+        }
+        try {
+            let req = {absnow:absnow?1:0, kalib:kalib?1:0};
+            if (full) req["full"] = 1; else req["bagcount"] = bagcount;            
+            let resp = await fetch("/api/fuel", {
+                method:"POST",
+                body: convert_to_form_urlencode(req)
+            });
+            if (resp.status == 202) {
+                win.hidden = true;
+                Controller.read_config();               
+            } else if (resp.status == 406){
+                show_error(win,"kalibselhal");
+            }            
+        } catch (e) {
+            show_error(win,"spojeni");
+        }
+        
+    }
     
-//    var stringtable = document.getElementById("stringtable");
+    buttons[0].onclick = ()=>{do_req(true);};
+    buttons[1].onclick = ()=>{do_req(false);};        
+}
+
+async function main() {
+    
     
     Controller.on_status_update = function(st) {
         let stav = document.getElementById("stav");
@@ -675,6 +781,7 @@ function main() {
             Controller.man.fan = 0;
             Controller.man.feeder = 0;
         }
+        document.getElementById("simul_temp").hidden = st["temp.sim"] == '0';
     };
     Controller.on_error = function(x,y) {
         document.getElementById("netstatus").classList.add("neterror");
@@ -697,29 +804,21 @@ function main() {
     let el = document.getElementById("zasobnik").parentNode;
     el.addEventListener("click",function(){
         let el = document.getElementById("nastav_zasobnik");
-        el.hidden = false;
-        el.getElementsByTagName("input")[0].value=15;  
+        dialog_nastaveni_zasobniku();
     });
     el = document.getElementById("vystupni_teplota").parentNode;
     el.addEventListener("click",function(){
-        dialog_nastaveni_teploty("temperature.max_output","temp_sensor.output.addr","temperature.ampl_output");
+        dialog_nastaveni_teploty("temperature.max_output","temp_sensor.output.addr","temperature.max_output_samples");
         
     });
     el = document.getElementById("vstupni_teplota").parentNode;
     el.addEventListener("click",function(){
-        dialog_nastaveni_teploty("temperature.min_input","temp_sensor.input.addr","temperature.ampl_input");        
+        dialog_nastaveni_teploty("temperature.min_input","temp_sensor.input.addr","temperature.min_input_samples");        
     });
-    el = document.getElementById("ovladac_feeder");
+    el = document.getElementById("horeni");
     el.addEventListener("click", function(){
-        nastav_parametry("nastav_podavac");
-    });
-    el = document.getElementById("ovladac_fan");
-    el.addEventListener("click", function(){
-        nastav_parametry("nastav_ventilator");
-    });
-    el = document.getElementById("ovladac_pump");
-    el.addEventListener("click", function(){
-        nastav_parametry("nastav_cerpadlo");
+        nastav_parametry("nastav_topeni");
+        power_conv_init(document.getElementById("nastav_topeni"));
     });
     el = document.getElementById("wifi");
     el.addEventListener("click", function(){
@@ -744,7 +843,12 @@ function main() {
     el.addEventListener("change",function(){
         Controller.man.force_pump = this.checked;
         
-    })    
+    })
+
+    Controller.update_status_cycle();
+    Controller.update_stats_cycle();
+    await Controller.read_config();
+
 }
 
  
@@ -755,6 +859,15 @@ html {
     color: white;
     font-family: sans-serif;
 
+}
+
+.varovani {
+    text-align: center;
+    padding: 1em;
+    background-color: yellow;
+    color: red;
+    font-weight: bold;
+    font-size: 1.2em;
 }
 
 
@@ -849,11 +962,11 @@ button {
 .okno.section {
     position:absolute;
     border: 1px solid gray;
-    width: 20em;
+    max-width: 30em;
     left:0;
     right:0;
     margin: auto;
-    top:30%;
+    top: 8em;
     padding: 2em 1em 1em 1em;
     background-color:black;
     box-shadow: 5px 5px 5px 0px #00000091;
@@ -915,14 +1028,14 @@ div.zasobnik {
 
 .ovladace {
     display: flex;
-    align-items: stretch;
+    /* align-items: stretch; */
     cursor: pointer;
     gap: 2px;
     flex-direction: column;
     width: 10em;
-    height: 12em;
+    /* height: 12em; */
     /* padding-top: 2.7em; */
-    /* padding-bottom: 1.5em; */
+    padding-bottom: 1.5em;
 }
 
 div#mototempmax {
@@ -1243,6 +1356,7 @@ body {
 
 #stav::before {
     display:block;
+    content:"Nahrávám...";"
     font-variant-caps:small-caps;
     font-weight: bold;
     text-align: center;
@@ -1306,13 +1420,13 @@ div#stav > * {
 }
 
 #stav.mode2.automode0::before {
-    content:"Automaticky / Topí";
+    content:"Automaticky / Plný výkon";
 }
 #stav.mode2.automode1::before {
-    content:"Automaticky / Útlum";
+    content:"Automaticky / Snížený výkon";
 }
 #stav.mode2.automode2::before {
-    content:"Automaticky / Obnova";
+    content:"Automaticky / Chlazení";
 }
 #stav.mode3::before {
     content:"STOP";
@@ -1323,7 +1437,7 @@ div#stav > * {
 
 .sub_section .sectionname {
     text-align: center;
-    border-bottom: 1px gray solid;
+    border-bottom: 2px solid #FFF4;
 }
 
 .sub_section.unhide {
@@ -1332,18 +1446,18 @@ div#stav > * {
     transition: 0.5s;
 }
 .sub_section.unhide.unhidden {
-    max-height: 13em;
+    max-height: 19em;
 }
-.sub_section.unhide .sectionname {
+.sub_section.unhide > .sectionname {
     cursor: pointer;
 }
 
-.sub_section.unhide .sectionname::after {
+.sub_section.unhide >.sectionname::after {
     content: "▾";
     padding: 0 0 0  1em;
 }
 
-.sub_section.unhide.unhidden .sectionname::after {
+.sub_section.unhide.unhidden > .sectionname::after {
     content: "▴";
 }
 
@@ -1442,11 +1556,20 @@ input {
 input[type=number]{
     text-align: center;
     font-size: 1.4em;
-    width: 5em;
+    width: 4em;
+}
+
+input.valerror {
+    background-color: #800;
+    color: #FF0;
 }
 
 #nastav_wifi input {
     text-align: center;
 }
-)###");
+
+.subsection > .sectionname {
+        color:  #FF8;
+        border-bottom: 2px solid #fff3;
+})###");
 

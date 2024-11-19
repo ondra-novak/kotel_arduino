@@ -54,3 +54,52 @@ bool SimpleDallasTemp::wire_search(Address &addr) {
 }
 
 
+
+std::optional<float> SimpleDallasTemp::async_read_temp_celsius(AsyncState &st) {
+    if (st.buffer[8] == 1) {
+        return *reinterpret_cast<float *>(st.buffer);
+    } else {
+        return {};
+    }
+}
+
+void SimpleDallasTemp::async_request_temp(AsyncState &st, const Address &addr) {
+    st.phase = 0;
+    st.state = AsyncCommand::request_temp_addr;
+    st.st = Status::ok;
+    st.addr = addr;
+}
+
+void SimpleDallasTemp::async_request_temp(AsyncState &st) {
+    st.phase = 0;
+    st.state = AsyncCommand::request_temp_global;
+    st.st = Status::ok;
+
+}
+
+void SimpleDallasTemp::async_read_temp(AsyncState &st, const Address &addr) {
+    st.phase = 0;
+    st.addr = addr;
+    st.state = AsyncCommand::read_temp;
+    st.st = Status::ok;
+}
+
+bool SimpleDallasTemp::async_cycle(AsyncState &st) {
+    if (st.phase < 3) {
+        ++st.phase;
+        return false;
+    }
+    auto x = read_temp_celsius(st.addr);;
+    if (x) {
+        float *z = reinterpret_cast<float *>(st.buffer);
+        *z =  *x;
+        st.buffer[8] = 1;
+    } else {
+        st.buffer[8] = 0;
+        st.st = get_last_error();
+    }
+    return true;
+
+}
+
+

@@ -21,7 +21,8 @@ Controller::Controller()
         ,_temp_sensors(_storage)
         ,_display(*this)
         ,_motoruntime(this)
-        ,_scheduler({&_feeder, &_fan, &_temp_sensors,  &_display, &_motoruntime})
+        ,_auto_drive_cycle(this)
+        ,_scheduler({&_feeder, &_fan, &_temp_sensors,  &_display, &_motoruntime, &_auto_drive_cycle})
         ,_server(80)
 {
 
@@ -39,9 +40,13 @@ void Controller::begin() {
     _server.begin();
 }
 
+static inline bool defined_and_above(const std::optional<float> &val, float cmp) {
+    return val.has_value() && *val > cmp;
+}
+
 void Controller::run() {
     _sensors.read_sensors();
-    _scheduler.run();
+    _temp_sensors.async_cycle(_scheduler);
 
     auto prev_mode = _cur_mode;
 
@@ -51,7 +56,8 @@ void Controller::run() {
     }
     control_pump();
     if (!_sensors.motor_temp_monitor //motor temperature check
-) {
+         || (defined_and_above(_temp_sensors.get_output_temp(),_storage.config.output_max_temp))
+         || (defined_and_above(_temp_sensors.get_input_temp(),_storage.config.output_max_temp))) {
         run_stop_mode();
     } else if (_storage.config.operation_mode == 0) {
         run_manual_mode();
@@ -62,7 +68,7 @@ void Controller::run() {
                     && _temp_sensors.get_input_temp().has_value()
                     && *_temp_sensors.get_output_temp() < *_temp_sensors.get_input_temp())
             || (_temp_sensors.get_output_temp().has_value() //output temp is too low
-                    && *_temp_sensors.get_output_temp() < _storage.config.pump_temp
+                    && *_temp_sensors.get_output_temp() < _storage.config.pump_start_temp
                     && !_auto_stop_disabled)){
             run_stop_mode();
         } else {
@@ -82,30 +88,41 @@ void Controller::run() {
         _list_temp_async->stop();
         _list_temp_async.reset();
     }
+    _scheduler.run();
 
 }
 
+static constexpr std::pair<const char *, uint8_t Profile::*> profile_table[] ={
+        {"burnout",&Profile::burnout_sec},
+        {"fan_power",&Profile::fan_power},
+        {"fueling",&Profile::fueling_sec},
+};
 
 static constexpr std::pair<const char *, uint8_t Config::*> config_table[] ={
-        {"fan.power_pct", &Config::fan_power_pct},
-        {"fan.rundown_sec", &Config::fan_rundown_sec},
-        {"feeder.first_on_sec", &Config::feeder_first_on_sec},
-        {"feeder.on_sec", &Config::feeder_on_sec},
-        {"feeder.off_sec", &Config::feeder_off_sec},
         {"temperature.max_output", &Config::output_max_temp},
         {"temperature.min_input", &Config::input_min_temp},
-        {"temperature.ampl_output", &Config::output_temp_ampl},
-        {"temperature.ampl_input", &Config::input_temp_ampl},
-        {"temperature.pump_on", &Config::pump_temp},
-        {"attenuation.max_minutes", &Config::max_atten_min},
-        {"default_bag_count", &Config::default_bag_count},
+        {"temperature.max_output_samples", &Config::output_max_temp_samples},
+        {"temperature.min_input_samples", &Config::input_min_temp_samples},
         {"operation_mode", &Config::operation_mode},
+        {"fan.pulse_count", &Config::fan_pulse_count},
+        {"temperature.pump_on",&Config::pump_start_temp},
+};
+
+static constexpr std::pair<const char *, HeatValue Config::*> config_table_2[] ={
+        {"heat_value",&Config::heat_value},
 };
 
 template<typename X>
 void print_data(Stream &s, const X &data) {
     s.print(data);
 }
+
+
+template<>
+void print_data(Stream &s, const HeatValue &data) {
+    s.print(static_cast<float>(data.heatvalue)*0.1f);
+}
+
 
 template<>
 void print_data(Stream &s, const SimpleDallasTemp::Address &data) {
@@ -155,8 +172,9 @@ void print_data_line(Stream &s, const char *name, const T &object) {
 }
 
 template<typename Table, typename Object>
-void print_table(Stream &s, const Table &table, const Object &object) {
+void print_table(Stream &s, const Table &table, const Object &object, std::string_view prefix = {}) {
     for (const auto &[k,ptr]: table) {
+        if (!prefix.empty()) s.write(prefix.data(), prefix.size());
         print_data_line(s, k, object.*ptr);
     }
 
@@ -166,10 +184,6 @@ static constexpr std::pair<const char *, SimpleDallasTemp::Address TempSensor::*
         {"temp_sensor.output.addr", &TempSensor::output_temp},
 };
 
-static constexpr std::pair<const char *, uint8_t TempSensor::*> tempsensor_table_2[] ={
-        {"temp_sensor.interval", &TempSensor::interval},
-        {"temp_sensor.trend_smooth", &TempSensor::trend_smooth},
-};
 
 
 static constexpr std::pair<const char *, uint32_t Tray::*> tray_table[] ={
@@ -266,8 +280,10 @@ void print_table_format(Stream &s, Table &t) {
 void Controller::config_out(Stream &s) {
 
     print_table(s, config_table, _storage.config);
+    print_table(s, config_table_2, _storage.config);
+    print_table(s, profile_table, _storage.config.full_power, "full.");
+    print_table(s, profile_table, _storage.config.low_power, "low.");
     print_table(s, tempsensor_table_1, _storage.temp);
-    print_table(s, tempsensor_table_2, _storage.temp);
     print_table(s, wifi_ssid_table, _storage.wifi_ssid);
     print_table(s, wifi_password_table, _storage.wifi_password);
     print_table(s, wifi_netcfg_table, _storage.wifi_config);
@@ -296,6 +312,20 @@ bool parse_to_field_uint(UINT &fld, std::string_view value) {
     return true;
 }
 
+bool parse_to_field(int8_t &fld, std::string_view value) {
+    uint8_t x;
+    if (!value.empty() && value.front() == '-') {
+        if (!parse_to_field_uint(x, value.substr(1))) return false;
+        fld = -static_cast<int8_t>(x);
+        return true;
+    } else {
+        if (!parse_to_field_uint(x,value)) return false;
+        fld = static_cast<int8_t>(x);
+        return true;
+    }
+
+}
+
 bool parse_to_field(uint8_t &fld, std::string_view value) {
     return parse_to_field_uint(fld,value);
 }
@@ -304,6 +334,15 @@ bool parse_to_field(uint16_t &fld, std::string_view value) {
 }
 bool parse_to_field(uint32_t &fld, std::string_view value) {
     return parse_to_field_uint(fld,value);
+}
+
+bool parse_to_field(float &fld, std::string_view value) {
+    char buff[21];
+    char *c;
+    value = value.substr(0,20);
+    *std::copy(value.begin(), value.end(), buff) = 0;
+    fld = std::strtof(buff,&c);
+    return c > buff;
 }
 
 bool parse_to_field(SimpleDallasTemp::Address &fld, std::string_view value) {
@@ -343,10 +382,23 @@ bool parse_to_field(Tray &fld, std::string_view value) {
     return true;
 }
 
+bool parse_to_field(HeatValue &fld, std::string_view value) {
+    float f;
+    if (!parse_to_field(f, value)) return false;
+    fld.heatvalue = static_cast<uint8_t>(f * 10.0f);
+    return true;
+}
 
 
 template<typename Table, typename Config>
-bool update_settings(const Table &table, Config &config, std::string_view key, std::string_view value) {
+bool update_settings(const Table &table, Config &config, std::string_view key, std::string_view value, std::string_view prefix = {}) {
+    if (!prefix.empty()) {
+        if (key.substr(0,prefix.size()) == prefix) {
+            key = key.substr(prefix.size());
+        } else {
+            return false;
+        }
+    }
     for (const auto &[k,ptr]: table) {
         if (k == key) {
             return parse_to_field(config.*ptr, value);
@@ -369,8 +421,10 @@ bool Controller::config_update(std::string_view body, std::string_view &&failed_
         auto key = trim(split(value, "="));
         value = trim(value);
         bool ok = update_settings(config_table, _storage.config, key, value)
+                || update_settings(config_table_2, _storage.config, key, value)
+                || update_settings(profile_table, _storage.config.full_power, key, value, "full.")
+                || update_settings(profile_table, _storage.config.low_power, key, value, "low.")
                 || update_settings(tempsensor_table_1, _storage.temp, key, value)
-                || update_settings(tempsensor_table_2, _storage.temp, key, value)
                 || update_settings(wifi_ssid_table, _storage.wifi_ssid, key, value)
                 || update_settings(wifi_password_table, _storage.wifi_password, key, value)
                 || update_settings(wifi_netcfg_table, _storage.wifi_config, key, value)
@@ -417,11 +471,12 @@ void Controller::status_out(Stream &s) {
     print_data_line(s,"temp.input.value", _temp_sensors.get_input_temp());
     print_data_line(s,"temp.input.status", static_cast<int>(_temp_sensors.get_input_status()));
     print_data_line(s,"temp.input.ampl", _temp_sensors.get_input_ampl());
+    print_data_line(s,"temp.sim", _temp_sensors.is_simulated()?1:0);
     print_data_line(s,"tray_open", _sensors.tray_open);
     print_data_line(s,"motor_temp_ok", _sensors.motor_temp_monitor);
     print_data_line(s,"pump", _pump.is_active());
     print_data_line(s,"feeder", _feeder.is_active());
-    print_data_line(s,"fan", _fan.get_speed());
+    print_data_line(s,"fan", _fan.get_current_speed());
     print_data_line(s,"network.ip", WiFi.localIP());
     print_data_line(s,"network.ssid", WiFi.SSID());
     print_data_line(s,"network.signal",WiFi.RSSI());
@@ -434,14 +489,8 @@ void Controller::control_pump() {
         _pump.set_active(true);
         return;
     }
-    auto t = _temp_sensors.get_output_temp();
-    if (t.has_value()) {
-        if (!_pump.is_active() && *t >= static_cast<float>(_storage.config.pump_temp)) {
-            _pump.set_active(true);
-        } else if (_pump.is_active() && *t <= static_cast<float>(_storage.config.pump_temp-2)) {
-            _pump.set_active(false);
-        }
-    }
+    auto t = _temp_sensors.get_output_ampl();
+    _pump.set_active(t > _storage.config.pump_start_temp);
 }
 
 void Controller::run_manual_mode() {
@@ -452,67 +501,10 @@ void Controller::run_manual_mode() {
 
 void Controller::run_auto_mode() {
 
-    _cur_mode = DriveMode::automatic;
-
-    bool we_have_input = _temp_sensors.get_input_temp().has_value();
-
-    float raw_output_temp = *_temp_sensors.get_output_temp();
-    float output_temp = _temp_sensors.get_output_ampl();
-    float input_temp = we_have_input?_temp_sensors.get_input_ampl():_temp_sensors.get_output_ampl();
-
-
-    float max_temp = static_cast<float>(_storage.config.output_max_temp);
-    float attent_temp = static_cast<float>(_storage.config.input_min_temp);
-
-
-    bool raw_max_temp_reached = raw_output_temp >= max_temp;
-    bool max_temp_reached = output_temp >= max_temp ;
-    bool over_temp = input_temp >=attent_temp || max_temp_reached || raw_max_temp_reached;
-
-    if (raw_max_temp_reached) {
-        _feeder.stop();
-        _fan.stop();
-        _auto_mode = AutoMode::attenuation;
-        _auto_stop_disabled = false;
-        return;
-    }
-
-    switch (_auto_mode) {
-        case AutoMode::active:
-            if (over_temp) {
-                _auto_stop_disabled = false;
-                _auto_mode = AutoMode::attenuation;;
-                _auto_mode_change = get_current_timestamp()+from_minutes(_storage.config.max_atten_min);
-                _feeder.stop();
-                _fan.rundown();
-            } else {
-                _feeder.keep_running(_scheduler);
-                _fan.keep_running(_scheduler);
-            }
-            break;
-        case AutoMode::attenuation:
-            if (over_temp) {
-                if (get_current_timestamp() > _auto_mode_change && !max_temp_reached) {
-                    _auto_mode = AutoMode::renewal;
-                    _auto_mode_change = get_current_timestamp()+from_minutes(2);
-                    _feeder.begin_cycle(_scheduler, true);
-                    _fan.start(_scheduler);
-                }
-            } else {
-                _auto_mode = AutoMode::active;
-                _feeder.begin_cycle(_scheduler, true);
-                _fan.start(_scheduler);
-            }
-            break;
-        case AutoMode::renewal:
-            if (get_current_timestamp() > _auto_mode_change) {
-                _auto_mode = AutoMode::active;
-            } else {
-                _feeder.keep_running(_scheduler);
-                _fan.keep_running(_scheduler);
-            }
-            break;
-
+    if (_cur_mode != DriveMode::automatic)  {
+        _cur_mode = DriveMode::automatic;
+        _auto_mode_active_phase = true; //to start off
+        _auto_drive_cycle.wake_up(_scheduler);
     }
 }
 
@@ -591,8 +583,6 @@ void Controller::out_form_config(MyHttpServer::Request &req) {
     s.print(',');
     print_table_format(s, tempsensor_table_1);
     s.print(',');
-    print_table_format(s, tempsensor_table_2);
-    s.print(',');
     print_table_format(s, wifi_ssid_table);
     s.print(',');
     print_table_format(s, wifi_password_table);
@@ -621,6 +611,16 @@ void Controller::send_file(MyHttpServer::Request &req, std::string_view content_
     req.client.stop();
 }
 #endif
+
+struct SimulInfo {
+    float input = 0;
+    float output = 0;
+};
+
+static constexpr std::pair<const char *, float SimulInfo::*> simulate_temp_table[] = {
+        {"input", &SimulInfo::input},
+        {"output", &SimulInfo::output},
+};
 
 void Controller::handle_server(MyHttpServer::Request &req) {
     StringStream<1024> ss;
@@ -698,6 +698,28 @@ void Controller::handle_server(MyHttpServer::Request &req) {
         _server.send_file(req, Ctx::css, embedded_style_css);
 #endif
         return; //do not stop
+    } else if (req.request_line.path == "/api/simulate_temperature") {
+        if (req.request_line.method == HttpMethod::PUT) {
+            std::string_view b = req.body;
+            SimulInfo sinfo;
+            do {
+               if (!update_settings_kv(simulate_temp_table, sinfo, split(b, "&"))) {
+                   _server.error_response(req, 400, {}, {}, {});
+               }
+            }while (!b.empty());
+            if (sinfo.input>0 && sinfo.output > 0) {
+                _temp_sensors.simulate_temperature(sinfo.input,sinfo.output);
+                _server.error_response(req, 202, {});
+            } else {
+                _server.error_response(req, 400, {}, {}, {});
+            }
+
+        } else if (req.request_line.method == HttpMethod::DELETE) {
+            _temp_sensors.disable_simulated_temperature();
+            _server.error_response(req, 202, {});
+        } else {
+            _server.error_response(req, 405, {}, {{"Allow","PUT, DELETE"}}, {});
+        }
     } else {
         _server.error_response(req, 404, "Not found");
     }
@@ -712,23 +734,17 @@ TimeStampMs Controller::run_http(TimeStampMs) {
 
 bool Controller::manual_control(const ManualControlStruct &cntr) {
     if (_cur_mode != DriveMode::manual) return false;
+    if (cntr._fan_speed) {
+        _fan.set_speed(cntr._fan_speed);
+    }
     if (cntr._fan_time) {
-        if (cntr._fan_speed) {
-            _fan.one_shot(_scheduler, cntr._fan_speed, cntr._fan_time);
-        } else {
-            auto spd = _fan.get_speed();
-            if (spd) {
-                _fan.one_shot(_scheduler, spd, cntr._fan_time);
-            } else {
-                _fan.one_shot(_scheduler, cntr._fan_time);
-            }
-        }
+       _fan.keep_running(_scheduler, get_current_timestamp()+from_seconds(cntr._fan_time));
     } else {
         _fan.stop();
     }
 
     if (cntr._feeder_time) {
-        _feeder.one_shot(_scheduler, cntr._feeder_time);
+        _feeder.keep_running(_scheduler, get_current_timestamp()+from_seconds(cntr._feeder_time));
     } else {
         _feeder.stop();
     }
@@ -783,12 +799,14 @@ TimeStampMs Controller::update_motorhours(TimeStampMs now) {
 
 
 struct SetFuelParams {
-    uint8_t bagcount = 0;
-    uint8_t kalib = 0;
-    uint8_t absnow = 0;
+    int8_t bagcount = 0;
+    int8_t kalib = 0;
+    int8_t absnow = 0;
+    int8_t full = 0;
 };
 
-static constexpr std::pair<const char *, uint8_t SetFuelParams::*> set_fuel_params_table[] = {
+static constexpr std::pair<const char *, int8_t SetFuelParams::*> set_fuel_params_table[] = {
+        {"full", &SetFuelParams::full},
         {"bagcount", &SetFuelParams::bagcount},
         {"kalib", &SetFuelParams::kalib},
         {"absnow", &SetFuelParams::absnow},
@@ -816,9 +834,18 @@ bool Controller::set_fuel(std::string_view body, std::string_view &&error) {
             return false;
         }
         _storage.tray.bag_consump_time = consump;
+        _storage.tray.bag_fill_count = sfp.bagcount;
+    } else {
+        if (sfp.full) {
+            _storage.tray.bag_fill_count = 15;
+            _storage.tray.tray_fill_time = filltime;
+        } else {
+            _storage.tray.alter_bag_count(filltime, sfp.bagcount);
+        }
+
     }
+
     _storage.tray.tray_fill_time = filltime;
-    _storage.tray.bag_fill_count = sfp.bagcount;
     _storage.save();
     return true;
 
@@ -830,6 +857,56 @@ void Controller::factory_reset() {
     while (true) {
         delay(1);
     }
+}
+
+TimeStampMs Controller::auto_drive_cycle(TimeStampMs cur_time) {
+    //determine next control mode
+    auto t_input = _temp_sensors.get_input_ampl();
+    auto t_output = _temp_sensors.get_output_ampl();
+    if (_cur_mode != DriveMode::automatic) {
+        return from_minutes(60);
+    }
+
+
+    if (t_input < _storage.config.input_min_temp) {
+        if (t_output < _storage.config.output_max_temp) {
+            _auto_mode = AutoMode::fullpower;
+        } else {
+            _auto_mode = AutoMode::off;
+        }
+    } else {
+        if (t_output< _storage.config.output_max_temp) {
+            _auto_mode = AutoMode::lowpower;
+        } else {
+            _auto_mode = AutoMode::off;
+        }
+    }
+
+    const Profile *p;
+
+    switch (_auto_mode) {
+        default:
+        case AutoMode::off:
+            _auto_stop_disabled = false;
+            _fan.stop();
+            _feeder.stop();
+            return TempSensors::measure_interval;
+        case AutoMode::fullpower:
+            p = &_storage.config.full_power;
+            break;
+        case AutoMode::lowpower:
+            _auto_stop_disabled = false;
+            p = &_storage.config.low_power;
+            break;
+    }
+
+    auto duty_time = from_seconds(p->burnout_sec)+from_seconds(p->fueling_sec);
+    _fan.set_speed(p->fan_power);
+    _fan.keep_running(_scheduler,cur_time + duty_time+1000);
+     auto t = from_seconds(p->fueling_sec);
+    _auto_mode_active_phase = !_auto_mode_active_phase;
+    _feeder.keep_running(_scheduler, cur_time+t);
+    return duty_time;
 }
 
 }

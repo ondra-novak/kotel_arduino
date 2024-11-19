@@ -22,23 +22,32 @@ enum class ErrorCode: uint8_t {
 };
 
 
-struct Config {
-    uint8_t feeder_on_sec = 5; //doba zapnuti podavace v sec
-    uint8_t feeder_first_on_sec = 15; //prvni doba zapnuti podavace po utlumu
-    uint8_t feeder_off_sec = 25; //doba vypnuti podavace v sec
-    uint8_t fan_power_pct = 60; //sila ventilatoru 0-100
-    uint8_t fan_rundown_sec  = 60; //dobeh ventilatoru
-    uint8_t max_atten_min  = 30; //maximalni doba utlumu v minutach
-    uint8_t input_min_temp  = 60;  //minimalni teplota na vstupu
-    uint8_t output_max_temp = 85;  //maximalni teplota na vystupu
-    uint8_t pump_temp = 40;   //zapinaci teplota cerpadla
-    uint8_t default_bag_count = 15; //vychozi plneni
-    uint8_t operation_mode = 0;     //0 - manual, 1 - automatic
-    uint8_t fan_pulse = 5;          //delka pulzu ventilátoru ve vlnach 50Hz
-    uint8_t input_temp_ampl = 10; //60 * 10 == 600 seconds
-    uint8_t output_temp_ampl = 10; //60 * 10 == 600 seconds
-    uint8_t factory_reset = 0;      //set this to 1 and reset
+struct Profile {
+    uint8_t fueling_sec;    //doba prikladani
+    uint8_t burnout_sec;    //doba dohorivani
+    uint8_t fan_power;      //vykon ventilatoru
+};
 
+enum class OperationMode: uint8_t {
+    manual = 0,
+    automatic = 1,
+};
+
+struct HeatValue {
+    uint8_t heatvalue = 170;
+};
+
+struct Config {
+    Profile full_power = {8, 20, 60};
+    Profile low_power = {5, 30, 40};
+    HeatValue heat_value = {170};
+    uint8_t input_min_temp = 60;
+    uint8_t input_min_temp_samples = 10;
+    uint8_t output_max_temp = 85;
+    uint8_t output_max_temp_samples = 10;
+    uint8_t pump_start_temp = 40;
+    uint8_t operation_mode = static_cast<uint8_t>(OperationMode::manual);
+    uint8_t fan_pulse_count = 5;
 };
 
 
@@ -46,11 +55,24 @@ struct Tray {
     uint32_t feeder_time = 0;       //cisty cas podavace (v sec)
     uint32_t tray_open_time = 0;    //cisty cas podavace, kdy doslo k otevreni zasobniku
     uint32_t tray_fill_time = 0;    //cisty cas podavace, kdy doslo k naplneni
-    uint16_t bag_consump_time = 0;  //cisty cas podavace na spotrebu jednoho pytle (max 18h)
+    uint16_t bag_consump_time = 3350;  //cisty cas podavace na spotrebu jednoho pytle (max 18h)
     uint16_t bag_fill_count = 0;    //celkove nalozeni v pytlech
 
     constexpr uint32_t calc_tray_empty_time() const {
         return tray_fill_time + bag_fill_count * bag_consump_time;
+    }
+    constexpr void alter_bag_count(uint32_t filltime, int increment)  {
+        if (bag_consump_time == 0) {
+            bag_fill_count = std::max<int>(bag_fill_count+increment, bag_fill_count);
+        } else {
+            auto consumed = (filltime-tray_fill_time) / bag_consump_time;
+            if (consumed > bag_fill_count) {
+                bag_fill_count = std::max(0,increment);
+            } else {
+                bag_fill_count = bag_fill_count - consumed + increment;
+                tray_fill_time = tray_fill_time + static_cast<uint32_t>(bag_consump_time) * consumed;
+            }
+        }
     }
 };
 
@@ -80,8 +102,7 @@ struct Counters2 {
 struct TempSensor {
     std::array<uint8_t,8> input_temp;         //address of input temperature sensor
     std::array<uint8_t,8> output_temp;        //address of output temperature sensor
-    uint8_t interval = 5;              //reading interval in seconds
-    uint8_t trend_smooth = 4;          //kolik vzorku zmen pro vypocet trendu
+
 };
 
 struct IPAddr {

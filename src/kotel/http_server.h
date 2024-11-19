@@ -29,6 +29,7 @@ public:
             case 200: return "OK";
             case 202: return "Accepted";
             case 400: return "Bad request";
+            case 403: return "Forbidden";
             case 404: return "Not found";
             case 405: return "Method not allowed";
             case 409: return "Conflict";

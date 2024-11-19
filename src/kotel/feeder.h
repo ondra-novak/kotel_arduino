@@ -17,57 +17,34 @@ public:
     }
 
     virtual TimeStampMs get_scheduled_time() const override {
-        return _next_call;
+        return _stop_time;
     }
     virtual void run(TimeStampMs cur_time) override {
-        if (_cycle) {
-            set_active(!_active);
-            if (_active) {
-                _next_call = cur_time + from_seconds(_storage.config.feeder_on_sec);
-            } else {
-                _next_call = cur_time + from_seconds(_storage.config.feeder_off_sec);
-            }
-
-
-        } else {
-            set_active( false);
-            _next_call = max_timestamp;
+        if (_stop_time <= cur_time) {
+            set_active(false);
+            _stop_time = max_timestamp;
         }
     }
-
     void stop() {
         set_active(false);
-        _cycle = false;
+        _stop_time = max_timestamp;
     }
 
-    void one_shot(IScheduler &sch, unsigned int seconds_to_run) {
-        set_active(true);
-        _next_call = get_current_timestamp() + from_seconds(seconds_to_run);
-        sch.reschedule();
-    }
-
-    void keep_running(IScheduler &sch) {
-        if (!is_cycling()) begin_cycle(sch, false);
-    }
-
-    void begin_cycle(IScheduler &sch, bool after_attenuation) {
-        if (after_attenuation) {
-            one_shot(sch, _storage.config.feeder_first_on_sec);
-        } else {
-            one_shot(sch, _storage.config.feeder_on_sec);
+    void keep_running(IScheduler &sch, TimeStampMs until) {
+        _stop_time = until;
+        if (!_active) {
+            set_active(true);
+            sch.reschedule();
+            ++_storage.cntr1.feeder_start_count;
         }
-        _cycle = true;
     }
-
 
     bool is_active() const {return _active;}
-    bool is_cycling() const {return _cycle;}
 
 protected:
     Storage &_storage;
-    bool _active = false;
-    bool _cycle = false;
-    TimeStampMs _next_call = 0;
+    bool _active = true;
+    TimeStampMs _stop_time = 0;
 
     bool set_active(bool a) {
         if (_active != a) {

@@ -34,9 +34,9 @@ public:
     };
 
     enum class AutoMode {
-        active,     //aktivne se topi
-        attenuation,    //utlum
-        renewal         //obnova plamene
+        fullpower,
+        lowpower,
+        off,
     };
 
 
@@ -65,7 +65,7 @@ public:
     bool is_feeder_on() const {return _feeder.is_active();}
     bool is_pump_on() const {return _pump.is_active();}
     bool is_fan_on() const {return _fan.is_active();}
-    bool is_attenuation() const {return _auto_mode == AutoMode::attenuation;}
+    bool is_attenuation() const {return _auto_mode == AutoMode::off;}
     int calc_tray_remain() const;
     Storage &get_storage() {return _storage;}
     void set_wifi_used() {_wifi_used = true;}
@@ -91,8 +91,12 @@ public:
     TimeStampMs update_motorhours(TimeStampMs  now);
 
     void factory_reset();
-
 protected:
+
+    TimeStampMs auto_drive_cycle(TimeStampMs cur_time);
+protected:
+
+
     Sensors _sensors;
 
     bool _auto_stop_disabled = false;
@@ -100,7 +104,8 @@ protected:
     bool _force_pump = false;
 
     DriveMode _cur_mode = DriveMode::unknown;
-    AutoMode _auto_mode = AutoMode::active;
+    AutoMode _auto_mode = AutoMode::fullpower;
+    bool _auto_mode_active_phase = false;
     TimeStampMs _auto_mode_change = 0;
     TimeStampMs _flush_time = 0;
 
@@ -111,7 +116,8 @@ protected:
     TempSensors _temp_sensors;
     DisplayControl _display;
     TimedTaskMethod<Controller, &Controller::update_motorhours> _motoruntime;
-    Scheduler<5> _scheduler;
+    TimedTaskMethod<Controller, &Controller::auto_drive_cycle> _auto_drive_cycle;
+    Scheduler<6> _scheduler;
     MyHttpServer _server;
     std::optional<WiFiClient> _list_temp_async;
 

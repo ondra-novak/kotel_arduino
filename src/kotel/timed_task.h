@@ -32,6 +32,10 @@ public:
     virtual void run(TimeStampMs cur_time) override {
         _next_call = cur_time + ((*_object).*task)(cur_time);
     }
+    void wake_up(IScheduler &sch) {
+        _next_call = 0;
+        sch.reschedule();
+    }
 
 
 protected:

@@ -21,13 +21,11 @@ public:
     }
 
     virtual void reschedule() override {
-        for (unsigned int i = 0; i < N; ++i) {
-            _items[i]._tp = _items[i]._task->get_scheduled_time();
-            heap_push(_items, i+1, compare);
-        }
+        _flag_reschedule = true;
     }
 
     void run() {
+        if (_flag_reschedule) do_reschedule();
         do {
             auto tp = get_current_timestamp();
             if (tp >= _items[0]._tp) {
@@ -61,6 +59,15 @@ protected:
     }
 
     Item _items[N];
+    bool _flag_reschedule = false;
+
+    void do_reschedule() {
+        for (unsigned int i = 0; i < N; ++i) {
+            _items[i]._tp = _items[i]._task->get_scheduled_time();
+            heap_push(_items, i+1, compare);
+        }
+        _flag_reschedule = false;
+    }
 
 
 };

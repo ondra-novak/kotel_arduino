@@ -15,8 +15,11 @@ public:
     class Iterator {
     public:
 
-        using iterator_category = std::forward_iterator_tag;
         using value_type = typename Cont1::value_type;
+        using iterator_category = std::forward_iterator_tag;
+        using difference_type = std::ptrdiff_t;
+        using pointer = const value_type *;
+        using reference = const value_type &;
 
         Iterator(Iter1 iter1, Iter1 end1, Iter2 iter2)
             :_iter1(iter1),_end1(end1),_iter2(iter2) {}

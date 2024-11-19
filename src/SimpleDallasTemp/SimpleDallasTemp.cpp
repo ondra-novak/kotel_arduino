@@ -181,7 +181,106 @@ void SimpleDallasTemp::wire_reset_search() {
     _wire.reset_search();
 }
 
-bool SimpleDallasTemp::wire_search(Address &addr) {
-    return _wire.search(addr.data());
+std::optional<int32_t> SimpleDallasTemp::async_read_temp_raw(AsyncState &st) {
+    if (st.st != Status::ok) return {};
+    if (OneWire::crc8(st.buffer, 8) == st.buffer[8]) {
+        int32_t result;
+        st.st = calculateTemperature(st.addr.data(), st.buffer, result);
+        if (st.st == Status::ok) return result;
+    } else {
+        st.st = Status::fault_crc;
+    }
+    return {};
+}
+
+std::optional<float> SimpleDallasTemp::async_read_temp_celsius(AsyncState &st) {
+    auto r = async_read_temp_raw(st);
+    if (r) {
+        return (float) *r * (1.0f / 128.0f);
+    } else {
+        return {};
+    }
+}
+
+void SimpleDallasTemp::async_request_temp(AsyncState &st, const Address &addr) {
+    st.phase = 0;
+    if (_wire.reset()) {
+        st.state = AsyncCommand::request_temp_addr;
+        st.st = Status::ok;
+        st.addr = addr;
+    } else {
+        st.state = AsyncCommand::done;
+        st.st = Status::fault_not_present;
+    }
+}
+
+void SimpleDallasTemp::async_request_temp(AsyncState &st) {
+    st.phase = 0;
+    if (_wire.reset()) {
+        st.state = AsyncCommand::request_temp_global;
+        st.st = Status::ok;
+    } else {
+        st.state = AsyncCommand::done;
+        st.st = Status::fault_not_present;
+    }
+
+}
+
+void SimpleDallasTemp::async_read_temp(AsyncState &st, const Address &addr) {
+    st.phase = 0;
+    st.addr = addr;
+    if (_wire.reset()) {
+        st.state = AsyncCommand::read_temp;
+        st.st = Status::ok;
+    } else {
+        st.state = AsyncCommand::done;
+        st.st = Status::fault_not_present;
+    }
+}
+
+bool SimpleDallasTemp::async_cycle(AsyncState &st) {
+    switch(st.state) {
+        case AsyncCommand::done: return true;
+        case AsyncCommand::read_temp:
+            if (st.phase == 0) {
+                _wire.select(st.addr.data());
+            } else if (st.phase == 1) {
+                _wire.write(0xBE);
+            } else if (st.phase - 2 < sizeof(st.buffer)){
+                st.buffer[st.phase - 2] = _wire.read();
+            } else {
+                st.state = AsyncCommand::done;
+                return true;
+            }
+            ++st.phase;
+            break;
+        case AsyncCommand::request_temp_addr:
+            if (st.phase == 0) {
+                _wire.select(st.addr.data());
+            } else if (st.phase == 1) {
+                _wire.write(0x44);
+            } else {
+                st.state = AsyncCommand::done;
+                return true;
+            }
+            ++st.phase;
+            break;
+        case AsyncCommand::request_temp_global:
+            if (st.phase == 0) {
+                _wire.skip();
+            } else if (st.phase == 1) {
+                _wire.write(0x44);
+            } else {
+                st.state = AsyncCommand::done;
+                return true;
+            }
+            ++st.phase;
+            break;
+    }
+    return false;
+
+}
+
+bool SimpleDallasTemp::wire_search(Address &addr) {return _wire.search(addr.data());
 
 }

@@ -13,11 +13,16 @@ namespace kotel {
 class TempSensors: public AbstractTimedTask {
 public:
 
+    static constexpr unsigned int measure_interval = 10000;
+
     enum class State {
         start,
         write_request,
+        write_request_timeout,
         read_temp1,
+        read_temp1_timeout,
         read_temp2,
+        read_temp2_timeout,
         wait
     };
 
@@ -33,33 +38,37 @@ public:
     }
 
     virtual void run(TimeStampMs cur_time) override {
-        std::optional<float> rdtmp;
-
+        if (_simulated) {
+            _input.set_value(_input._value, SimpleDallasTemp::Status::ok);
+            _output.set_value(_output._value, SimpleDallasTemp::Status::ok);
+            _next_read_time = cur_time + measure_interval;
+            return;
+        }
 
         switch (_state) {
             case State::start:
-                _next_measure_time = cur_time + 2000;
+                _next_measure_time = cur_time + measure_interval;
                 _next_read_time = cur_time+1;
                 _state = State::write_request;
                 break;
             case State::write_request:
-                _temp_reader.request_temp();
-                _state = State::read_temp1;
+                _temp_reader.async_request_temp(_temp_async_state);
+                _state = State::write_request_timeout;
                 _next_read_time = cur_time + 200;
                 break;
             case State::read_temp1:
-                _input.read(_temp_reader, _stor.temp.input_temp);
-                _state = State::read_temp2;
-                _next_read_time = cur_time + 1;
+                _temp_reader.async_read_temp(_temp_async_state, _stor.temp.input_temp);
+                _state = State::read_temp1_timeout;
+                _next_read_time = cur_time + 200;
                 break;
             case State::read_temp2:
-                _output.read(_temp_reader, _stor.temp.output_temp);
-                _state = State::wait;
-                _next_read_time = cur_time + 1;
+                _temp_reader.async_read_temp(_temp_async_state, _stor.temp.output_temp);
+                _state = State::read_temp2_timeout;
+                _next_read_time = cur_time + 200;
                 break;
             default:
                 _next_read_time = _next_measure_time;
-                _next_measure_time += 2000;
+                _next_measure_time += measure_interval;
                 _state = State::write_request;
 
 
@@ -88,46 +97,84 @@ public:
         return _output._value;
     }
 
-    unsigned int get_read_count() const {
-        return _read_count;
-    }
-
     bool is_reading() const {
         return  _state != State::write_request;
     }
 
     float get_input_ampl() const {
-        return _input.extrapolate(static_cast<int>(_stor.config.input_temp_ampl)*10);
+        return _input.extrapolate(static_cast<int>(_stor.config.input_min_temp_samples));
     }
 
     float get_output_ampl() const {
-        return _output.extrapolate(static_cast<int>(_stor.config.output_temp_ampl)*10);
+        return _output.extrapolate(static_cast<int>(_stor.config.output_max_temp_samples));
     }
 
 
+    void async_cycle(IScheduler &sch) {
+        if (_temp_reader.async_cycle(_temp_async_state)) {
+            auto cur_time = get_current_timestamp();
+            switch (_state) {
+                case State::read_temp1_timeout:
+                    _input.read(_temp_async_state);
+                    _state = State::read_temp2;
+                    _next_read_time = cur_time + 1;
+                    break;
+                case State::read_temp2_timeout:
+                    _output.read(_temp_async_state);
+                    _state = State::wait;
+                    _next_read_time = cur_time + 1;
+                    break;
+                case State::write_request_timeout:
+                    _next_read_time = cur_time + 200;
+                    _state = State::read_temp1;
+                    break;
+                default:
+                    return;
+            }
+            sch.reschedule();
+        }
+    }
+
+    void simulate_temperature(float input, float output) {
+        _simulated = true;
+        _input.set_value(input, SimpleDallasTemp::Status::ok);
+        _output.set_value(output, SimpleDallasTemp::Status::ok);
+    }
+
+    void disable_simulated_temperature() {
+        _simulated = false;
+    }
+
+    bool is_simulated() const {
+        return _simulated;
+    }
+
 protected:
 
-    static constexpr unsigned int history_count = 128;
+    static constexpr unsigned int max_history_count = 32;
 
 
 
     struct TempDeviceState {
         std::optional<float> _value = {};
         SimpleDallasTemp::Status _status = {};
-        unsigned int _wrpos = history_count - 1;
-        float _history[history_count] = {};
+        unsigned int _wrpos = max_history_count - 1;
+        float _history[max_history_count] = {};
         bool _first_value = true;
-        mutable bool _dirty = true;
-        mutable LinReg _lnr;
 
-        void read(SimpleDallasTemp &reader, const SimpleDallasTemp::Address &addr) {
-            _value = reader.read_temp_celsius(addr);
-            _status = reader.get_last_error();
-            auto newpos = (_wrpos + 1) % history_count;
+        void read(SimpleDallasTemp::AsyncState &st) {
+            set_value(SimpleDallasTemp::async_read_temp_celsius(st),
+                        SimpleDallasTemp::async_get_last_error(st));
+        }
+
+        void set_value(std::optional<float> value, SimpleDallasTemp::Status st) {
+            _value = value;
+            _status = st;
+            auto newpos = (_wrpos + 1) % max_history_count;
             if (_value.has_value()) {
                 if (_first_value) {
                     _first_value = false;
-                    for (unsigned int i = 0; i < history_count; ++i) {
+                    for (unsigned int i = 0; i < max_history_count; ++i) {
                         _history[i] = *_value;
                     }
                 } else {
@@ -137,21 +184,22 @@ protected:
                 _history[newpos] = _history[_wrpos];
             }
             _wrpos = newpos;
-            _dirty = true;
         }
 
-        float extrapolate(int x) const {
-            x+=history_count;
-            if (_dirty) {
-                auto beg = (_wrpos+1) % history_count;
-                std::basic_string_view<float> s1(_history+beg, history_count-beg);
-                std::basic_string_view<float> s2(_history, beg);
-                CombinedContainers<std::basic_string_view<float>,std::basic_string_view<float> > cont(s1,s2);
+        float extrapolate(unsigned int x) const {
+            if (x > max_history_count) x = max_history_count;
+            if (x < 2) return _history[_wrpos];
+            auto skip = max_history_count - x;
+            auto beg = (_wrpos+1) % max_history_count;
+            std::basic_string_view<float> s1(_history+beg, max_history_count-beg);
+            std::basic_string_view<float> s2(_history, beg);
+            CombinedContainers<std::basic_string_view<float>,std::basic_string_view<float> > cont(s1,s2);
+            auto b = cont.begin();
+            auto e = cont.end();
+            std::advance(b, skip);
 
-                _lnr = LinReg(cont.begin(), cont.end());
-                _dirty = false;
-            }
-            return _lnr(x);
+            LinReg lnr(b, e);
+            return lnr(2*x);
         }
 
 
@@ -162,15 +210,14 @@ protected:
     Storage &_stor;
     OneWire _wire;
     SimpleDallasTemp _temp_reader;
+    SimpleDallasTemp::AsyncState _temp_async_state;
     TempDeviceState _input;
     TempDeviceState _output;
     TimeStampMs _next_read_time = 0;
     TimeStampMs _next_measure_time = 0;
-    unsigned int _read_count = 0;
+    bool _simulated = false;
 
-    float calc_change(float n, float o) const {
-        return (n - o) * (2.0/_stor.temp.trend_smooth) + o;
-    }
+
 };
 
 }
