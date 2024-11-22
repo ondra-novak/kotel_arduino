@@ -571,28 +571,6 @@ static constexpr std::pair<const char *, uint8_t Controller::ManualControlStruct
 };
 
 
-
-
-
-
-
-
-void Controller::out_form_config(MyHttpServer::Request &req) {
-    Stream &s = req.client;
-    s.print("{\"config\":{");
-    print_table_format(s, config_table);
-    s.print(',');
-    print_table_format(s, tempsensor_table_1);
-    s.print(',');
-    print_table_format(s, wifi_ssid_table);
-    s.print(',');
-    print_table_format(s, wifi_password_table);
-    s.print(',');
-    print_table_format(s, wifi_netcfg_table);
-    s.print(',');
-    print_table_format(s, tray_table_2);
-    s.print("}}");
-}
 #ifdef WEB_DEVEL
 
 void Controller::send_file(MyHttpServer::Request &req, std::string_view content_type, std::string_view file_name) {
@@ -662,9 +640,6 @@ void Controller::handle_server(MyHttpServer::Request &req) {
     } else if (req.request_line.path == "/api/status" && req.request_line.method == HttpMethod::GET) {
         status_out(ss);
         _server.send_file(req, Ctx::text, ss.get_text());
-    } else if (req.request_line.path == "/api/format" && req.request_line.method == HttpMethod::GET) {
-        _server.send_simple_header(req, Ctx::json);
-        out_form_config(req);
     } else if (req.request_line.path == "/api/manual_control"  && req.request_line.method == HttpMethod::POST) {
         manual_control(req.body, {});
         status_out(ss);
@@ -950,18 +925,15 @@ void Controller::handle_ws_request(MyHttpServer::Request &req)
         set_fuel(s);
     }
         break;
-    
+
+
     default:
         break;
     }
 }
 
 struct StatusOutWs {
-    int16_t temp_output_value;
-    int16_t temp_output_amp_value;
-    int16_t temp_input_value;
-    int16_t temp_input_amp_value;
-    int16_t rssi;
+    uint8_t command;
     uint8_t mode;
     uint8_t automode;
     uint8_t try_open;
@@ -969,6 +941,16 @@ struct StatusOutWs {
     uint8_t pump;
     uint8_t feeder;
     uint8_t fan;
+    uint32_t feeder_time;
+    uint32_t tray_open_time;
+    uint32_t tray_fill_time;
+    int16_t bag_fill_count;
+    int16_t bag_consumption;
+    int16_t temp_output_value;
+    int16_t temp_output_amp_value;
+    int16_t temp_input_value;
+    int16_t temp_input_amp_value;
+    int16_t rssi;
     uint8_t temp_sim;
     uint8_t temp_input_status;
     uint8_t temp_output_status;
@@ -984,11 +966,7 @@ static int16_t encode_temp(std::optional<float> v) {
 
 void Controller::status_out_ws(MyHttpServer::Request &req) {
     StatusOutWs st{
-        encode_temp(_temp_sensors.get_output_temp()),
-        encode_temp(_temp_sensors.get_output_ampl()),
-        encode_temp(_temp_sensors.get_input_temp()),
-        encode_temp(_temp_sensors.get_input_ampl()),
-        static_cast<int16_t>(WiFi.RSSI()),
+        static_cast<uint8_t>(0), //command
         static_cast<uint8_t>(_cur_mode),
         static_cast<uint8_t>(_auto_mode),
         static_cast<uint8_t>(_sensors.tray_open?1:0),
@@ -996,6 +974,16 @@ void Controller::status_out_ws(MyHttpServer::Request &req) {
         static_cast<uint8_t>(_pump.is_active()?1:0),
         static_cast<uint8_t>(_feeder.is_active()?1:0),
         static_cast<uint8_t>(_fan.get_current_speed()),
+        _storage.tray.feeder_time,
+        _storage.tray.tray_open_time,
+        _storage.tray.tray_fill_time,
+        static_cast<int16_t>(_storage.tray.bag_fill_count),
+        static_cast<int16_t>(_storage.tray.bag_consump_time),
+        encode_temp(_temp_sensors.get_output_temp()),
+        encode_temp(_temp_sensors.get_output_ampl()),
+        encode_temp(_temp_sensors.get_input_temp()),
+        encode_temp(_temp_sensors.get_input_ampl()),
+        static_cast<int16_t>(WiFi.RSSI()),
         static_cast<uint8_t>(_temp_sensors.is_simulated()?1:0),
         static_cast<uint8_t>(_temp_sensors.get_output_status()),
         static_cast<uint8_t>(_temp_sensors.get_input_status()),

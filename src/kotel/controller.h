@@ -72,8 +72,6 @@ public:
     bool is_wifi_used() const {return _wifi_used;}
     DriveMode get_drive_mode() const {return _cur_mode;}
 
-    void out_form_config(MyHttpServer::Request &req);
-
     struct ManualControlStruct {
         uint8_t _feeder_time = 0;
         uint8_t _fan_time = 0;

@@ -23,6 +23,77 @@ function parse_response(text, sep="\r\n") {
     },{});
 }
 
+const StatusOutWs = [
+    ["uint8","command"],
+    ["uint8","mode"],
+    ["uint8","automode"],
+    ["uint8","try_open"],
+    ["uint8","motor_temp_ok"],
+    ["uint8","pump"],
+    ["uint8","feeder"],
+    ["uint8","fan"],
+    ["uint32","feeder_time"],
+    ["uint32","tray_open_time"],
+    ["uint32","tray_fill_time"],
+    ["int16","bag_fill_count"],
+    ["int16","bag_consumption"],
+    ["int16","temp_output_value"],
+    ["int16","temp_output_amp_value"],
+    ["int16","temp_input_value"],
+    ["int16","temp_input_amp_value"],
+    ["int16","rssi"],
+    ["uint8","temp_sim"],
+    ["uint8","temp_input_status"],
+    ["uint8","temp_output_status"]
+];
+
+const ManualControlWs = [
+    ["uint8","command"],
+    ["uint8","feeder_timer"],
+    ["uint8","fan_timer"],
+    ["uint8","fan_speed"],
+    ["uint8","force_pump"]  
+];
+
+function decodeBinaryFrame(pattern, buffer) {
+    const view = new DataView(buffer);
+    let out = {};
+    let offset = 0;
+    pattern.forEach(x=>{
+        switch (x[0]) {
+            case "uint32": out[x[1]] = view.getUint32(offset,true);offset+=4;break;
+            case "int16": out[x[1]] = view.getInt16(offset,true);offset+=2;break;
+            case "uint8": out[x[1]] = view.getUint8(offset,true);offset+=1;break;
+            default: throw new TypeError("unknown field type:" + x[0]);
+        }
+    })
+    return out;
+}
+
+
+function encodeBinaryFrame(pattern,  data) {
+
+    let arr = null;
+    let view = null;
+    for (let i = 0; i < 2; ++i) {
+        let offset = 0;    
+        pattern.forEach(x=>{
+            switch(x[0]){
+                case "uint32": if (view) view.setUInt32(offset, data[x[1]]); offset+=4;break;
+                case "int16": if (view) view.setInt16(offset, data[x[1]]); offset+=2;break;
+                case "uint8": if (view) view.setUint8(offset, data[x[1]]); offset+=1;break;
+                default: throw new TypeError("unknown field type:" + x[0]);
+            }
+        })    
+        
+        if (arr) break;
+        arr = new ArrayBuffer(offset);
+        view = new DataView(arr);        
+    }
+    return arr;
+}
+
+
 
 let Controller = {
     man: {
@@ -35,40 +106,85 @@ let Controller = {
     status:{},
     config:{},
     stats:{},
-        update_status_cycle: async function() {
+    _ws:null,
+    _promises:{},
+    init_ws: function() {
+        if (this._ws == null) {
+            this._promises = {};
+            this._ws =  new Promise((ok, err)=>{
+                let ws = new WebSocket(location.href.replace(/^http/,"ws")+"api/ws");
+                ws.binaryType = "arraybuffer";
+                ws.onerror = (e)=>{
+                    err(e);
+                    this._ws = null;
+                };
+                ws.onclose = ()=>{
+                    this._ws = null;
+                }
+                ws.onmessage = (event)=>{                    
+                    if (event.data instanceof ArrayBuffer) {
+                        let cmd = decodeBinaryFrame([["uint8","command"]], event.data);
+                        let p = this._promises[cmd["command"]];
+                        if (p) p(event.data);
+                    }
+                }
+                ws.onopen = ()=>{
+                    ok(ws);
+                }                      
+                return;
+            });        
+        }
+        return this._ws;
+    },
+
+    stop_ws: async function() {
+        if (this._ws) {
+            let ws = await this._ws;
+            ws.close();            
+        }
+    },
+
+    update_status_cycle: async function() {
         if (this._status_timer) clearTimeout(this._status_timer);
-        let req = {};
-        if (this.man.feeder !== undefined) {
-            req["feeder.timer"] = this.man.feeder?3:0;
-            if (!this.man.feeder) delete this.man.feeder;
-        }
-        if (this.man.fan !== undefined) {
-            req["fan.timer"] = this.man.fan?3:0;
-            if (!this.man.fan) delete this.man.fan;
-        }
-        if (this.man.fan_speed !==undefined) {
-            req["fan.speed"] = this.man.fan_speed?this.man.fan_speed:0;
-            delete this.man.fan_speed;
-        }
-        if (this.man.force_pump !==undefined) {
-            req["pump.force"] = this.man.force_pump?1:0;
-            delete this.man.force_pump;
-        } 
         try {
-            this.on_begin_refresh("status");
-            let resp = await fetch("/api/manual_control", {
-                headers:{"Content-Type":"application/x-www-form-urlencoded"},
-                method: "POST",
-                body: convert_to_form_urlencode(req),
-                signal: AbortSignal.timeout(5000)                
-            });            
-            this.status = parse_response(await resp.text());
-            this.on_status_update(this.status);
+            let ws = await this.init_ws();
+            let p = new Promise((ok, err)=>{
+                setTimeout(()=>err("timeout"),5000);    
+                this._promises[0] = ok;            
+            });
+            let req = {"command":0};
+            if (this.man.feeder !== undefined) {
+                req["feeder_timer"] = this.man.feeder?3:0;
+                if (!this.man.feeder) delete this.man.feeder;
+            }
+            if (this.man.fan !== undefined) {
+                req["fan_timer"] = this.man.fan?3:0;
+                if (!this.man.fan) delete this.man.fan;
+            }
+            if (this.man.fan_speed !==undefined) {
+                req["fan_speed"] = this.man.fan_speed?this.man.fan_speed:0;
+                delete this.man.fan_speed;
+            }
+            if (this.man.force_pump !==undefined) {
+                req["force_pump"] = this.man.force_pump?1:0;
+                delete this.man.force_pump;
+            }
+            ws.send(encodeBinaryFrame(ManualControlWs, req));
+            let data = await p;
+            let out = decodeBinaryFrame(StatusOutWs, data);
+            if (out.temp_output_value < -10000) delete out.temp_output_value;
+            else out.temp_output_value = out.temp_output_value*0.1;
+            if (out.temp_input_value < -10000) delete out.temp_input_value;
+            else out.temp_input_value = out.temp_input_value*0.1;
+            out.temp_output_amp_value = out.temp_output_amp_value*0.1;
+            out.temp_input_amp_value = out.temp_input_amp_value*0.1;
+            this.status = out;
+            this.on_status_update(out);        
         } catch (e) {
+            this.stop_ws();
             this.on_error("status",e);
         }
-        this._status_timer = setTimeout(this.update_status_cycle.bind(this), 1000);
-        this._man_copy = Object.assign({}, this.man); 
+        this._status_timer = setTimeout(this.update_status_cycle.bind(this), 1000);    
     },
     
     update_stats_cycle: async function() {
@@ -126,7 +242,7 @@ let Controller = {
                 console.error(e);
             }
             await delay(1000);
-            
+          
         }
     }
         
@@ -523,27 +639,27 @@ async function main() {
     Controller.on_status_update = function(st) {
         let stav = document.getElementById("stav");
         stav.className="mode"+st.mode+" "+"automode"+st.auto_mode;
-        update_temperature("vystupni_teplota", st["temp.output.value"], 
-                        Controller.config["temperature.max_output"], st["temp.output.ampl"]);
-        update_temperature("vstupni_teplota", st["temp.input.value"], 
-                        Controller.config["temperature.min_input"], st["temp.input.ampl"]);
+        update_temperature("vystupni_teplota", st["temp_output_value"], 
+                        Controller.config["temperature.max_output"], st["temp_output_ampl"]);
+        update_temperature("vstupni_teplota", st["temp_input_value"], 
+                        Controller.config["temperature.min_input"], st["temp_input_ampl"]);
         update_fuel("zasobnik",calculate_fuel_remain()); 
-        document.getElementById("ovladac_feeder").classList.toggle("on", st.feeder != "0");
-        document.getElementById("ovladac_fan").classList.toggle("on", st.fan != "0");
-        document.getElementById("ovladac_pump").classList.toggle("on", st.pump != "0");
+        document.getElementById("ovladac_feeder").classList.toggle("on", st.feeder != 0);
+        document.getElementById("ovladac_fan").classList.toggle("on", st.fan != 0);
+        document.getElementById("ovladac_pump").classList.toggle("on", st.pump != 0);
         document.getElementById("ssid").textContent = st["network.ssid"];
-        document.getElementById("rssi").textContent = st["network.signal"];
+        document.getElementById("rssi").textContent = st["rssi"];
         document.getElementById("netstatus").classList.remove("netconnecting");
-        document.getElementById("mototempmax").hidden = st["motor_temp_ok"] == "1";
-        document.getElementById("manualcontrolpanel").hidden = st.mode != "1";
-        document.getElementById("man_feeder").classList.toggle("active",st.feeder != "0");
-        document.getElementById("man_fan").classList.toggle("active",st.fan != "0");
-        if (st.fan != "0" && st.mode != "1") document.getElementById("man_fan_speed").value=st.fan;
-        if (st.mode != '1') {
+        document.getElementById("mototempmax").hidden = st["motor_temp_ok"] == 1;
+        document.getElementById("manualcontrolpanel").hidden = st.mode != 1;
+        document.getElementById("man_feeder").classList.toggle("active",st.feeder != 0);
+        document.getElementById("man_fan").classList.toggle("active",st.fan != 0);
+        if (st.fan != 0 && st.mode != 1) document.getElementById("man_fan_speed").value=st.fan;
+        if (st.mode != 1) {
             Controller.man.fan = 0;
             Controller.man.feeder = 0;
         }
-        document.getElementById("simul_temp").hidden = st["temp.sim"] == '0';
+        document.getElementById("simul_temp").hidden = st["temp_sim"] == 0;
     };
     Controller.on_error = function(x,y) {
         document.getElementById("netstatus").classList.add("neterror");
