@@ -4,6 +4,7 @@
 #include "print_hlp.h"
 #include "combined_container.h"
 #include "stringstream.h"
+#include "websocket.h"
 
 namespace kotel {
 
@@ -128,7 +129,11 @@ public:
      */
     void send_file(Request &req, std::string_view content_type, std::string_view content);
 
+    void send_ws_message(Request &req, const ws::Message &msg);
+
 protected:
+
+
     WiFiServer _srv = {};
     WiFiClient _active_client = {};
     char _input_buff[max_request_size] = {};
@@ -138,19 +143,47 @@ protected:
     HttpRequestLine _rl;
     int _body_size = -1;    //-1 reading header, 0 = no body, else size of body
     bool _body_trunc = false;
+    bool _ws_mode = false;
+    bool _deactivate_client = false;
     unsigned long read_timeout_tp = 0;
     std::pair<std::string_view, std::string_view>  _header_lines[max_header_lines];
+    ws::Parser<HttpServer> _ws;
 
     void parse_header();
-    void reset_server();
+    void reset_server(bool keep_client);
+
+    //WS support functions
+    friend class ws::Parser<HttpServer>;
+    void push_back(char c);
+    std::size_t size() const;
+    void clear() {_write_pos = 0;}
+    const char *data() const;
 };
 
+template<unsigned int max_request_size, unsigned int max_header_lines >
+inline void HttpServer<max_request_size, max_header_lines>::push_back(char c) {
+        if (_write_pos >= max_request_size) {
+            _body_trunc = true;
+        } else{
+            _input_buff[_write_pos] = c;
+            ++_write_pos;
+        }
+}
 
+template<unsigned int max_request_size, unsigned int max_header_lines >
+inline std::size_t HttpServer<max_request_size, max_header_lines>::size() const {
+    return _write_pos;
+}
+
+template<unsigned int max_request_size, unsigned int max_header_lines >
+inline const char *HttpServer<max_request_size, max_header_lines>::data() const {
+    return _input_buff;
+}
 
 
 template<unsigned int max_request_size, unsigned int max_header_lines >
 inline HttpServer<max_request_size, max_header_lines>::HttpServer(int port)
-    :_srv(port)
+    :_srv(port),_ws(*this)
 {
 
 }
@@ -167,8 +200,8 @@ inline typename  HttpServer<max_request_size, max_header_lines>::Request
     Request ret {};
     auto curtm = millis();
     if (static_cast<long>(curtm - read_timeout_tp) > 0 && _active_client) {
-        _active_client.stop();
-        reset_server();
+
+        reset_server(false);
         return ret;
     }
 
@@ -180,53 +213,73 @@ inline typename  HttpServer<max_request_size, max_header_lines>::Request
         read_timeout_tp = curtm+5000;    //total timeout
     }
     int b = _active_client.read();
-    while (b != -1) {
-        _input_buff[_write_pos] = static_cast<char>(b);
-        ++_write_pos;
-        if (_body_size == -1) {
-            if (_write_pos > 3
-                && _input_buff[_write_pos-1] == '\n'
-                && _input_buff[_write_pos-2] == '\r'
-                && _input_buff[_write_pos-3] == '\n'
-                && _input_buff[_write_pos-4] == '\r') {
-                    _write_pos-=2;  //save 2 bytes for body (empty header line)
-                    _hdr_end = _write_pos;
-                    parse_header();
-                    if (_rl.version.empty()) {
-                        _active_client.stop();
-                        reset_server();
-                        return ret;
-                    }
-            } else if (_write_pos == max_request_size) {
-                _active_client.stop();
-                reset_server();
+    if (b != -1) {
+        if ((_write_pos == 0 && b == 0x82) || _ws_mode) {
+            char c = static_cast<char>(b);
+            if (!_ws_mode) {
+                _ws_mode = true;
+                _ws.reset();
+            }
+            bool pst = _ws.push_data({&c,1}); 
+            if (_body_trunc) {
+                reset_server(false);
                 return ret;
+            }
+            if (pst) {
+                auto msg = _ws.get_message();
+                ret.body = msg.payload;
+                ret.request_line.method = HttpMethod::WS;
+                ret.client = _active_client;
+                reset_server(true);
+                return ret;                
             }
         } else {
-            --_body_size;
-            if (_write_pos == max_request_size) {
-                --_write_pos;
-                _body_trunc = true;
-            }
-        }
-        if (_body_size == 0) {
-            ret.client = _active_client;
-            ret.request_line = _rl;
-            ret.headers = _header_lines;
-            ret.headers_count = _hdr_count;
-            ret.body = {_input_buff+_hdr_end, _write_pos -_hdr_end};
-            if (_body_trunc) {
-                reset_server();
-                error_response(ret, 413, "Content Too Large");
-                ret.client.stop();
-                ret = {};
-                return ret;
+            _input_buff[_write_pos] = static_cast<char>(b);
+            ++_write_pos;
+            if (_body_size == -1) {
+                if (_write_pos > 3
+                    && _input_buff[_write_pos-1] == '\n'
+                    && _input_buff[_write_pos-2] == '\r'
+                    && _input_buff[_write_pos-3] == '\n'
+                    && _input_buff[_write_pos-4] == '\r') {
+                        _write_pos-=2;  //save 2 bytes for body (empty header line)
+                        _hdr_end = _write_pos;
+                        parse_header();
+                        if (_rl.version.empty()) {
+                            reset_server(false);
+                            return ret;
+                        }
+                } else if (_write_pos == max_request_size) {
+                    reset_server(false);
+                    return ret;
+                }
             } else {
-                reset_server();
-                return ret;
+                --_body_size;
+                if (_write_pos == max_request_size) {
+                    --_write_pos;
+                    _body_trunc = true;
+                }
             }
-        }
-        b = _active_client.read();
+            if (_body_size == 0) {
+                ret.client = _active_client;
+                ret.request_line = _rl;
+                ret.headers = _header_lines;
+                ret.headers_count = _hdr_count;
+                ret.body = {_input_buff+_hdr_end, _write_pos -_hdr_end};
+                if (_body_trunc) {
+                    error_response(ret, 413, "Content Too Large");
+                    reset_server(false);
+                    ret = {};
+                    return ret;
+                } else {
+                    reset_server(true);
+                    return ret;
+                }
+            } 
+        }   
+    } else if (_deactivate_client) {
+            _deactivate_client = false;
+            _active_client = {};
     }
     return ret;
 }
@@ -296,13 +349,19 @@ inline void HttpServer<max_request_size, max_header_lines>::parse_header() {
 }
 
 template<unsigned int max_request_size, unsigned int max_header_lines>
-inline void HttpServer<max_request_size, max_header_lines>::reset_server() {
+inline void HttpServer<max_request_size, max_header_lines>::reset_server(bool keep_client) {
     _body_size = -1;
-    _active_client = {};
+    _ws_mode = false;
     _write_pos = 0;
     _hdr_end = 0;
     _hdr_count = 0;
     _body_trunc = false;
+    if (keep_client) {
+        _deactivate_client = true;
+    } else {
+        if (_active_client) _active_client.stop();
+        _active_client = {};
+    }
 }
 
 template<unsigned int max_request_size, unsigned int max_header_lines>
@@ -354,7 +413,18 @@ void HttpServer<max_request_size, max_header_lines>::send_file(Request &req, std
     req.client.write(content.data(), content.size());
 }
 
-
-
-
+template <unsigned int max_request_size, unsigned int max_header_lines>
+inline void HttpServer<max_request_size, max_header_lines>::send_ws_message(Request &req, const ws::Message &msg)
+{
+    std::size_t sz = 0;
+    ws::build(msg,[&](char c){
+        if (sz < max_request_size) {
+            _input_buff[sz++] = c;
+        }
+    },nullptr);
+    if (sz > max_request_size) req.client.stop();
+    else {
+        req.client.write(_input_buff, sz);
+    }
+}
 }

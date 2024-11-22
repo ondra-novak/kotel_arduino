@@ -155,7 +155,8 @@ inline constexpr std::string_view parse_http_header(std::string_view hdr, Iter &
 }
 
 enum class HttpMethod {
-    GET, POST, PUT, HEAD, OPTIONS, TRACE, DELETE, CONNECT, unknown
+    GET, POST, PUT, HEAD, OPTIONS, TRACE, DELETE, CONNECT, unknown,
+    WS //< used to identify websocket request
 };
 
 constexpr std::pair<HttpMethod, const char *> method_map[] = {

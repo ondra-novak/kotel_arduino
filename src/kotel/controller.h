@@ -75,11 +75,19 @@ public:
     void out_form_config(MyHttpServer::Request &req);
 
     struct ManualControlStruct {
-        uint16_t _feeder_time = 0;
-        uint16_t _fan_time = 0;
-        uint16_t _fan_speed = 0;
-        uint16_t _force_pump = 0xFF;
+        uint8_t _feeder_time = 0;
+        uint8_t _fan_time = 0;
+        uint8_t _fan_speed = 0;
+        uint8_t _force_pump = 0xFF;
     };
+
+
+struct SetFuelParams {
+    int8_t bagcount = 0;
+    int8_t kalib = 0;
+    int8_t absnow = 0;
+    int8_t full = 0;
+};
 
     ///for manual control, this must be called repeatedly
     bool manual_control(const ManualControlStruct &cntr);
@@ -121,8 +129,10 @@ protected:
     MyHttpServer _server;
     std::optional<WiFiClient> _list_temp_async;
 
-
-
+    enum class WsReqCmd {
+        control_status = 0,
+        set_fuel = 1,
+    };
 
     void control_pump();
     void run_manual_mode();
@@ -132,9 +142,12 @@ protected:
     void init_wifi();
 
     void handle_server(MyHttpServer::Request &req);
+    void handle_ws_request(MyHttpServer::Request &req);
     void send_file(MyHttpServer::Request &req, std::string_view content_type, std::string_view file_name);
 
     bool set_fuel(std::string_view req, std::string_view &&error);
+    bool set_fuel(const SetFuelParams &sfp);
+    void status_out_ws(MyHttpServer::Request &req);
 };
 
 }

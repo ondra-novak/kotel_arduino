@@ -462,6 +462,7 @@ void Controller::clear_error()
     _storage.save();
 }
 
+
 void Controller::status_out(Stream &s) {
     print_data_line(s,"mode", static_cast<int>(_cur_mode));
     print_data_line(s,"auto_mode", static_cast<int>(_auto_mode));
@@ -562,7 +563,7 @@ bool Controller::is_wifi() const {
 }
 
 
-static constexpr std::pair<const char *, uint16_t Controller::ManualControlStruct::*> manual_control_table[] ={
+static constexpr std::pair<const char *, uint8_t Controller::ManualControlStruct::*> manual_control_table[] ={
         {"feeder.timer",&Controller::ManualControlStruct::_feeder_time},
         {"fan.timer",&Controller::ManualControlStruct::_fan_time},
         {"fan.speed",&Controller::ManualControlStruct::_fan_speed},
@@ -628,7 +629,10 @@ void Controller::handle_server(MyHttpServer::Request &req) {
     using Ctx = MyHttpServer::ContentType;
 
     set_wifi_used();
-    if (req.request_line.path == "/api/config") {
+    if (req.request_line.method == HttpMethod::WS) {
+        handle_ws_request(req);
+        return;
+    } else if (req.request_line.path == "/api/config") {
             if (req.request_line.method == HttpMethod::GET) {
                 config_out(ss);
                 _server.send_file(req, Ctx::text, ss.get_text());
@@ -666,6 +670,22 @@ void Controller::handle_server(MyHttpServer::Request &req) {
         status_out(ss);
         _server.send_file(req, Ctx::text, ss.get_text());
         return;
+    } else if (req.request_line.path == "/api/ws" && req.request_line.method == HttpMethod::GET) {
+        auto iter = std::find_if(req.headers, req.headers+req.headers_count, [&](const auto &hdr){
+            return icmp(hdr.first,"Sec-WebSocket-Key");
+        });
+        if (iter != req.headers+req.headers_count) {
+            auto accp = ws::calculate_ws_accept(iter->second);
+            _server.send_header(req,{
+                {"Upgrade","websocket"},
+                {"Connection","upgrade"},
+                {"Sec-WebSocket-Accept",accp}
+            },101,"Switching protocols");
+            return;
+        } else {
+            _server.error_response(req,400,{});
+        }
+
     } else if (req.request_line.path == "/api/fuel"  && req.request_line.method == HttpMethod::POST) {
         std::string_view f;
         if (set_fuel(req.body, std::move(f))) {
@@ -725,6 +745,7 @@ void Controller::handle_server(MyHttpServer::Request &req) {
     }
     req.client.stop();
 }
+
 
 TimeStampMs Controller::run_http(TimeStampMs) {
     return 200;
@@ -798,18 +819,12 @@ TimeStampMs Controller::update_motorhours(TimeStampMs now) {
 }
 
 
-struct SetFuelParams {
-    int8_t bagcount = 0;
-    int8_t kalib = 0;
-    int8_t absnow = 0;
-    int8_t full = 0;
-};
 
-static constexpr std::pair<const char *, int8_t SetFuelParams::*> set_fuel_params_table[] = {
-        {"full", &SetFuelParams::full},
-        {"bagcount", &SetFuelParams::bagcount},
-        {"kalib", &SetFuelParams::kalib},
-        {"absnow", &SetFuelParams::absnow},
+static constexpr std::pair<const char *, int8_t Controller::SetFuelParams::*> set_fuel_params_table[] = {
+        {"full", &Controller::SetFuelParams::full},
+        {"bagcount", &Controller::SetFuelParams::bagcount},
+        {"kalib", &Controller::SetFuelParams::kalib},
+        {"absnow", &Controller::SetFuelParams::absnow},
 };
 
 bool Controller::set_fuel(std::string_view body, std::string_view &&error) {
@@ -821,10 +836,15 @@ bool Controller::set_fuel(std::string_view body, std::string_view &&error) {
             return false;
         }
     } while (!body.empty());
+    bool b = set_fuel(sfp);
+    if (!b) error = "kalib";
+    return b;
+}
+
+bool Controller::set_fuel(const SetFuelParams &sfp) {
 
     auto filltime  = sfp.absnow?_storage.tray.feeder_time:_storage.tray.tray_fill_time;
     if (sfp.kalib) {
-        error = "kalib";
         if (_storage.tray.bag_fill_count == 0) {
             return false;
         }
@@ -908,5 +928,85 @@ TimeStampMs Controller::auto_drive_cycle(TimeStampMs cur_time) {
     _feeder.keep_running(_scheduler, cur_time+t);
     return duty_time;
 }
+
+void Controller::handle_ws_request(MyHttpServer::Request &req)
+{
+    auto msg = req.body;
+    if (msg.empty()) return;
+    WsReqCmd cmd = static_cast<WsReqCmd>(msg[0]);
+    msg = msg.substr(1);
+    switch (cmd)
+    {
+    case WsReqCmd::control_status: if (msg.size() == sizeof(ManualControlStruct)) {
+        ManualControlStruct s;
+        std::copy(msg.begin(), msg.end(), reinterpret_cast<char *>(&s));
+        manual_control(s);
+        status_out_ws(req);
+    }
+        break;
+    case WsReqCmd::set_fuel: if (msg.size() == sizeof(SetFuelParams)) {
+        SetFuelParams s;
+        std::copy(msg.begin(), msg.end(), reinterpret_cast<char *>(&s));
+        set_fuel(s);
+    }
+        break;
+    
+    default:
+        break;
+    }
+}
+
+struct StatusOutWs {
+    int16_t temp_output_value;
+    int16_t temp_output_amp_value;
+    int16_t temp_input_value;
+    int16_t temp_input_amp_value;
+    int16_t rssi;
+    uint8_t mode;
+    uint8_t automode;
+    uint8_t try_open;
+    uint8_t motor_temp_ok;
+    uint8_t pump;
+    uint8_t feeder;
+    uint8_t fan;
+    uint8_t temp_sim;
+    uint8_t temp_input_status;
+    uint8_t temp_output_status;
+};
+
+static int16_t encode_temp(std::optional<float> v) {
+    if (v.has_value()) {
+        return static_cast<int16_t>(*v*10.0);
+    } else {
+        return static_cast<int16_t>(0x8000);
+    }
+}
+
+void Controller::status_out_ws(MyHttpServer::Request &req) {
+    StatusOutWs st{
+        encode_temp(_temp_sensors.get_output_temp()),
+        encode_temp(_temp_sensors.get_output_ampl()),
+        encode_temp(_temp_sensors.get_input_temp()),
+        encode_temp(_temp_sensors.get_input_ampl()),
+        static_cast<int16_t>(WiFi.RSSI()),
+        static_cast<uint8_t>(_cur_mode),
+        static_cast<uint8_t>(_auto_mode),
+        static_cast<uint8_t>(_sensors.tray_open?1:0),
+        static_cast<uint8_t>(_sensors.motor_temp_monitor?1:0),
+        static_cast<uint8_t>(_pump.is_active()?1:0),
+        static_cast<uint8_t>(_feeder.is_active()?1:0),
+        static_cast<uint8_t>(_fan.get_current_speed()),
+        static_cast<uint8_t>(_temp_sensors.is_simulated()?1:0),
+        static_cast<uint8_t>(_temp_sensors.get_output_status()),
+        static_cast<uint8_t>(_temp_sensors.get_input_status()),
+    };
+    _server.send_ws_message(req, ws::Message{
+        std::string_view(reinterpret_cast<const char *>(&st),sizeof(st)),
+        ws::Type::binary
+    });
+}
+
+
+
 
 }
