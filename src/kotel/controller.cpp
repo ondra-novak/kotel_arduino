@@ -22,7 +22,9 @@ Controller::Controller()
         ,_display(*this)
         ,_motoruntime(this)
         ,_auto_drive_cycle(this)
-        ,_scheduler({&_feeder, &_fan, &_temp_sensors,  &_display, &_motoruntime, &_auto_drive_cycle})
+        ,_wifi_mon(this)
+        ,_scheduler({&_feeder, &_fan, &_temp_sensors,  &_display,
+            &_motoruntime, &_auto_drive_cycle, &_wifi_mon})
         ,_server(80)
 {
 
@@ -55,61 +57,70 @@ void Controller::run() {
         handle_server(req);
     }
     control_pump();
-    if (!_sensors.motor_temp_monitor //motor temperature check
-         || (defined_and_above(_temp_sensors.get_output_temp(),_storage.config.output_max_temp))
-         || (defined_and_above(_temp_sensors.get_input_temp(),_storage.config.output_max_temp))) {
-        run_stop_mode();
-    } else if (_storage.config.operation_mode == 0) {
-        run_manual_mode();
-    } else if (_storage.config.operation_mode == 1) {
-        if (_sensors.tray_open    //tray is open
-            || (!_temp_sensors.get_output_temp().has_value()) //we don't have output temperature
-            || (_temp_sensors.get_output_temp().has_value() //output temperature is less than input temperature
-                    && _temp_sensors.get_input_temp().has_value()
-                    && *_temp_sensors.get_output_temp() < *_temp_sensors.get_input_temp())
-            || (_temp_sensors.get_output_temp().has_value() //output temp is too low
-                    && *_temp_sensors.get_output_temp() < _storage.config.pump_start_temp
-                    && !_auto_stop_disabled)){
-            run_stop_mode();
-        } else {
-            run_auto_mode();
-        }
+    if (_sensors.tray_open) {
+        _was_tray_open = true;
+        _feeder.stop();
     } else {
-        run_other_mode();
+        if (_was_tray_open) {
+            _was_tray_open = false;
+            _storage.tray.tray_open_time = _storage.tray.feeder_time;
+            _storage.save();
+        }
+        if (!_sensors.motor_temp_monitor //motor temperature check
+             || (defined_and_above(_temp_sensors.get_output_temp(),_storage.config.output_max_temp))
+             || (defined_and_above(_temp_sensors.get_input_temp(),_storage.config.output_max_temp))) {
+            run_stop_mode();
+        } else if (_storage.config.operation_mode == 0) {
+            run_manual_mode();
+        } else if (_storage.config.operation_mode == 1) {
+            if ( (!_temp_sensors.get_output_temp().has_value()) //we don't have output temperature
+                || (_temp_sensors.get_output_temp().has_value() //output temperature is less than input temperature
+                        && _temp_sensors.get_input_temp().has_value()
+                        && *_temp_sensors.get_output_temp() < *_temp_sensors.get_input_temp())
+                || (_temp_sensors.get_output_temp().has_value() //output temp is too low
+                        && *_temp_sensors.get_output_temp() < _storage.config.pump_start_temp
+                        && !_auto_stop_disabled)){
+                run_stop_mode();
+            } else {
+                run_auto_mode();
+            }
+        } else {
+            run_other_mode();
+        }
     }
-    _storage.flush();
 
     if (prev_mode != _cur_mode) {
         _feeder.stop();
         _fan.stop();
     }
-    if (_list_temp_async && _temp_sensors.is_reading()) {
+    if (_list_temp_async && !_temp_sensors.is_reading()) {
         list_onewire_sensors(*_list_temp_async);
         _list_temp_async->stop();
         _list_temp_async.reset();
     }
     _scheduler.run();
+    _storage.flush();
 
 }
 
 static constexpr std::pair<const char *, uint8_t Profile::*> profile_table[] ={
         {"burnout",&Profile::burnout_sec},
-        {"fan_power",&Profile::fan_power},
+        {"fanpw",&Profile::fanpw},
         {"fueling",&Profile::fueling_sec},
 };
 
 static constexpr std::pair<const char *, uint8_t Config::*> config_table[] ={
-        {"temperature.max_output", &Config::output_max_temp},
-        {"temperature.min_input", &Config::input_min_temp},
-        {"temperature.max_output_samples", &Config::output_max_temp_samples},
-        {"temperature.min_input_samples", &Config::input_min_temp_samples},
-        {"operation_mode", &Config::operation_mode},
-        {"fan.pulse_count", &Config::fan_pulse_count},
-        {"temperature.pump_on",&Config::pump_start_temp},
+        {"tout", &Config::output_max_temp},
+        {"tin", &Config::input_min_temp},
+        {"touts", &Config::output_max_temp_samples},
+        {"tins", &Config::input_min_temp_samples},
+        {"m", &Config::operation_mode},
+        {"fanpc", &Config::fan_pulse_count},
+        {"tpump",&Config::pump_start_temp},
 };
 
 static constexpr std::pair<const char *, HeatValue Config::*> config_table_2[] ={
-        {"heat_value",&Config::heat_value},
+        {"hval",&Config::heat_value},
 };
 
 template<typename X>
@@ -180,36 +191,33 @@ void print_table(Stream &s, const Table &table, const Object &object, std::strin
 
 }
 static constexpr std::pair<const char *, SimpleDallasTemp::Address TempSensor::*> tempsensor_table_1[] ={
-        {"temp_sensor.input.addr", &TempSensor::input_temp},
-        {"temp_sensor.output.addr", &TempSensor::output_temp},
+        {"tsinaddr", &TempSensor::input_temp},
+        {"tsoutaddr", &TempSensor::output_temp},
 };
 
 
 
 static constexpr std::pair<const char *, uint32_t Tray::*> tray_table[] ={
-        {"feeder.time", &Tray::feeder_time},
-        {"tray.open_time", &Tray::tray_open_time},
-        {"tray.fill_time", &Tray::tray_fill_time}
+        {"feed.t", &Tray::feeder_time},
+        {"tray.ot", &Tray::tray_open_time},
+        {"tray.ft", &Tray::tray_fill_time}
 };
 
 static constexpr std::pair<const char *, uint16_t Tray::*> tray_table_2[] ={
-        {"tray.bag_fill_count", &Tray::bag_fill_count},
-        {"tray.bag_consumption_time", &Tray::bag_consump_time}
+        {"tray.bgfc", &Tray::bag_fill_count},
+        {"tray.bct", &Tray::bag_consump_time}
 };
 
 static constexpr std::pair<const char *, uint32_t Utilization::*> utilization_table[] ={
-        {"utilization.fan", &Utilization::fan_time},
-        {"utilization.pump", &Utilization::pump_time},
-        {"attent_time", &Utilization::attent_time},
-        {"active_time", &Utilization::active_time},
+        {"utlz.fan", &Utilization::fan_time},
+        {"utlz.pump", &Utilization::pump_time},
+        {"atime", &Utilization::active_time},
 };
 
 static constexpr std::pair<const char *, uint32_t Counters1::*> counters1_table[] ={
-        {"feeder.start_count", &Counters1::feeder_start_count},
-        {"fan.start_count", &Counters1::fan_start_count},
-        {"pump.start_coun", &Counters1::pump_start_count},
-        {"attenuation.count", &Counters1::attent_count},
-        {"attenuation.long_count", &Counters1::long_attents_count},
+        {"sc.feeder", &Counters1::feeder_start_count},
+        {"sc.fan", &Counters1::fan_start_count},
+        {"sc.pump", &Counters1::pump_start_count},
 };
 
 static constexpr std::pair<const char *, TextSector WiFi_SSID::*> wifi_ssid_table[] ={
@@ -227,10 +235,10 @@ static constexpr std::pair<const char *, IPAddr WiFi_NetSettings::*> wifi_netcfg
 };
 
 static constexpr std::pair<const char *, Tray Storage::*> tray_control_table[] ={
-        {"tray.bag_fill_count", &Storage::tray},
+        {"tray.bgfc", &Storage::tray},
 };
 static constexpr std::pair<const char *, uint16_t Tray::*> tray_control_table_2[] ={
-        {"tray.bag_consumption_time", &Tray::bag_consump_time}
+        {"tray.bct", &Tray::bag_consump_time}
 };
 
 
@@ -295,7 +303,7 @@ void Controller::stats_out(Stream &s) {
     print_table(s, tray_table, _storage.tray);
     print_table(s, utilization_table, _storage.utlz);
     print_table(s, counters1_table, _storage.cntr1);
-    s.print("eeprom_checksum_error=");
+    s.print("eee=");
     print_data(s, _storage.get_eeprom().get_crc_error_counter());
 }
 
@@ -504,7 +512,6 @@ void Controller::run_auto_mode() {
 
     if (_cur_mode != DriveMode::automatic)  {
         _cur_mode = DriveMode::automatic;
-        _auto_mode_active_phase = true; //to start off
         _auto_drive_cycle.wake_up(_scheduler);
     }
 }
@@ -559,12 +566,12 @@ void Controller::init_wifi() {
 }
 
 bool Controller::is_wifi() const {
-    return WiFi.status() == WL_CONNECTED;
+    return _wifi_connected;
 }
 
 
 static constexpr std::pair<const char *, uint8_t Controller::ManualControlStruct::*> manual_control_table[] ={
-        {"feeder.timer",&Controller::ManualControlStruct::_feeder_time},
+        {"feed.tr",&Controller::ManualControlStruct::_feeder_time},
         {"fan.timer",&Controller::ManualControlStruct::_fan_time},
         {"fan.speed",&Controller::ManualControlStruct::_fan_speed},
         {"pump.force",&Controller::ManualControlStruct::_force_pump},
@@ -601,8 +608,9 @@ static constexpr std::pair<const char *, float SimulInfo::*> simulate_temp_table
         {"output", &SimulInfo::output},
 };
 
+
+
 void Controller::handle_server(MyHttpServer::Request &req) {
-    StringStream<1024> ss;
 
     using Ctx = MyHttpServer::ContentType;
 
@@ -610,21 +618,6 @@ void Controller::handle_server(MyHttpServer::Request &req) {
     if (req.request_line.method == HttpMethod::WS) {
         handle_ws_request(req);
         return;
-    } else if (req.request_line.path == "/api/config") {
-            if (req.request_line.method == HttpMethod::GET) {
-                config_out(ss);
-                _server.send_file(req, Ctx::text, ss.get_text());
-                return;
-            } else if (req.request_line.method == HttpMethod::PUT) {
-                std::string_view f;
-                if (config_update(req.body, std::move(f))) {
-                    _server.error_response(req, 202, "Accepted");
-                } else {
-                    _server.error_response(req, 409, "Conflict",{},f);
-                }
-            } else {
-                _server.error_response(req, 405, "Method not allowed", {{"Allow","GET,PUT"}});
-            }
     } else if (req.request_line.path == "/api/scan_temp" && req.request_line.method == HttpMethod::POST) {
         if (_list_temp_async.has_value()) {
             _server.error_response(req, 503, "Service unavailable" , {}, {});
@@ -633,18 +626,6 @@ void Controller::handle_server(MyHttpServer::Request &req) {
             _list_temp_async.emplace(std::move(req.client));
             return;
         }
-    } else if (req.request_line.path == "/api/stats" && req.request_line.method == HttpMethod::GET) {
-        stats_out(ss);
-        _server.send_file(req, Ctx::text, ss.get_text());
-        return;
-    } else if (req.request_line.path == "/api/status" && req.request_line.method == HttpMethod::GET) {
-        status_out(ss);
-        _server.send_file(req, Ctx::text, ss.get_text());
-    } else if (req.request_line.path == "/api/manual_control"  && req.request_line.method == HttpMethod::POST) {
-        manual_control(req.body, {});
-        status_out(ss);
-        _server.send_file(req, Ctx::text, ss.get_text());
-        return;
     } else if (req.request_line.path == "/api/ws" && req.request_line.method == HttpMethod::GET) {
         auto iter = std::find_if(req.headers, req.headers+req.headers_count, [&](const auto &hdr){
             return icmp(hdr.first,"Sec-WebSocket-Key");
@@ -661,17 +642,6 @@ void Controller::handle_server(MyHttpServer::Request &req) {
             _server.error_response(req,400,{});
         }
 
-    } else if (req.request_line.path == "/api/fuel"  && req.request_line.method == HttpMethod::POST) {
-        std::string_view f;
-        if (set_fuel(req.body, std::move(f))) {
-            _server.error_response(req, 202, "Accepted");
-        } else {
-            if (f == "kalib") {
-                _server.error_response(req, 406, "Not acceptable",{},f);
-            } else {
-                _server.error_response(req, 409, "Conflict",{},f);
-            }
-        }
     } else if (req.request_line.path == "/") {
 #ifdef WEB_DEVEL
         send_file(req, Ctx::html, "/index.html");
@@ -729,20 +699,24 @@ TimeStampMs Controller::run_http(TimeStampMs) {
 
 
 bool Controller::manual_control(const ManualControlStruct &cntr) {
-    if (_cur_mode != DriveMode::manual) return false;
-    if (cntr._fan_speed) {
+    if (_cur_mode != DriveMode::manual || _sensors.tray_open) return false;
+    if (cntr._fan_speed != 0xFF) {
         _fan.set_speed(cntr._fan_speed);
     }
-    if (cntr._fan_time) {
-       _fan.keep_running(_scheduler, get_current_timestamp()+from_seconds(cntr._fan_time));
-    } else {
-        _fan.stop();
+    if (cntr._fan_time != 0xFF) {
+        if (cntr._fan_time != 0) {
+           _fan.keep_running(_scheduler, get_current_timestamp()+from_seconds(cntr._fan_time));
+        } else {
+            _fan.stop();
+        }
     }
 
-    if (cntr._feeder_time) {
-        _feeder.keep_running(_scheduler, get_current_timestamp()+from_seconds(cntr._feeder_time));
-    } else {
-        _feeder.stop();
+    if (cntr._feeder_time != 0xFF) {
+        if (cntr._feeder_time != 0) {
+            _feeder.keep_running(_scheduler, get_current_timestamp()+from_seconds(cntr._feeder_time));
+        } else {
+            _feeder.stop();
+        }
     }
     if (cntr._force_pump != 0xFF) {
         _force_pump = cntr._force_pump != 0;
@@ -861,6 +835,9 @@ TimeStampMs Controller::auto_drive_cycle(TimeStampMs cur_time) {
     if (_cur_mode != DriveMode::automatic) {
         return from_minutes(60);
     }
+    if (_sensors.tray_open) {
+        return 1000;
+    }
 
 
     if (t_input < _storage.config.input_min_temp) {
@@ -895,52 +872,107 @@ TimeStampMs Controller::auto_drive_cycle(TimeStampMs cur_time) {
             break;
     }
 
-    auto duty_time = from_seconds(p->burnout_sec)+from_seconds(p->fueling_sec);
-    _fan.set_speed(p->fan_power);
-    _fan.keep_running(_scheduler,cur_time + duty_time+1000);
+    auto cycle_interval = from_seconds(p->burnout_sec)+from_seconds(p->fueling_sec);
+    bool fan_active = _fan.is_active();
+    _fan.set_speed(p->fanpw);
+    _fan.keep_running(_scheduler,cur_time + cycle_interval+1000);
      auto t = from_seconds(p->fueling_sec);
-    _auto_mode_active_phase = !_auto_mode_active_phase;
-    _feeder.keep_running(_scheduler, cur_time+t);
-    return duty_time;
+    if (fan_active) {
+        _feeder.keep_running(_scheduler, cur_time+t);
+        return cycle_interval;
+    } else {
+        return cycle_interval/2;
+    }
 }
 
 void Controller::handle_ws_request(MyHttpServer::Request &req)
 {
+    static_buff.clear();
+
     auto msg = req.body;
     if (msg.empty()) return;
     WsReqCmd cmd = static_cast<WsReqCmd>(msg[0]);
     msg = msg.substr(1);
+    static_buff.write(static_cast<char>(cmd));
     switch (cmd)
     {
     case WsReqCmd::control_status: if (msg.size() == sizeof(ManualControlStruct)) {
         ManualControlStruct s;
         std::copy(msg.begin(), msg.end(), reinterpret_cast<char *>(&s));
         manual_control(s);
-        status_out_ws(req);
+        status_out_ws(static_buff);
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
     }
-        break;
+    break;
     case WsReqCmd::set_fuel: if (msg.size() == sizeof(SetFuelParams)) {
         SetFuelParams s;
         std::copy(msg.begin(), msg.end(), reinterpret_cast<char *>(&s));
-        set_fuel(s);
+        if (!set_fuel(s)) {
+            static_buff.print('\x1');
+        }
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
     }
-        break;
-
-
+    break;
+    case WsReqCmd::get_config: {
+        config_out(static_buff);
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
+    }
+    break;
+    case WsReqCmd::get_stats: {
+        stats_out(static_buff);
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
+    }
+    break;
+    case WsReqCmd::set_config: {
+        std::string_view failed_field;
+        if (!config_update(msg, std::move(failed_field))) {
+            print(static_buff, failed_field);
+        }
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
+    }
+    break;
+    case WsReqCmd::file_config:
+        static_buff.write(reinterpret_cast<const char *>(&_storage.config), sizeof(_storage.config));
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
+    break;
+    case WsReqCmd::file_tray:
+        static_buff.write(reinterpret_cast<const char *>(&_storage.tray), sizeof(_storage.tray));
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
+    break;
+    case WsReqCmd::file_util:
+        static_buff.write(reinterpret_cast<const char *>(&_storage.utlz), sizeof(_storage.utlz));
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
+    break;
+    case WsReqCmd::file_cntrs1:
+        static_buff.write(reinterpret_cast<const char *>(&_storage.cntr1), sizeof(_storage.cntr1));
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
+    break;
+    case WsReqCmd::file_status:
+        static_buff.write(reinterpret_cast<const char *>(&_storage.status), sizeof(_storage.status));
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
+    break;
+    case WsReqCmd::file_tempsensor:
+        static_buff.write(reinterpret_cast<const char *>(&_storage.temp), sizeof(_storage.temp));
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
+    break;
+    case WsReqCmd::file_wifi_ssid:
+        static_buff.write(reinterpret_cast<const char *>(&_storage.wifi_ssid), sizeof(_storage.wifi_ssid));
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
+    break;
+    case WsReqCmd::file_wifi_net:
+        static_buff.write(reinterpret_cast<const char *>(&_storage.wifi_config), sizeof(_storage.wifi_config));
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
+    break;
+    case WsReqCmd::file_wifi_pwd:
+        static_buff.print(_storage.wifi_password.password.get().empty()?"":"****");
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
+    break;
     default:
         break;
     }
 }
 
 struct StatusOutWs {
-    uint8_t command;
-    uint8_t mode;
-    uint8_t automode;
-    uint8_t try_open;
-    uint8_t motor_temp_ok;
-    uint8_t pump;
-    uint8_t feeder;
-    uint8_t fan;
     uint32_t feeder_time;
     uint32_t tray_open_time;
     uint32_t tray_fill_time;
@@ -954,6 +986,13 @@ struct StatusOutWs {
     uint8_t temp_sim;
     uint8_t temp_input_status;
     uint8_t temp_output_status;
+    uint8_t mode;
+    uint8_t automode;
+    uint8_t try_open;
+    uint8_t motor_temp_ok;
+    uint8_t pump;
+    uint8_t feeder;
+    uint8_t fan;
 };
 
 static int16_t encode_temp(std::optional<float> v) {
@@ -964,16 +1003,8 @@ static int16_t encode_temp(std::optional<float> v) {
     }
 }
 
-void Controller::status_out_ws(MyHttpServer::Request &req) {
+void Controller::status_out_ws(Stream &s) {
     StatusOutWs st{
-        static_cast<uint8_t>(0), //command
-        static_cast<uint8_t>(_cur_mode),
-        static_cast<uint8_t>(_auto_mode),
-        static_cast<uint8_t>(_sensors.tray_open?1:0),
-        static_cast<uint8_t>(_sensors.motor_temp_monitor?1:0),
-        static_cast<uint8_t>(_pump.is_active()?1:0),
-        static_cast<uint8_t>(_feeder.is_active()?1:0),
-        static_cast<uint8_t>(_fan.get_current_speed()),
         _storage.tray.feeder_time,
         _storage.tray.tray_open_time,
         _storage.tray.tray_fill_time,
@@ -983,18 +1014,25 @@ void Controller::status_out_ws(MyHttpServer::Request &req) {
         encode_temp(_temp_sensors.get_output_ampl()),
         encode_temp(_temp_sensors.get_input_temp()),
         encode_temp(_temp_sensors.get_input_ampl()),
-        static_cast<int16_t>(WiFi.RSSI()),
+        static_cast<int16_t>(_wifi_rssi),
         static_cast<uint8_t>(_temp_sensors.is_simulated()?1:0),
         static_cast<uint8_t>(_temp_sensors.get_output_status()),
         static_cast<uint8_t>(_temp_sensors.get_input_status()),
+        static_cast<uint8_t>(_cur_mode),
+        static_cast<uint8_t>(_auto_mode),
+        static_cast<uint8_t>(_sensors.tray_open?1:0),
+        static_cast<uint8_t>(_sensors.motor_temp_monitor?1:0),
+        static_cast<uint8_t>(_pump.is_active()?1:0),
+        static_cast<uint8_t>(_feeder.is_active()?1:0),
+        static_cast<uint8_t>(_fan.get_current_speed()),
     };
-    _server.send_ws_message(req, ws::Message{
-        std::string_view(reinterpret_cast<const char *>(&st),sizeof(st)),
-        ws::Type::binary
-    });
+    s.write(reinterpret_cast<const char *>(&st), sizeof(st));
 }
 
-
-
+TimeStampMs Controller::wifi_mon(TimeStampMs) {
+    _wifi_connected = WiFi.status() == WL_CONNECTED;
+    if (_wifi_connected) _wifi_rssi = WiFi.RSSI();
+    return 1023;
+}
 
 }

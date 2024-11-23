@@ -25,7 +25,7 @@ enum class ErrorCode: uint8_t {
 struct Profile {
     uint8_t fueling_sec;    //doba prikladani
     uint8_t burnout_sec;    //doba dohorivani
-    uint8_t fan_power;      //vykon ventilatoru
+    uint8_t fanpw;      //vykon ventilatoru
 };
 
 enum class OperationMode: uint8_t {
@@ -69,7 +69,9 @@ struct Tray {
             if (consumed > bag_fill_count) {
                 bag_fill_count = std::max(0,increment);
             } else {
-                bag_fill_count = bag_fill_count - consumed + increment;
+                bag_fill_count = bag_fill_count - consumed;
+                if (increment < 0 && (-increment) > bag_fill_count) bag_fill_count = 0;
+                else bag_fill_count += increment;
                 tray_fill_time = tray_fill_time + static_cast<uint32_t>(bag_consump_time) * consumed;
             }
         }

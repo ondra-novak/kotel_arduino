@@ -11,6 +11,8 @@ public:
 
     void clear() {_sz =0;}
 
+    using Stream::write;
+
     virtual size_t write(uint8_t x) override {
         if (_sz < size) {
             _buffer[_sz] = x;

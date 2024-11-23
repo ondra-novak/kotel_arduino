@@ -81,6 +81,14 @@
                 <div id="rssi">---</div>
             </div>
         </div>
+    <div class="prvekspopisem" id="stats_win">
+        <span>Přehledy</span>
+        <div class="wifi"></div>
+        <div class="label">
+            <div id="ssid">---</div>
+            <div id="rssi">---</div>
+        </div>
+    </div>
     </div>
     <div id="manualcontrolpanel" hidden="hidden">
         <p>Panel ručního ovládání</p>
@@ -161,32 +169,32 @@
     <div class="okno section" id="nastav_topeni" hidden="hidden">
         <div class="sectionname black">Ovládání hoření</div>
         <label><span>Výhřevnost MJ/kg</span><input type="number" min="5" max="25.5" step="0.1"
-                name="heat_value"></label>
+                name="hval""></label>
 
         <div class="subsection">
             <div class="sectionname">Plný výkon</div>
             <label><span>Výkon kW</span><input type="number" min="1" max="25" step="0.5"
                     name="full.power_value" data-local="1"></label>
             <label><span>Ventilátor [%]</span><input type="number" min="1" max="100" step="1"
-                    name="full.fan_power"></label>
+                    name="full.fanpw"></label>
         </div>
         <div class="subsection">
             <div class="sectionname">Snížený výkon</div>
             <label><span>Výkon kW</span><input type="number" min="0.5" max="25" step="0.5" 
                 name="low.power_value" data-local="1"></label>
             <label><span>Výkon ventilátoru [%]</span><input type="number" min="1" max="100" step="1"
-                    name="low.fan_power"></label>
+                    name="low.fanpw"></label>
         </div>
         <div class="subsection">
             <div class="sectionname">Čerpadlo</div>
             <label><span>Spínací výstupní teplota</span><input type="number" min="30" max="90" step="1"
-                    name="temperature.pump_on"></label>
+                    name="tpump"></label>
             <div class="sub_section unhide">
                 <div class="sectionname" onclick="unhide_section.call(this);">Pokročilé volby</div>
                 <label><span>V ručním ovládání čerpadlo trvale zapnuté</span><input type="checkbox"
                         id="pump_active_forever"></label>
                         <label><span>Ventilátor freq.dělič</span><input type="number" min="1" max="255" step="1"
-                                name="fan.pulse_count"></label>
+                                name="fanpc"></label>
                     <label><span>Plný výkon - přikládání [s]</span><input type="number" min="1" max="255" step="1"
                             name="full.fueling"></label>
                     <label><span>Plný výkon - prohořívání [s]</span><input type="number" min="1" max="255" step="1"

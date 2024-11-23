@@ -213,14 +213,15 @@ inline typename  HttpServer<max_request_size, max_header_lines>::Request
         read_timeout_tp = curtm+5000;    //total timeout
     }
     int b = _active_client.read();
-    if (b != -1) {
-        if ((_write_pos == 0 && b == 0x82) || _ws_mode) {
+    while (b != -1) {
+        _deactivate_client = false;
+        if ((_write_pos == 0 && (b & 0x7F)<16) || _ws_mode) {  //0x00-0x0F || 0x80-0x8F = websocket frame
             char c = static_cast<char>(b);
             if (!_ws_mode) {
                 _ws_mode = true;
                 _ws.reset();
             }
-            bool pst = _ws.push_data({&c,1}); 
+            bool pst = _ws.push_data({&c,1});
             if (_body_trunc) {
                 reset_server(false);
                 return ret;
@@ -231,7 +232,17 @@ inline typename  HttpServer<max_request_size, max_header_lines>::Request
                 ret.request_line.method = HttpMethod::WS;
                 ret.client = _active_client;
                 reset_server(true);
-                return ret;                
+                if (msg.type == ws::Type::ping) {
+                    std::string_view newpl (_input_buff+sizeof(_input_buff)-msg.payload.size(), msg.payload.size());
+                    std::move(msg.payload.data(), msg.payload.end(), const_cast<char *>(newpl.data()));
+                    send_ws_message(ret, ws::Message{newpl, ws::Type::pong});
+                    ret.client = {};
+                } else if (msg.type == ws::Type::connClose) {
+                    send_ws_message(ret, ws::Message{{},ws::Type::connClose, ws::Base::closeNormal});
+                    ret.client.stop();
+                    ret.client = {};
+                }
+                return ret;
             }
         } else {
             _input_buff[_write_pos] = static_cast<char>(b);
@@ -275,11 +286,12 @@ inline typename  HttpServer<max_request_size, max_header_lines>::Request
                     reset_server(true);
                     return ret;
                 }
-            } 
-        }   
-    } else if (_deactivate_client) {
-            _deactivate_client = false;
-            _active_client = {};
+            }
+        }
+        b = _active_client.read();
+    }
+    if (_deactivate_client) {
+        _active_client = {};
     }
     return ret;
 }

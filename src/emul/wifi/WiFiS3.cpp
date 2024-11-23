@@ -1,5 +1,6 @@
 #include "../WiFiS3.h"
 
+#include <random>
 #include <thread>
 
 CWifi WiFi;
@@ -54,5 +55,7 @@ const char *CWifi::SSID() {
     return "SimulatedAP";
 }
 std::int32_t CWifi::RSSI() {
-    return -10;
+    std::random_device rdev;
+    std::uniform_int_distribution<int> rnd(-70,-50);
+    return rnd(rdev);
 }
