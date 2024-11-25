@@ -4,7 +4,7 @@
 #include "sha1.h"
 
 
-namespace zerobus {
+
 
 namespace ws {
 
@@ -53,6 +53,6 @@ std::string calculate_ws_accept(std::string_view key) {
 
 }
 
-}
+
 
 

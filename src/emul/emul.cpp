@@ -96,8 +96,8 @@ constexpr std::pair<Command::Type, std::string_view> command_str_map[] = {
         {Command::wifi,"wifi"},
         {Command::reset,"reset"},
         {Command::clear_error, "clear_error"},
-        {Command::motor_high_temp_on,"motor_high_temp_on"},
-        {Command::motor_high_temp_off,"motor_high_temp_off"},
+        {Command::motor_high_temp_on,"motor_high_temp"},
+        {Command::motor_high_temp_off,"motor_norm_temp"},
 
 };
 
@@ -169,6 +169,10 @@ void process_command(const Command &cmd) {
                 std::cerr << "ERROR: Failed update config: " << f << std::endl;
             }
         }break;
+        case Command::tray_close:  state_tray_open = false; break;
+        case Command::tray_open:  state_tray_open = true; break;
+        case Command::motor_high_temp_on:  state_motor_temp_ok = true; break;
+        case Command::motor_high_temp_off:  state_motor_temp_ok = false; break;
         case Command::temp_set:
         case Command::temp_smooth: {
             auto tt = parse_temp_pair(cmd.arg);
@@ -260,15 +264,15 @@ unsigned long millis() {
     return static_cast<unsigned long>(simspeed * current_cycle);
 }
 
-static int pins[10] = {};
+static int pins[20] = {};
 
 void digitalWrite(int pin, int level) {
     pins[pin] = level;
-    char buff[20];
-    for (int i = 0; i<10; ++i) {
+    char buff[30];
+    for (int i = 0; i<20; ++i) {
         buff[i] = '0'+pins[i];
     }
-    buff[10] = 0;
+    buff[20] = 0;
     log_line("PINS: ", buff);
 }
 

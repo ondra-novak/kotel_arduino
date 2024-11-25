@@ -171,6 +171,28 @@ div.zasobnik {
     position: relative;
 }
 
+@keyframes trayopenanim {
+    0% {opacity: 100%;}
+    49% {opacity: 100%;}
+    50% {opacity: 0%;}
+    99% {opacity: 0%;}
+    100% {opacity: 100%;}
+}
+
+
+div.zasobnik.open .fill {
+    animation: trayopenanim 1s infinite;
+}
+div.zasobnik.open::after {
+    content: "Zásobník otevřený";
+    display:block;
+    position:absolute;
+    top: 2em;
+    left: 0.5em;
+    right: 0;
+    text-align: center
+}
+
 .ovladace {
     display: flex;
     /* align-items: stretch; */
@@ -552,11 +574,11 @@ div#stav > * {
     content: "RUČNĚ";
 }
 
-#stav.mode2 .button::before {
+#stav.op1 .button::before {
     content: "STOP";
 }
 
-#stav.mode1 .button::before {
+#stav.op0 .button::before {
     content: "AUTOMAT";
 }
 
@@ -619,10 +641,10 @@ div#stav > * {
     display:none;
 }
 
-#nastav_teplotu[data-field="temperature.min_input"] .vstupni {
+#nastav_teplotu[data-field="tin"] .vstupni {
     display: block;
 }
-#nastav_teplotu[data-field="temperature.max_output"] .vystupni {
+#nastav_teplotu[data-field="tout"] .vystupni {
     display: block;
 }
 

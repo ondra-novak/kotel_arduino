@@ -74,7 +74,7 @@ protected:
     Storage &_stor;
     bool _pulse = false;
     bool _running = false;
-    uint8_t _speed = 0;
+    uint8_t _speed = 100;
     TimeStampMs _stop_time = 0;
     TimeStampMs _next_call = 0;
 

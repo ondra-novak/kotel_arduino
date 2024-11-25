@@ -23,6 +23,179 @@ function parse_response(text, sep="\r\n") {
     },{});
 }
 
+class WebSocketExchange {
+    
+    #ws = null;
+    #tosend = [];
+    #promises={};
+    #enc = new TextEncoder();
+    #pingtm = -1;
+    onconnect = function(){};
+    
+    send_request(cmd, content) {
+        return new Promise((ok,err) => {            
+            if (typeof cmd == "string") cmd = this.#enc.encode(cmd);
+            else if (typeof cmd == "number") cmd = Uint8Array.from([cmd]);
+            else return Promise.reject(new TypeError("invalid command format"));
+            if (typeof content == "string") content = this.#enc.encode(content);
+            else if (!content instanceof ArrayBuffer) { 
+                if (Array.isArray(content)) content = Uint8Array.from(content);
+                else Promise.reject(new TypeError("invalid content format"));
+            } else {
+                content = new Uint8Array(content);
+            }
+            let selector = cmd[0];
+            var mergedArray = new Uint8Array(cmd.length + content.length);
+            mergedArray.set(cmd,0);
+            mergedArray.set(content, cmd.length);
+            if (!this.#promises[selector]) {
+                this.#promises[selector] = [];
+            }
+            this.#promises[selector].push([ok,err]);
+            this.#tosend.push(mergedArray);
+            this.flush();
+        });
+    }
+    
+    reconnect(err) {
+        if (this.#ws) {
+            Object.keys(this.#promises).forEach(x=>this.#promises[x].forEach(z=>z[1](err)));
+            this.#promises = {};
+            this.#ws = null;
+            clearTimeout(this.#pingtm);
+            setTimeout(()=>this.flush(), 1000);
+        }
+    }
+
+    reset_timeout() {
+        if (this.#pingtm>=0) clearTimeout(this.#pingtm);
+        this.#pingtm = setTimeout(()=>{
+            this.#pingtm = -1;
+            this.#ws.close();
+            this.reconnect(new TypeError("connection timeout"));
+        },5000);
+    }
+        
+    flush() {
+        if (!this.#ws) {
+            this.#ws = new WebSocket(location.href.replace(/^http/,"ws")+"api/ws");
+            this.#ws.binaryType = "arraybuffer";
+            this.#ws.onerror = () => {this.reconnect(new TypeError("connection failed"));}
+            this.#ws.onclose = () => {this.reconnect(new TypeError("connection reset"));}
+            this.#ws.onmessage = (ev)=>{
+                this.reset_timeout();
+                let data = ev.data;
+                let selector;
+                if (typeof data == "string") {
+                    selector = this.#enc.encode(data)[0];
+                    data = data.substr(1);                
+                } else {
+                    data = new Uint8Array(data);
+                    selector = data[0];
+                    data = data.slice(1).buffer;
+                    
+                }
+                let p = this.#promises[selector];
+                if (p && p.length) {
+                    let q = p.shift();
+                    q[0](data);
+                }
+            }
+            this.#ws.onopen = ()=>{
+                this.onconnect();
+                this.flush();
+            }
+        } else if (this.#ws.readyState == WebSocket.OPEN) {
+            this.#tosend.forEach(x=>this.#ws.send(x));
+            this.#tosend = [];
+        }        
+    }
+
+    
+
+    
+}
+
+const StatusOutWs = [
+    ["uint32","feeder_time"],
+    ["uint32","tray_open_time"],
+    ["uint32","tray_fill_time"],
+    ["int16","bag_fill_count"],
+    ["int16","bag_consumption"],
+    ["int16","temp_output_value"],
+    ["int16","temp_output_amp_value"],
+    ["int16","temp_input_value"],
+    ["int16","temp_input_amp_value"],
+    ["int16","rssi"],
+    ["uint8","temp_sim"],
+    ["uint8","temp_input_status"],
+    ["uint8","temp_output_status"],
+    ["uint8","mode"],
+    ["uint8","automode"],
+    ["uint8","tray_open"],
+    ["uint8","motor_temp_ok"],
+    ["uint8","pump"],
+    ["uint8","feeder"],
+    ["uint8","fan"],
+];
+
+const ManualControlWs = [
+    ["uint8","feeder_timer"],
+    ["uint8","fan_timer"],
+    ["uint8","fan_speed"],
+    ["uint8","force_pump"]  
+];
+
+const SetFuelWs = [
+    ["int8","bagcount"],
+    ["int8","kalib"],
+    ["int8","absnow"],
+    ["int8","full"],
+
+
+]
+
+function decodeBinaryFrame(pattern, buffer) {
+    const view = new DataView(buffer);
+    let out = {};
+    let offset = 0;
+    pattern.forEach(x=>{
+        switch (x[0]) {
+            case "uint32": out[x[1]] = view.getUint32(offset,true);offset+=4;break;
+            case "int16": out[x[1]] = view.getInt16(offset,true);offset+=2;break;
+            case "uint8": out[x[1]] = view.getUint8(offset,true);offset+=1;break;
+            case "int8": out[x[1]] = view.getInt8(offset,true);offset+=1;break;
+            default: throw new TypeError("unknown field type:" + x[0]);
+        }
+    })
+    return out;
+}
+
+
+function encodeBinaryFrame(pattern,  data) {
+
+    let arr = null;
+    let view = null;
+    for (let i = 0; i < 2; ++i) {
+        let offset = 0;    
+        pattern.forEach(x=>{
+            switch(x[0]){
+                case "uint32": if (view) view.setUInt32(offset, data[x[1]]); offset+=4;break;
+                case "int16": if (view) view.setInt16(offset, data[x[1]]); offset+=2;break;
+                case "uint8": if (view) view.setUint8(offset, data[x[1]]); offset+=1;break;
+                case "int8": if (view) view.setInt8(offset, data[x[1]]); offset+=1;break;
+                default: throw new TypeError("unknown field type:" + x[0]);
+            }
+        })    
+        
+        if (arr) break;
+        arr = new ArrayBuffer(offset);
+        view = new DataView(arr);        
+    }
+    return arr;
+}
+
+let connection = new WebSocketExchange();
 
 let Controller = {
     man: {
@@ -35,60 +208,69 @@ let Controller = {
     status:{},
     config:{},
     stats:{},
-        update_status_cycle: async function() {
+    _promises:{},
+
+    update_status_cycle: async function() {
         if (this._status_timer) clearTimeout(this._status_timer);
-        let req = {};
-        if (this.man.feeder !== undefined) {
-            req["feeder.timer"] = this.man.feeder?3:0;
-            if (!this.man.feeder) delete this.man.feeder;
-        }
-        if (this.man.fan !== undefined) {
-            req["fan.timer"] = this.man.fan?3:0;
-            if (!this.man.fan) delete this.man.fan;
-        }
-        if (this.man.fan_speed !==undefined) {
-            req["fan.speed"] = this.man.fan_speed?this.man.fan_speed:0;
-            delete this.man.fan_speed;
-        }
-        if (this.man.force_pump !==undefined) {
-            req["pump.force"] = this.man.force_pump?1:0;
-            delete this.man.force_pump;
-        } 
         try {
-            this.on_begin_refresh("status");
-            let resp = await fetch("/api/manual_control", {
-                headers:{"Content-Type":"application/x-www-form-urlencoded"},
-                method: "POST",
-                body: convert_to_form_urlencode(req),
-                signal: AbortSignal.timeout(5000)                
-            });            
-            this.status = parse_response(await resp.text());
-            this.on_status_update(this.status);
+            let req = {};
+            if (this.man.feeder !== undefined) {
+                req.feeder_timer = this.man.feeder?3:0;
+                if (!this.man.feeder) delete this.man.feeder;
+            } else {
+                req.feeder_timer = 255;
+            }
+            if (this.man.fan !== undefined) {
+                req.fan_timer = this.man.fan?3:0;
+                if (!this.man.fan) delete this.man.fan;
+            } else {
+                req.fan_timer = 255;
+            }
+                
+            if (this.man.fan_speed !==undefined) {
+                req.fan_speed = this.man.fan_speed?this.man.fan_speed:0;
+                delete this.man.fan_speed;
+            } else {
+                req.fan_speed = 255;
+            }
+            if (this.man.force_pump !==undefined) {
+                req.force_pump = this.man.force_pump?1:0;
+                delete this.man.force_pump;
+            } else {
+                req.force_pump = 255;
+            }
+            let data = await connection.send_request("c", encodeBinaryFrame(ManualControlWs, req));
+            let out = decodeBinaryFrame(StatusOutWs, data);
+            if (out.temp_output_value < -10000) delete out.temp_output_value;
+            else out.temp_output_value = out.temp_output_value*0.1;
+            if (out.temp_input_value < -10000) delete out.temp_input_value;
+            else out.temp_input_value = out.temp_input_value*0.1;
+            out.temp_output_amp_value = out.temp_output_amp_value*0.1;
+            out.temp_input_amp_value = out.temp_input_amp_value*0.1;
+            this.status = out;
+            this.on_status_update(out);        
         } catch (e) {
             this.on_error("status",e);
         }
-        this._status_timer = setTimeout(this.update_status_cycle.bind(this), 1000);
-        this._man_copy = Object.assign({}, this.man); 
+        this._status_timer = setTimeout(this.update_status_cycle.bind(this), 1000);    
     },
     
     update_stats_cycle: async function() {
         if (this._stat_timer) killTimer(this._stat_timer);
         try {
-            this.on_begin_refresh("stats");
-            let resp = await fetch("/api/stats",{signal: AbortSignal.timeout(5000)});            
-            this.stats = parse_response(await resp.text());
-            this.on_stats_update(this.state);
+            let resp = await connection.send_request("T",[]);
+            this.stats = parse_response(resp);
+            this.on_stats_update(this.stats);
         } catch (e) {
             this.on_error("stats",e);
         }
-        this._stats_timer = setTimeout(this.update_stats_cycle.bind(this), 60000);         
+        this._stats_timer = setTimeout(this.update_stats_cycle.bind(this), 30000);         
     },
     
     read_config: async function() {
         while (true) {        
             try {
-                this.on_begin_refresh("config");
-                this.config =  parse_response(await(await fetch("/api/config")).text());
+                this.config = parse_response(await connection.send_request('C',{}));
                 return this.config;
             } catch (e) {
                 this.on_error("config",e);
@@ -96,39 +278,31 @@ let Controller = {
             await delay(1000);
         }
     },
+
+    
     
     on_status_update: function (x) {console.log("status",x);},
     on_stats_update: function (x) {console.log("stats",x);},
     on_error: function(x,y) {console.error(x,y);},
-    on_begin_refresh: function() {},
-
+    
     set_config: async function(config){
         if (Object.keys(config).length == 0) return;
         while (true) {
             try {
                 let body = convert_to_form_urlencode(config);
-                let resp = await fetch("/api/config", {
-                    headers:{"Content-Type":"application/x-www-form-urlencoded"},
-                    method: "PUT",
-                    body: body,
-                    signal: AbortSignal.timeout(5000)
-                });
-                if (resp.status == 202) {
-                    let config_conv = parse_response(body,"&");
-                    Object.assign(this.config, config_conv);
-                    return true;
-                } else {
-                    console.error("Failed to store config", resp.status, body);
-                    return false;
-                }
-                
+                let resp = await connection.send_request("S",body);
+                let config_conv = parse_response(body,"&");
+                Object.assign(this.config, config_conv);
+                return true;
             } catch (e) {
                 console.error(e);
             }
             await delay(1000);
-            
+          
         }
     }
+
+    
         
 }
 
@@ -183,10 +357,10 @@ function update_fuel(id, value) {
 }
 
 function calculate_fuel_remain() {
-    const fill_time = parseFloat(Controller.stats["tray.fill_time"]);
-    const cur_time = parseFloat(Controller.stats["feeder.time"]);
-    const consup = parseFloat(Controller.config["tray.bag_consumption_time"]);
-    const fillup = parseFloat(Controller.config["tray.bag_fill_count"]);
+    const fill_time = parseFloat(Controller.stats["tray.ft"]);
+    const cur_time = parseFloat(Controller.stats["feed.t"]);
+    const consup = parseFloat(Controller.config["tray.bct"]);
+    const fillup = parseFloat(Controller.config["tray.bgfc"]);
     
     const ellapsed = cur_time - fill_time;
     const consumed = ellapsed / consup;
@@ -215,39 +389,6 @@ function hide_error(win) {
         el.classList.remove("zobrazena");
     });
 }    
-
-async function nastav_zasobnik_ok() {
-    const win = this.parentElement.parentElement;
-    const kalib = win.querySelector("[name=kalib]").checked;   
-    const absnow = win.querySelector("[name=absnow]").checked;
-    const bagcount = win.querySelector("[name=pytle]").valueAsNumber;
-    
-    hide_error(win);
-    if (isNaN(bagcount)) return show_error(win,"prazdne");
-    if (bagcount < 0) return show_error(win,"zaporne");
-    if (bagcount > 255) return show_error(win,"velke");
-    
-    console.log(kalib,absnow,bagcount);
-    
-    try {
-        let resp = await fetch("/api/fuel", {
-            method:"POST",
-            body: convert_to_form_urlencode({
-                bagcount:bagcount,
-                absnow:absnow?1:0,
-                kalib:kalib?1:0
-            })
-        });
-        if (resp.status == 202) {
-            close_window.call(this);
-            Controller.read_config();               
-        } else if (resp.status == 406){
-            show_error(win,"kalibselhal");
-        }
-    } catch (e) {
-        show_error(win,"spojeni");
-    }
-} 
 
 
 function unhide_section() {
@@ -455,7 +596,7 @@ function power_conv_init(el) {
     let hh = [];
     ["full","low"].forEach(pfx=>{
         let power_value = controls[pfx+".power_value"];
-        let heat_value = controls["heat_value"];
+        let heat_value = controls["hval"];
         let fueling = controls[pfx+".fueling"];
         let burnout = controls[pfx+".burnout"];
         let p2w = params_to_power.bind(this,heat_value,power_value,fueling, burnout);
@@ -467,7 +608,7 @@ function power_conv_init(el) {
         hh.push(w2p);
         p2w();
     });    
-    controls["heat_value"].onchange = ()=>{
+    controls["hval"].onchange = ()=>{
         hh.forEach(x=>x());
     };
 }
@@ -483,6 +624,9 @@ function dialog_nastaveni_zasobniku() {
         x.value="0";
     }); 
     let buttons = win.getElementsByTagName("button"); 
+    function endisbut(y) {
+        Array.prototype.forEach.call(buttons, x=>x.disabled = y);
+    }
 
     async function do_req(full) {
         const kalib = inputs.kalib.checked;   
@@ -496,68 +640,80 @@ function dialog_nastaveni_zasobniku() {
         }
         try {
             let req = {absnow:absnow?1:0, kalib:kalib?1:0};
-            if (full) req["full"] = 1; else req["bagcount"] = bagcount;            
-            let resp = await fetch("/api/fuel", {
-                method:"POST",
-                body: convert_to_form_urlencode(req)
-            });
-            if (resp.status == 202) {
+            if (full) req["full"] = 1; else req["bagcount"] = bagcount;
+            endisbut(true);
+            let r = await connection.send_request("f",encodeBinaryFrame(SetFuelWs, req));
+            let w = new Uint8Array(r);
+            if (w.length==0) {
                 win.hidden = true;
                 Controller.read_config();               
-            } else if (resp.status == 406){
+            } else  {
                 show_error(win,"kalibselhal");
             }            
         } catch (e) {
             show_error(win,"spojeni");
         }
-        
+        endisbut(false);
     }
     
     buttons[0].onclick = ()=>{do_req(true);};
     buttons[1].onclick = ()=>{do_req(false);};        
 }
 
+function parseTextSector(buffer) {
+    const uint8Array = new Uint8Array(buffer);
+    let result = '';
+    for (let i = 0; i < uint8Array.length; i++) {
+        const byte = uint8Array[i];
+        if (byte === 0) { 
+            break;
+        }
+        result += String.fromCharCode(byte);
+    }
+    return result;
+}
+
 async function main() {
-    
+    let ignore_man_change = false;    
     
     Controller.on_status_update = function(st) {
-        let stav = document.getElementById("stav");
-        stav.className="mode"+st.mode+" "+"automode"+st.auto_mode;
-        update_temperature("vystupni_teplota", st["temp.output.value"], 
-                        Controller.config["temperature.max_output"], st["temp.output.ampl"]);
-        update_temperature("vstupni_teplota", st["temp.input.value"], 
-                        Controller.config["temperature.min_input"], st["temp.input.ampl"]);
-        update_fuel("zasobnik",calculate_fuel_remain()); 
-        document.getElementById("ovladac_feeder").classList.toggle("on", st.feeder != "0");
-        document.getElementById("ovladac_fan").classList.toggle("on", st.fan != "0");
-        document.getElementById("ovladac_pump").classList.toggle("on", st.pump != "0");
-        document.getElementById("ssid").textContent = st["network.ssid"];
-        document.getElementById("rssi").textContent = st["network.signal"];
-        document.getElementById("netstatus").classList.remove("netconnecting");
-        document.getElementById("mototempmax").hidden = st["motor_temp_ok"] == "1";
-        document.getElementById("manualcontrolpanel").hidden = st.mode != "1";
-        document.getElementById("man_feeder").classList.toggle("active",st.feeder != "0");
-        document.getElementById("man_fan").classList.toggle("active",st.fan != "0");
-        if (st.fan != "0" && st.mode != "1") document.getElementById("man_fan_speed").value=st.fan;
-        if (st.mode != '1') {
-            Controller.man.fan = 0;
-            Controller.man.feeder = 0;
+        if (!ignore_man_change) {
+            if (st.fan == 0)  delete Controller.man.fan;
+            else document.getElementById("man_fan_speed").value=st.fan;
+            if (st.feeder == 0) delete Controller.man.feeder;     
+            if (st.mode == 1) Controller.config.m = 0;
+            if (st.mode == 2) Controller.config.m = 1;
+        } else {
+            ignore_man_change = false;
         }
-        document.getElementById("simul_temp").hidden = st["temp.sim"] == '0';
+        let stav = document.getElementById("stav");
+        stav.className="mode"+st.mode+" "+"automode"+st.automode+" "+"op"+Controller.config.m;
+        update_temperature("vystupni_teplota", st["temp_output_value"], 
+                        Controller.config["tout"],st["temp_output_amp_value"]);
+        update_temperature("vstupni_teplota", st["temp_input_value"], 
+                        Controller.config["tin"], st["temp_input_amp_value"]);
+        update_fuel("zasobnik",calculate_fuel_remain()); 
+        document.getElementById("ovladac_feeder").classList.toggle("on", st.feeder != 0);
+        document.getElementById("ovladac_fan").classList.toggle("on", st.fan != 0);
+        document.getElementById("ovladac_pump").classList.toggle("on", st.pump != 0);
+        document.getElementById("rssi").textContent = st["rssi"];
+        document.getElementById("netstatus").classList.remove("neterror");
+        document.getElementById("mototempmax").hidden = st["motor_temp_ok"] == 1;
+        document.getElementById("manualcontrolpanel").hidden = st.mode != 1;
+        document.getElementById("man_feeder").classList.toggle("active",st.feeder != 0);
+        document.getElementById("man_fan").classList.toggle("active",st.fan != 0);        
+        document.getElementById("zasobnik").classList.toggle("open", st.tray_open != 0);
+        document.getElementById("simul_temp").hidden = st["temp_sim"] == 0;
     };
     Controller.on_error = function(x,y) {
         document.getElementById("netstatus").classList.add("neterror");
-        document.getElementById("netstatus").classList.remove("netconnecting");
         console.error(x,y);
     };
-    Controller.on_begin_refresh = function(x) {
-        document.getElementById("netstatus").classList.remove("neterror");
-        document.getElementById("netstatus").classList.add("netconnecting");
-    };
     document.getElementById("prepnout_rezim").addEventListener("click",async function() {
-        const new_mode = 1-parseInt(Controller.config.operation_mode);
+        const new_mode = 1-parseInt(Controller.config.m);
+        ignore_man_change = true;
         this.disabled = true;
-        await Controller.set_config({"operation_mode":new_mode});
+        await Controller.set_config({"m":new_mode});
         update_config_form(Controller.config);
         this.disabled = false; 
         Controller.update_status_cycle();
@@ -570,12 +726,11 @@ async function main() {
     });
     el = document.getElementById("vystupni_teplota").parentNode;
     el.addEventListener("click",function(){
-        dialog_nastaveni_teploty("temperature.max_output","temp_sensor.output.addr","temperature.max_output_samples");
-        
+        dialog_nastaveni_teploty("tout","tsoutaddr","touts");
     });
     el = document.getElementById("vstupni_teplota").parentNode;
     el.addEventListener("click",function(){
-        dialog_nastaveni_teploty("temperature.min_input","temp_sensor.input.addr","temperature.min_input_samples");        
+        dialog_nastaveni_teploty("tin","tsinaddr","tins");        
     });
     el = document.getElementById("horeni");
     el.addEventListener("click", function(){
@@ -588,16 +743,20 @@ async function main() {
     });
     el = document.getElementById("man_feeder");
     el.addEventListener("click", function() {
-        Controller.man.feeder = Controller.status.feeder == "0";
-        Controller.update_status_cycle();
+        ignore_man_change = true;
+        Controller.man.feeder = Controller.status.feeder == 0;
+        this.classList.toggle("active");
+        
     });
     el = document.getElementById("man_fan");
     el.addEventListener("click", function() {
-        Controller.man.fan = Controller.status.fan == "0";
-        Controller.update_status_cycle();
+        ignore_man_change = true;
+        Controller.man.fan = Controller.status.fan == 0;
+        this.classList.toggle("active");
     });
     el = document.getElementById("man_fan_speed");    
     el.addEventListener("change",function(){
+        ignore_man_change = true;
         Controller.man.fan_speed = this.value; 
     });
     el.value = 100;
@@ -607,6 +766,12 @@ async function main() {
         
     })
 
+    connection.onconnect = async function() {
+        let data = await connection.send_request(6,{});        
+        document.getElementById("ssid").textContent = parseTextSector(data);
+        
+        
+    }
     Controller.update_status_cycle();
     Controller.update_stats_cycle();
     await Controller.read_config();

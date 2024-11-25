@@ -1,8 +1,7 @@
 #pragma once
 
 
-#include <random>
-
+#include <cstdint>
 #include <string_view>
 #include <vector>
 
@@ -287,12 +286,14 @@ template<typename Buffer>
 constexpr Message Parser<Buffer>::get_message() const {
     if (_final_type == Type::connClose) {
         std::uint16_t code = 0;
-        std::string_view message;
-        if (_cur_message.size() >= 2) {
-            code = static_cast<unsigned char>(_cur_message[0]) * 256 + static_cast<unsigned char>(_cur_message[1]);
+        std::string_view message(_cur_message.data(), _cur_message.size());
+        if (message.size() >= 2) {
+            code = static_cast<unsigned char>(message[0]) * 256 + static_cast<unsigned char>(message[1]);
         }
         if (_cur_message.size() > 2) {
-            message = std::string_view(_cur_message.data()+2, _cur_message.size() - 3);
+            message = message.substr(2);
+        } else {
+            message = {};
         }
         return Message {
             message,
@@ -301,8 +302,6 @@ constexpr Message Parser<Buffer>::get_message() const {
             _fin
         };
     } else {
-        _cur_message.push_back('\0');
-        _cur_message.pop_back();
         return Message {
             {_cur_message.data(), _cur_message.size()},
             _final_type,
