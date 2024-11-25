@@ -23,6 +23,7 @@ set(COMMON_FILES
 )
 
 add_library(kotel ${COMMON_FILES} )
-add_dependencies(kotel kotel_webpage)
+add_dependencies(kotel kotel_webpage kotel_webfiles_compress)
+
 
 

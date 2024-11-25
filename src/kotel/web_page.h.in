@@ -1,37 +1,8 @@
 #pragma once
 
-#include <string_view>
+#include "base64.h"
 
-/*
-template<typename ... Fn>
-class LongString: public std::string_view {
-public:
-    static constexpr std::size_t total_sz = (0+...+Fn()().size());
-
-    constexpr LongString(Fn ... fns):std::string_view(data, total_sz) {
-        char *iter = data;
-        auto write = [&](char * &iter, auto x) {
-            iter = std::copy(x.begin(), x.end(), iter);
-        };
-        (..., write(iter, fns()));
-    }
-protected:
-    char data[total_sz] = {};
-
-};
-
-constexpr LongString client_embedded_js(
-        []()->std::string_view{return R"javascript(@JS_CONTENT1@)javascript";},
-        //split at 16KB
-        []()->std::string_view{return R"javascript(@JS_CONTENT2@)javascript";});
-*/
-
-template<unsigned int N>
-constexpr std::string_view string_constant(const char (&str)[N]) {
-    return std::string_view(str, N-1);
-} 
-
-constexpr auto embedded_index_html = string_constant(R"###(@HTML_CONTENT@)###");
-constexpr auto embedded_code_js = string_constant(R"###(@JS_CONTENT@)###");
-constexpr auto embedded_style_css = string_constant(R"###(@CSS_CONTENT@)###");
+constexpr binary_data embedded_index_html(R"###(@HTML_CONTENT@)###");
+constexpr binary_data embedded_code_js(R"###(@JS_CONTENT@)###");
+constexpr binary_data embedded_style_css(R"###(@CSS_CONTENT@)###");
 

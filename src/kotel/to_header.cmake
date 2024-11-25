@@ -1,6 +1,6 @@
-set(JS_FILE ${CMAKE_CURRENT_LIST_DIR}/../www/code.js)
-set(HTML_FILE ${CMAKE_CURRENT_LIST_DIR}/../www/index.html)
-set(CSS_FILE ${CMAKE_CURRENT_LIST_DIR}/../www/style.css)
+set(JS_FILE ${CMAKE_BINARY_DIR}/../www/code.js.gz.base64)
+set(HTML_FILE ${CMAKE_BINARY_DIR}/../www/index.html.gz.base64)
+set(CSS_FILE ${CMAKE_BINARY_DIR}/../www/style.css.gz.base64)
 
 set(HEADER_TEMPLATE ${CMAKE_CURRENT_LIST_DIR}/web_page.h.in)
 

@@ -4,6 +4,7 @@
 #include "print_hlp.h"
 #include "combined_container.h"
 #include "stringstream.h"
+#include "static_vector.h"
 
 namespace kotel {
 
@@ -118,7 +119,7 @@ public:
      * @note reuses server's buffer. You should avoid to reference any string
      * retrieved by request. It also destroys the request content
      */
-    void send_simple_header(Request &req, std::string_view content_type, int content_len = -1);
+    void send_simple_header(Request &req, std::string_view content_type, int content_len = -1, bool compressed = false);
 
     ///send file
     /**
@@ -126,7 +127,7 @@ public:
      * @param content_type content type
      * @param content content
      */
-    void send_file(Request &req, std::string_view content_type, std::string_view content);
+    void send_file(Request &req, std::string_view content_type, std::string_view content, bool compressed = false);
 
 protected:
     WiFiServer _srv = {};
@@ -327,30 +328,31 @@ inline void HttpServer<max_request_size, max_header_lines>::send_header(Request 
 }
 
 template<unsigned int max_request_size, unsigned int max_header_lines>
-void HttpServer<max_request_size, max_header_lines>::send_simple_header(Request &req, std::string_view content_type, int content_len) {
-    HeaderPair hp[2];
+void HttpServer<max_request_size, max_header_lines>::send_simple_header(Request &req, std::string_view content_type, int content_len, bool compressed) {
+    StaticVector<HeaderPair, 4> hp;
     char buff[20];
     char *c = std::end(buff);
     *(--c) = 0;
-    hp[0].first = "Content-Type";
-    hp[0].second = content_type;
-    if (content_len < 0) {
-        send_header(req, {hp[0]}, 200, {});
-    } else {
+    hp.emplace_back("Content-Type", content_type);
+    if (content_len >= 0) {
         hp[1].first = "Content-Length";
         if (content_len == 0) *(--c) = '0';
         else while (content_len != 0) {
             *(--c) = (content_len % 10) + '0';
             content_len/=10;
         }
-        hp[1].second = c;
-        send_header(req, {hp[0],hp[1]}, 200, {});
+        hp.emplace_back("Content-Length", c);
     }
+    if (compressed) {
+        hp.emplace_back("Content-Encoding", "gzip");
+    }
+    send_header(req, hp, 200, {});
 }
 
 template<unsigned int max_request_size, unsigned int max_header_lines>
-void HttpServer<max_request_size, max_header_lines>::send_file(Request &req, std::string_view content_type, std::string_view content) {
-    send_simple_header(req, content_type, content.size());
+void HttpServer<max_request_size, max_header_lines>::send_file(Request &req, std::string_view content_type, std::string_view content, bool compressed) {
+    int content_len = content.size();
+    send_simple_header(req, content_type, content_len, compressed);
     req.client.write(content.data(), content.size());
 }
 

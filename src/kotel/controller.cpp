@@ -681,21 +681,21 @@ void Controller::handle_server(MyHttpServer::Request &req) {
 #ifdef WEB_DEVEL
         send_file(req, Ctx::html, "/index.html");
 #else
-        _server.send_file(req, HttpServerBase::ContentType::html, embedded_index_html);
+        _server.send_file(req, HttpServerBase::ContentType::html, embedded_index_html, true);
 #endif
         return; //do not stop
     } else if (req.request_line.path == "/code.js") {
 #ifdef WEB_DEVEL
         send_file(req, Ctx::javascript, req.request_line.path);
 #else
-        _server.send_file(req, Ctx::javascript, embedded_code_js);
+        _server.send_file(req, Ctx::javascript, embedded_code_js, true);
 #endif
         return; //do not stop
     } else if (req.request_line.path == "/style.css") {
 #ifdef WEB_DEVEL
         send_file(req, Ctx::css, req.request_line.path);
 #else
-        _server.send_file(req, Ctx::css, embedded_style_css);
+        _server.send_file(req, Ctx::css, embedded_style_css, true);
 #endif
         return; //do not stop
     } else if (req.request_line.path == "/api/simulate_temperature") {
