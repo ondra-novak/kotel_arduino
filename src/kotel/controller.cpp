@@ -13,6 +13,11 @@
 namespace kotel {
 
 
+ const char *Controller::str_motoruntime = "motoruntime";
+ const char *Controller::str_auto_drive = "auto_drive";
+ const char *Controller::str_wifi_mon = "wifi_mon";
+ const char *Controller::str_run_server = "run_server";
+
 
 Controller::Controller()
         :_feeder(_storage)
@@ -23,8 +28,9 @@ Controller::Controller()
         ,_motoruntime(this)
         ,_auto_drive_cycle(this)
         ,_wifi_mon(this)
+        ,_run_server(this)
         ,_scheduler({&_feeder, &_fan, &_temp_sensors,  &_display,
-            &_motoruntime, &_auto_drive_cycle, &_wifi_mon})
+            &_motoruntime, &_auto_drive_cycle, &_wifi_mon, &_run_server})
         ,_server(80)
 {
 
@@ -49,13 +55,7 @@ static inline bool defined_and_above(const std::optional<float> &val, float cmp)
 void Controller::run() {
     _sensors.read_sensors();
     _temp_sensors.async_cycle(_scheduler);
-
     auto prev_mode = _cur_mode;
-
-    auto req = _server.get_request();
-    if (req.client) {
-        handle_server(req);
-    }
     control_pump();
     if (_sensors.tray_open) {
         _was_tray_open = true;
@@ -623,7 +623,7 @@ void Controller::handle_server(MyHttpServer::Request &req) {
             _server.error_response(req, 503, "Service unavailable" , {}, {});
         } else {
             _server.send_simple_header(req, Ctx::text);
-            _list_temp_async.emplace(std::move(req.client));
+            _list_temp_async.emplace(std::move(*req.client));
             return;
         }
     } else if (req.request_line.path == "/api/ws" && req.request_line.method == HttpMethod::GET) {
@@ -644,23 +644,23 @@ void Controller::handle_server(MyHttpServer::Request &req) {
 
     } else if (req.request_line.path == "/") {
 #ifdef WEB_DEVEL
-        send_file(req, Ctx::html, "/index.html");
+        send_file_async(req, Ctx::html, "/index.html");
 #else
-        _server.send_file(req, HttpServerBase::ContentType::html, embedded_index_html, true);
+        _server.send_file_async(req, HttpServerBase::ContentType::html, embedded_index_html, true);
 #endif
         return; //do not stop
     } else if (req.request_line.path == "/code.js") {
 #ifdef WEB_DEVEL
-        send_file(req, Ctx::javascript, req.request_line.path);
+        send_file_async(req, Ctx::javascript, req.request_line.path);
 #else
-        _server.send_file(req, Ctx::javascript, embedded_code_js, true);
+        _server.send_file_async(req, Ctx::javascript, embedded_code_js, true);
 #endif
         return; //do not stop
     } else if (req.request_line.path == "/style.css") {
 #ifdef WEB_DEVEL
-        send_file(req, Ctx::css, req.request_line.path);
+        send_file_async(req, Ctx::css, req.request_line.path);
 #else
-        _server.send_file(req, Ctx::css, embedded_style_css, true);
+        _server.send_file_async(req, Ctx::css, embedded_style_css, true);
 #endif
         return; //do not stop
     } else if (req.request_line.path == "/api/simulate_temperature") {
@@ -688,7 +688,7 @@ void Controller::handle_server(MyHttpServer::Request &req) {
     } else {
         _server.error_response(req, 404, "Not found");
     }
-    req.client.stop();
+    req.client->stop();
 }
 
 
@@ -967,6 +967,11 @@ void Controller::handle_ws_request(MyHttpServer::Request &req)
         static_buff.print(_storage.wifi_password.password.get().empty()?"":"****");
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
     break;
+    case WsReqCmd::enum_tasks:
+        _scheduler.enum_tasks([&](const AbstractTimedTask *t){
+            print(static_buff,t->name()," ",t->_run_time," ",t->get_scheduled_time(),"\r\n");
+        });
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
     default:
         break;
     }
@@ -1033,6 +1038,14 @@ TimeStampMs Controller::wifi_mon(TimeStampMs) {
     _wifi_connected = WiFi.status() == WL_CONNECTED;
     if (_wifi_connected) _wifi_rssi = WiFi.RSSI();
     return 1023;
+}
+
+TimeStampMs Controller::run_server(TimeStampMs ) {
+    auto req = _server.get_request();
+    if (req.client) {
+        handle_server(req);
+    }
+    return 1;
 }
 
 }

@@ -77,6 +77,8 @@ public:
 
     }
 
+    virtual const char *name() const  override{ return "temp_sensors";}
+
     auto &get_controller() {
         return _temp_reader;
     }

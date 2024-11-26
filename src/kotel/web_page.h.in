@@ -2,7 +2,7 @@
 
 #include "base64.h"
 
-constexpr binary_data embedded_index_html("@HTML_CONTENT@");
-constexpr binary_data embedded_code_js("@JS_CONTENT@");
-constexpr binary_data embedded_style_css("@CSS_CONTENT@");
+constexpr auto embedded_index_html = binary_data("@HTML_CONTENT@");
+constexpr auto embedded_code_js = binary_data("@JS_CONTENT@");
+constexpr auto embedded_style_css = binary_data("@CSS_CONTENT@");
 

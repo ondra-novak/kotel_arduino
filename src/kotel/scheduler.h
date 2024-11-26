@@ -34,13 +34,22 @@ public:
                 auto start = millis();
                 x._task->run(tp);
                 auto util = millis() - start;;
-                x._task->_run_time = std::max<unsigned long>(x._task->_run_time, util);
+                auto rt = x._task->_run_time;
+                if (rt > 0) rt = rt -1;
+                x._task->_run_time = std::max<unsigned long>(rt, util);
                 x._tp = x._task->get_scheduled_time();
                 heap_push(_items, N, compare);
             } else {
                 break;
             }
         } while (true);
+    }
+
+    template<typename Fn>
+    void enum_tasks(Fn &&fn) {
+        for (unsigned int i = 0; i < N; ++i) {
+            fn(_items[i]._task);
+        }
     }
 
 protected:

@@ -1,6 +1,6 @@
 #pragma once
 #include "http_utils.h"
-#include <WiFiS3.h>
+#include <WifiTCP.h>
 #include "print_hlp.h"
 #include "combined_container.h"
 #include "stringstream.h"
@@ -10,15 +10,15 @@
 namespace kotel {
 
 
-
 class HttpServerBase {
 public:
 
     using HeaderPair = std::pair<std::string_view, std::string_view>;
     using HeaderIL = std::initializer_list<HeaderPair>;
+    static constexpr unsigned int send_cluster = 256;
 
     struct Request {
-        WiFiClient client = {};
+        TCPClient *client = nullptr;
         HttpRequestLine request_line = {};
         const std::pair<std::string_view, std::string_view>  *headers = {};
         std::size_t headers_count = {};
@@ -130,25 +130,36 @@ public:
      */
     void send_file(Request &req, std::string_view content_type, std::string_view content, bool compressed = false);
 
+    ///send file
+    /**
+     * @param req request
+     * @param content_type content type
+     * @param content content
+     */
+    void send_file_async(Request &req, std::string_view content_type, std::string_view content, bool compressed = false);
+
     void send_ws_message(Request &req, const ws::Message &msg);
 
 protected:
 
 
-    WiFiServer _srv = {};
-    WiFiClient _active_client = {};
+    TCPServer _srv = {};
+    TCPClient _active_client = {};
     char _input_buff[max_request_size] = {};
     unsigned int _write_pos = 0;
     unsigned int _hdr_end = 0;
     unsigned int _hdr_count = 0;
     HttpRequestLine _rl;
     int _body_size = -1;    //-1 reading header, 0 = no body, else size of body
+    unsigned long read_timeout_tp = 0;
     bool _body_trunc = false;
     bool _ws_mode = false;
     bool _deactivate_client = false;
-    unsigned long read_timeout_tp = 0;
     std::pair<std::string_view, std::string_view>  _header_lines[max_header_lines];
     ws::Parser<HttpServer> _ws;
+
+    TCPClient _sending_client = {};
+    std::string_view _sending_buffer = {};
 
     void parse_header();
     void reset_server(bool keep_client);
@@ -159,6 +170,7 @@ protected:
     std::size_t size() const;
     void clear() {_write_pos = 0;}
     const char *data() const;
+
 };
 
 template<unsigned int max_request_size, unsigned int max_header_lines >
@@ -199,6 +211,17 @@ inline typename  HttpServer<max_request_size, max_header_lines>::Request
     HttpServer<max_request_size, max_header_lines>::get_request() {
 
     Request ret {};
+
+    if (!_sending_buffer.empty()) {
+        auto c = _sending_buffer.substr(0, HttpServerBase::send_cluster);
+        _sending_buffer = _sending_buffer.substr(c.size());
+        _sending_client.write(c.data(),c.size());
+        if (_sending_buffer.empty()) {
+            _sending_client.detach();
+        }
+        return ret;
+    }
+
     auto curtm = millis();
     if (static_cast<long>(curtm - read_timeout_tp) > 0 && _active_client) {
 
@@ -207,10 +230,7 @@ inline typename  HttpServer<max_request_size, max_header_lines>::Request
     }
 
     if (!_active_client) {
-        _active_client = _srv.available();
-        if (!_active_client) {
-            return ret;
-        }
+        if (!_srv.available(_active_client)) return ret;
         read_timeout_tp = curtm+5000;    //total timeout
     }
     int b = _active_client.read();
@@ -231,19 +251,22 @@ inline typename  HttpServer<max_request_size, max_header_lines>::Request
                 auto msg = _ws.get_message();
                 ret.body = msg.payload;
                 ret.request_line.method = HttpMethod::WS;
-                ret.client = _active_client;
-                reset_server(true);
+                ret.client = &_active_client;
                 if (msg.type == ws::Type::ping) {
                     std::string_view newpl (_input_buff+sizeof(_input_buff)-msg.payload.size(), msg.payload.size());
                     std::move(msg.payload.data(), msg.payload.end(), const_cast<char *>(newpl.data()));
                     send_ws_message(ret, ws::Message{newpl, ws::Type::pong});
-                    ret.client = {};
+                    ret.client = nullptr;
+                    reset_server(true);
                 } else if (msg.type == ws::Type::connClose) {
                     send_ws_message(ret, ws::Message{{},ws::Type::connClose, ws::Base::closeNormal});
-                    ret.client.stop();
-                    ret.client = {};
+                    ret.client = nullptr;
+                    reset_server(false);
+                } else {
+                    reset_server(true);
                 }
                 return ret;
+
             }
         } else {
             _input_buff[_write_pos] = static_cast<char>(b);
@@ -273,7 +296,7 @@ inline typename  HttpServer<max_request_size, max_header_lines>::Request
                 }
             }
             if (_body_size == 0) {
-                ret.client = _active_client;
+                ret.client = &_active_client;
                 ret.request_line = _rl;
                 ret.headers = _header_lines;
                 ret.headers_count = _hdr_count;
@@ -289,10 +312,10 @@ inline typename  HttpServer<max_request_size, max_header_lines>::Request
                 }
             }
         }
-        b = _active_client.read();
+        b = _active_client.read_nb();
     }
     if (_deactivate_client) {
-        _active_client = {};
+        _active_client.detach();
     }
     return ret;
 }
@@ -340,7 +363,7 @@ inline void HttpServer<max_request_size, max_header_lines>::error_response(
             code," ",message,"</title></head><body><h1>",
             code," ",message,"</h1><pre>",extra_message,"</pre></body></html>");
     auto data = buff.get_text();
-    req.client.write(data.data(), data.size());
+    req.client->write(data.data(), data.size());
 
 
 }
@@ -372,8 +395,9 @@ inline void HttpServer<max_request_size, max_header_lines>::reset_server(bool ke
     if (keep_client) {
         _deactivate_client = true;
     } else {
-        if (_active_client) _active_client.stop();
-        _active_client = {};
+        if (_active_client) {
+            _active_client.stop();
+        }
     }
 }
 
@@ -387,7 +411,7 @@ inline void HttpServer<max_request_size, max_header_lines>::send_header(Request 
     StringStreamExt buff(this->_input_buff, max_request_size);
     send_header_impl(buff, req.request_line.version, code, message, header);
     auto txt = buff.get_text();
-    req.client.write(txt.data(), txt.size());
+    req.client->write(txt.data(), txt.size());
 
 }
 
@@ -424,7 +448,7 @@ template<unsigned int max_request_size, unsigned int max_header_lines>
 void HttpServer<max_request_size, max_header_lines>::send_file(Request &req, std::string_view content_type, std::string_view content, bool compressed) {
     int content_len = content.size();
     send_simple_header(req, content_type, content_len, compressed);
-    req.client.write(content.data(), content.size());
+    req.client->write(content.data(), content.size());
 }
 
 template <unsigned int max_request_size, unsigned int max_header_lines>
@@ -436,9 +460,17 @@ inline void HttpServer<max_request_size, max_header_lines>::send_ws_message(Requ
             _input_buff[sz++] = c;
         }
     },nullptr);
-    if (sz > max_request_size) req.client.stop();
+    if (sz > max_request_size) req.client->stop();
     else {
-        req.client.write(_input_buff, sz);
+        req.client->write(_input_buff, sz);
     }
 }
+template <unsigned int max_request_size, unsigned int max_header_lines>
+void HttpServer<max_request_size, max_header_lines>::send_file_async(Request &req, std::string_view content_type, std::string_view content, bool compressed) {
+    int content_len = content.size();
+    send_simple_header(req, content_type, content_len, compressed);
+    _sending_client = std::move(*req.client);
+    _sending_buffer = content;
+}
+
 }

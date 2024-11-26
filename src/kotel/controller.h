@@ -100,7 +100,8 @@ struct SetFuelParams {
 protected:
 
     TimeStampMs auto_drive_cycle(TimeStampMs cur_time);
-    TimeStampMs  wifi_mon(TimeStampMs  cur_time);
+    TimeStampMs wifi_mon(TimeStampMs  cur_time);
+    TimeStampMs run_server(TimeStampMs cur_time);
 protected:
 
 
@@ -118,18 +119,24 @@ protected:
     TimeStampMs _auto_mode_change = 0;
     TimeStampMs _flush_time = 0;
 
+    static  const char *str_motoruntime;
+    static  const char *str_auto_drive;
+    static  const char *str_wifi_mon;
+    static  const char *str_run_server;
+
     Storage _storage;
     Feeder _feeder;
     Fan _fan;
     Pump _pump;
     TempSensors _temp_sensors;
     DisplayControl _display;
-    TimedTaskMethod<Controller, &Controller::update_motorhours> _motoruntime;
-    TimedTaskMethod<Controller, &Controller::auto_drive_cycle> _auto_drive_cycle;
-    TimedTaskMethod<Controller, &Controller::wifi_mon> _wifi_mon;
-    Scheduler<7> _scheduler;
+    TimedTaskMethod<Controller, &Controller::update_motorhours, str_motoruntime> _motoruntime;
+    TimedTaskMethod<Controller, &Controller::auto_drive_cycle, str_auto_drive> _auto_drive_cycle;
+    TimedTaskMethod<Controller, &Controller::wifi_mon, str_wifi_mon> _wifi_mon;
+    TimedTaskMethod<Controller, &Controller::run_server, str_run_server> _run_server;
+    Scheduler<8> _scheduler;
     MyHttpServer _server;
-    std::optional<WiFiClient> _list_temp_async;
+    std::optional<TCPClient> _list_temp_async;
     StringStream<1024> static_buff;
 
     enum class WsReqCmd {
@@ -149,7 +156,8 @@ protected:
         set_config = 'S',
         failed_config = 'F',
         get_stats = 'T',
-        ping = 'p'
+        ping = 'p',
+        enum_tasks = '#'
     };
 
     void control_pump();

@@ -1,0 +1,37 @@
+0 serial m=0
+0 serial wifi.ssid=aaaa&wifi.password=xyz
+0 temp_set 60 80
++1 config tsinaddr=01-FD-7D-45-38-FC-89-40&tsoutaddr=02-6D-38-D9-78-EF-00-1E
++2 tray_open
++10 tray_close
++10 tray_open
++10 tray_close
++10 tray_open
++10 tray_close
++10 tray_open
++10 tray_close
++10 tray_open
++10 tray_close
++10 tray_open
++10 tray_close
++10 tray_open
++10 tray_close
++10 tray_open
++10 tray_close
++10 tray_open
++10 tray_close
++10 tray_open
++10 tray_close
++10 tray_open
++10 tray_close
++10 tray_open
++10 tray_close
++10 tray_open
++10 tray_close
++10 tray_open
++10 tray_close
++10 tray_open
++10 tray_close
++10 tray_open
++10 tray_close
+

@@ -38,12 +38,15 @@ size_t WiFiClient::write(const uint8_t *buf, size_t size) {
 }
 
 int WiFiClient::available() {
+    if (_ctx == nullptr) return 0;
     if (_ctx->_data.empty()) {
         pollfd fd;
         fd.events = POLLIN;
         fd.fd = _ctx->_sock;
         fd.revents = 0;
-        if (poll(&fd, 1, 0) <= 0) return 0;
+        if (poll(&fd, 1, 0) <= 0) {
+            return 0;
+        }
         do {
             int r =::recv(_ctx->_sock,_ctx->_buff,sizeof(_ctx->_buff),0);
             if (r > 0) {
@@ -99,10 +102,11 @@ void WiFiClient::stop() {
     if (_ctx) {
         shutdown(_ctx->_sock, SHUT_WR);
         _ctx->_connected = false;
+        _ctx.reset();
     }
 }
 
-uint8_t WiFiClient::connected() const {
+uint8_t WiFiClient::connected()  {
     return _ctx->_connected?1:0;
 }
 
