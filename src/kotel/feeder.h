@@ -35,7 +35,6 @@ public:
         if (!_active) {
             set_active(true);
             sch.reschedule();
-            ++_storage.cntr1.feeder_start_count;
         }
     }
 

@@ -136,8 +136,8 @@ protected:
 
 };
 
-inline constexpr base64_t base64 = {"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",'='};
-inline constexpr base64_t base64url = {"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_",'\0'};
+inline constexpr auto base64 = base64_t{"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",'='};
+inline constexpr auto base64url = base64_t{"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_",'\0'};
 
 template<std::size_t N>
 class binary_data {

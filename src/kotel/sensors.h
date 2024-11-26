@@ -9,10 +9,10 @@ class Sensors {
 public:
 
     bool tray_open;
-    bool motor_temp_monitor;
+    bool feeder_overheat;
 
     void read_sensors() {
-        motor_temp_monitor = digitalRead(pin_in_motor_temp) == HIGH;
+        feeder_overheat = digitalRead(pin_in_motor_temp) == LOW;
         tray_open = digitalRead(pin_in_tray) == LOW;
     }
 

@@ -49,6 +49,7 @@ void Controller::begin() {
     _scheduler.reschedule();
     init_wifi();
     _server.begin();
+    _storage.cntr1.restart_count++;
 }
 
 static inline bool defined_and_above(const std::optional<float> &val, float cmp) {
@@ -67,11 +68,10 @@ void Controller::run() {
         if (_was_tray_open) {
             _was_tray_open = false;
             _storage.tray.tray_open_time = _storage.tray.feeder_time;
+            _storage.cntr1.tray_open_count++;
             _storage.save();
         }
-        if (!_sensors.motor_temp_monitor //motor temperature check
-             || (defined_and_above(_temp_sensors.get_output_temp(),_storage.config.output_max_temp))
-             || (defined_and_above(_temp_sensors.get_input_temp(),_storage.config.output_max_temp))) {
+        if (_sensors.feeder_overheat || is_overheat()) {
             run_stop_mode();
         } else if (_storage.config.operation_mode == 0) {
             run_manual_mode();
@@ -102,7 +102,7 @@ void Controller::run() {
         _list_temp_async.reset();
     }
     _scheduler.run();
-    _storage.flush();
+    _storage.commit();
 
 }
 
@@ -211,18 +211,6 @@ static constexpr std::pair<const char *, uint16_t Tray::*> tray_table_2[] ={
         {"tray.bct", &Tray::bag_consump_time}
 };
 
-static constexpr std::pair<const char *, uint32_t Utilization::*> utilization_table[] ={
-        {"utlz.fan", &Utilization::fan_time},
-        {"utlz.pump", &Utilization::pump_time},
-        {"atime", &Utilization::active_time},
-};
-
-static constexpr std::pair<const char *, uint32_t Counters1::*> counters1_table[] ={
-        {"sc.feeder", &Counters1::feeder_start_count},
-        {"sc.fan", &Counters1::fan_start_count},
-        {"sc.pump", &Counters1::pump_start_count},
-};
-
 static constexpr std::pair<const char *, TextSector WiFi_SSID::*> wifi_ssid_table[] ={
         {"wifi.ssid", &WiFi_SSID::ssid},
 };
@@ -301,14 +289,6 @@ void Controller::config_out(Stream &s) {
     print_table(s, tray_table_2, _storage.tray);
 }
 
-void Controller::stats_out(Stream &s) {
-
-    print_table(s, tray_table, _storage.tray);
-    print_table(s, utilization_table, _storage.utlz);
-    print_table(s, counters1_table, _storage.cntr1);
-    s.print("eee=");
-    print_data(s, _storage.get_eeprom().get_crc_error_counter());
-}
 
 template<typename UINT>
 bool parse_to_field_uint(UINT &fld, std::string_view value) {
@@ -467,13 +447,6 @@ void Controller::list_onewire_sensors(Stream &s) {
     });
 }
 
-void Controller::clear_error()
-{
-    _storage.status.error = ErrorCode::no_error;
-    _storage.save();
-}
-
-
 void Controller::status_out(Stream &s) {
     print_data_line(s,"mode", static_cast<int>(_cur_mode));
     print_data_line(s,"auto_mode", static_cast<int>(_auto_mode));
@@ -485,7 +458,7 @@ void Controller::status_out(Stream &s) {
     print_data_line(s,"temp.input.ampl", _temp_sensors.get_input_ampl());
     print_data_line(s,"temp.sim", _temp_sensors.is_simulated()?1:0);
     print_data_line(s,"tray_open", _sensors.tray_open);
-    print_data_line(s,"motor_temp_ok", _sensors.motor_temp_monitor);
+    print_data_line(s,"motor_temp_ok", !_sensors.feeder_overheat);
     print_data_line(s,"pump", _pump.is_active());
     print_data_line(s,"feeder", _feeder.is_active());
     print_data_line(s,"fan", _fan.get_current_speed());
@@ -508,6 +481,7 @@ void Controller::control_pump() {
 void Controller::run_manual_mode() {
     _auto_stop_disabled = true;
     _cur_mode = DriveMode::manual;
+    _auto_mode = AutoMode::notset;
 
 }
 
@@ -525,7 +499,20 @@ void Controller::run_other_mode() {
 }
 
 void Controller::run_stop_mode() {
+    if (_cur_mode != DriveMode::stop) {
+        ++_storage.cntr2.stop_count;
+        if (!_temp_sensors.get_output_temp()) {
+            ++_storage.cntr2.temp_read_failure_count;
+        } else if (is_overheat()) {
+            ++_storage.cntr1.overheat_count;
+        }
+        if (_sensors.feeder_overheat) {
+            ++_storage.cntr1.feeder_overheat_count;
+        }
+        _storage.save();
+    }
     _cur_mode = DriveMode::stop;
+    _auto_mode = AutoMode::notset;
 }
 
 int Controller::calc_tray_remain() const {
@@ -573,7 +560,7 @@ bool Controller::is_wifi() const {
 }
 
 
-static constexpr std::pair<const char *, uint8_t Controller::ManualControlStruct::*> manual_control_table[] ={
+constexpr std::pair<const char *, uint8_t Controller::ManualControlStruct::*> manual_control_table[] ={
         {"feed.tr",&Controller::ManualControlStruct::_feeder_time},
         {"fan.timer",&Controller::ManualControlStruct::_fan_time},
         {"fan.speed",&Controller::ManualControlStruct::_fan_speed},
@@ -593,11 +580,11 @@ void Controller::send_file(MyHttpServer::Request &req, std::string_view content_
         _server.send_simple_header(req, content_type, -1);
         int i = f.get();
         while (i != EOF) {
-            req.client.print(static_cast<char>(i));
+            req.client->print(static_cast<char>(i));
             i = f.get();
         }
     }
-    req.client.stop();
+    req.client->stop();
 }
 #endif
 
@@ -606,7 +593,7 @@ struct SimulInfo {
     float output = 0;
 };
 
-static constexpr std::pair<const char *, float SimulInfo::*> simulate_temp_table[] = {
+constexpr std::pair<const char *, float SimulInfo::*> simulate_temp_table[] = {
         {"input", &SimulInfo::input},
         {"output", &SimulInfo::output},
 };
@@ -647,21 +634,21 @@ void Controller::handle_server(MyHttpServer::Request &req) {
 
     } else if (req.request_line.path == "/") {
 #ifdef WEB_DEVEL
-        send_file_async(req, Ctx::html, "/index.html");
+        send_file(req, Ctx::html, "/index.html");
 #else
         _server.send_file_async(req, HttpServerBase::ContentType::html, embedded_index_html, true);
 #endif
         return; //do not stop
     } else if (req.request_line.path == "/code.js") {
 #ifdef WEB_DEVEL
-        send_file_async(req, Ctx::javascript, req.request_line.path);
+        send_file(req, Ctx::javascript, req.request_line.path);
 #else
         _server.send_file_async(req, Ctx::javascript, embedded_code_js, true);
 #endif
         return; //do not stop
     } else if (req.request_line.path == "/style.css") {
 #ifdef WEB_DEVEL
-        send_file_async(req, Ctx::css, req.request_line.path);
+        send_file(req, Ctx::css, req.request_line.path);
 #else
         _server.send_file_async(req, Ctx::css, embedded_style_css, true);
 #endif
@@ -726,31 +713,33 @@ TimeStampMs Controller::update_motorhours(TimeStampMs now) {
     bool fd = is_feeder_on();
     bool pm = is_pump_on();
     bool fa = is_fan_on();
-    bool at = is_attenuation();
     Storage &stor = get_storage();
-    ++stor.utlz.active_time;
     if (fd) ++stor.tray.feeder_time;
-    if (pm) ++stor.utlz.pump_time;
-    if (fa) ++stor.utlz.fan_time;
-    if (at) ++stor.utlz.attent_time;
+    if (pm) ++stor.runtm.pump_time;
+    if (fa) ++stor.runtm.fan_time;
+    if (_cur_mode == DriveMode::automatic) {
+        switch (_auto_mode) {
+            case AutoMode::fullpower: ++stor.runtm.full_power_time;break;
+            case AutoMode::lowpower: ++stor.runtm.low_power_time;break;
+            case AutoMode::off:     ++stor.runtm.cooling_time;break;
+            default:break;
+        }
+    } else if (_cur_mode == DriveMode::stop) {
+        ++stor.runtm2.stop_time;
+    }
+    if (is_overheat()) ++stor.runtm2.overheat_time;
+    ++stor.runtm2.active_time;
 
-
-
-    bool anything_running = fd || pm || fa ;
-
-    if (anything_running && _flush_time == max_timestamp) {
-        _flush_time = now+60000;
-    } else if (now >= _flush_time) {
+    if (now >= _flush_time) {
         stor.save();
-        if (!anything_running) _flush_time = max_timestamp;
-        else _flush_time = now+60000;
+        _flush_time = now+60000;
     }
     return 1000;
 }
 
 
 
-static constexpr std::pair<const char *, int8_t Controller::SetFuelParams::*> set_fuel_params_table[] = {
+constexpr std::pair<const char *, int8_t Controller::SetFuelParams::*> set_fuel_params_table[] = {
         {"full", &Controller::SetFuelParams::full},
         {"bagcount", &Controller::SetFuelParams::bagcount},
         {"kalib", &Controller::SetFuelParams::kalib},
@@ -820,6 +809,7 @@ TimeStampMs Controller::auto_drive_cycle(TimeStampMs cur_time) {
         return 1000;
     }
 
+    AutoMode prev_mode = _auto_mode;
 
     if (t_input < _storage.config.input_min_temp) {
         if (t_output < _storage.config.output_max_temp) {
@@ -833,6 +823,16 @@ TimeStampMs Controller::auto_drive_cycle(TimeStampMs cur_time) {
         } else {
             _auto_mode = AutoMode::off;
         }
+    }
+
+    if (_auto_mode != prev_mode) {
+        switch (_auto_mode) {
+            case AutoMode::off: _storage.cntr2.cool_count++;break;
+            case AutoMode::fullpower: _storage.cntr2.full_power_count++;break;
+            case AutoMode::lowpower: _storage.cntr2.low_power_count++;break;
+            default: break;
+        }
+        _storage.save();
     }
 
     const Profile *p;
@@ -858,6 +858,10 @@ TimeStampMs Controller::auto_drive_cycle(TimeStampMs cur_time) {
     _fan.set_speed(p->fanpw);
     _fan.keep_running(_scheduler,cur_time + cycle_interval+1000);
      auto t = from_seconds(p->fueling_sec);
+
+
+
+
     if (fan_active) {
         _feeder.keep_running(_scheduler, cur_time+t);
         return cycle_interval;
@@ -902,8 +906,16 @@ void Controller::handle_ws_request(MyHttpServer::Request &req)
     }
     break;
     case WsReqCmd::get_stats: {
-        stats_out(static_buff);
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
+        uint32_t cntr = _storage.get_eeprom().get_crc_error_counter();
+        uint32_t timestamp = get_current_timestamp()/1000;
+        static_buff.write(reinterpret_cast<const char *>(&_storage.runtm), sizeof(_storage.runtm));
+        static_buff.write(reinterpret_cast<const char *>(&_storage.runtm2), sizeof(_storage.runtm2));
+        static_buff.write(reinterpret_cast<const char *>(&_storage.cntr1), sizeof(_storage.cntr1));
+        static_buff.write(reinterpret_cast<const char *>(&_storage.cntr2), sizeof(_storage.cntr2));
+        static_buff.write(reinterpret_cast<const char *>(&_storage.tray), sizeof(_storage.tray));
+        static_buff.write(reinterpret_cast<const char *>(&cntr), sizeof(cntr));
+        static_buff.write(reinterpret_cast<const char *>(&timestamp), sizeof(timestamp));
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
     }
     break;
     case WsReqCmd::set_config: {
@@ -922,16 +934,20 @@ void Controller::handle_ws_request(MyHttpServer::Request &req)
         static_buff.write(reinterpret_cast<const char *>(&_storage.tray), sizeof(_storage.tray));
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
     break;
-    case WsReqCmd::file_util:
-        static_buff.write(reinterpret_cast<const char *>(&_storage.utlz), sizeof(_storage.utlz));
+    case WsReqCmd::file_util1:
+        static_buff.write(reinterpret_cast<const char *>(&_storage.runtm), sizeof(_storage.runtm));
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
     break;
     case WsReqCmd::file_cntrs1:
         static_buff.write(reinterpret_cast<const char *>(&_storage.cntr1), sizeof(_storage.cntr1));
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
     break;
-    case WsReqCmd::file_status:
-        static_buff.write(reinterpret_cast<const char *>(&_storage.status), sizeof(_storage.status));
+    case WsReqCmd::file_util2:
+        static_buff.write(reinterpret_cast<const char *>(&_storage.runtm2), sizeof(_storage.runtm2));
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
+    break;
+    case WsReqCmd::file_cntrs2:
+        static_buff.write(reinterpret_cast<const char *>(&_storage.cntr2), sizeof(_storage.cntr2));
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
     break;
     case WsReqCmd::file_tempsensor:
@@ -955,6 +971,7 @@ void Controller::handle_ws_request(MyHttpServer::Request &req)
             print(static_buff,get_task_name(t)," ",t->_run_time," ",t->get_scheduled_time(),"\r\n");
         });
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
+        break;
     default:
         break;
     }
@@ -1009,7 +1026,7 @@ void Controller::status_out_ws(Stream &s) {
         static_cast<uint8_t>(_cur_mode),
         static_cast<uint8_t>(_auto_mode),
         static_cast<uint8_t>(_sensors.tray_open?1:0),
-        static_cast<uint8_t>(_sensors.motor_temp_monitor?1:0),
+        static_cast<uint8_t>(_sensors.feeder_overheat?1:0),
         static_cast<uint8_t>(_pump.is_active()?1:0),
         static_cast<uint8_t>(_feeder.is_active()?1:0),
         static_cast<uint8_t>(_fan.get_current_speed()),
@@ -1068,6 +1085,11 @@ bool Controller::enable_temperature_simulation(std::string_view b) {
 
 void Controller::disable_temperature_simulation() {
     _temp_sensors.disable_simulated_temperature();
+}
+
+bool Controller::is_overheat() const {
+    return defined_and_above(_temp_sensors.get_output_temp(),_storage.config.output_max_temp)
+            || defined_and_above(_temp_sensors.get_input_temp(),_storage.config.output_max_temp);
 }
 
 }

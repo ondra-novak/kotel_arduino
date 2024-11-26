@@ -37,6 +37,7 @@ public:
         fullpower,
         lowpower,
         off,
+        notset
     };
 
 
@@ -47,13 +48,9 @@ public:
     void run();
 
     void config_out(Stream &s);
-    void stats_out(Stream &s);
     void status_out(Stream &s);
     bool config_update(std::string_view body, std::string_view &&failed_field = {});
     void list_onewire_sensors(Stream &s);
-
-
-    void clear_error();
 
 
     const DisplayControl &get_display() const {return _display;}
@@ -65,7 +62,6 @@ public:
     bool is_feeder_on() const {return _feeder.is_active();}
     bool is_pump_on() const {return _pump.is_active();}
     bool is_fan_on() const {return _fan.is_active();}
-    bool is_attenuation() const {return _auto_mode == AutoMode::off;}
     int calc_tray_remain() const;
     Storage &get_storage() {return _storage;}
     void set_wifi_used() {_wifi_used = true;}
@@ -121,7 +117,6 @@ protected:
 
     DriveMode _cur_mode = DriveMode::unknown;
     AutoMode _auto_mode = AutoMode::fullpower;
-    TimeStampMs _auto_mode_change = 0;
     TimeStampMs _flush_time = 0;
 
     static  const char *str_motoruntime;
@@ -148,13 +143,14 @@ protected:
     enum class WsReqCmd {
         file_config = 0,
         file_tray = 1,
-        file_util = 2,
+        file_util1 = 2,
         file_cntrs1 = 3,
-        file_status = 4,
+        file_util2 = 4,
         file_tempsensor = 5,
         file_wifi_ssid = 6,
         file_wifi_pwd = 7,
         file_wifi_net = 8,
+        file_cntrs2 = 9,
 
         control_status = 'c',
         set_fuel = 'f',
@@ -181,6 +177,7 @@ protected:
     bool set_fuel(const SetFuelParams &sfp);
     void status_out_ws(Stream &s);
     std::string_view get_task_name(const AbstractTimedTask *task);
+    bool is_overheat() const;
 };
 
 }

@@ -4,14 +4,15 @@
 
 constexpr unsigned int file_config = 0;
 constexpr unsigned int file_tray = 1;
-constexpr unsigned int file_util = 2;
+constexpr unsigned int file_runtime1 = 2;
 constexpr unsigned int file_cntrs1 = 3;
-constexpr unsigned int file_status = 4;
+constexpr unsigned int file_runtime2 = 4;
 constexpr unsigned int file_tempsensor = 5;
 constexpr unsigned int file_wifi_ssid = 6;
 constexpr unsigned int file_wifi_pwd = 7;
 constexpr unsigned int file_wifi_net = 8;
-constexpr unsigned int file_directory_len = 9;
+constexpr unsigned int file_cntrs2 = 9;
+constexpr unsigned int file_directory_len = 10;
 
 namespace kotel {
 
@@ -78,24 +79,45 @@ struct Tray {
     }
 };
 
-struct Utilization {
+
+struct Runtime {
     uint32_t fan_time = 0;          //jak dlouho bezi ventilator
     uint32_t pump_time = 0;         //jak dlouho bezi cerpadlo
-    uint32_t attent_time = 0;       //jak dlouho trval utlum
-    uint32_t active_time = 0;       //celkovy cas po kterou je zarizeni v provozu
+    uint32_t full_power_time = 0;
+    uint32_t low_power_time = 0;
+    uint32_t cooling_time = 0;
 };
+
+struct Runtime2 {
+    uint32_t active_time=0;         //jak dlouho to bezi
+    uint32_t overheat_time=0;       //jak dlouho byl prehraty
+    uint32_t stop_time=0;           //jak dlouho byl v stop stavu
+    uint32_t reserved1=0;
+    uint32_t reserved2=0;
+};
+
 
 struct Counters1 {
     uint32_t feeder_start_count = 0;  //pocet spusteni podavace
     uint32_t fan_start_count = 0;     //pocet spusteni ventilatoru
     uint32_t pump_start_count = 0;     //pocet spusteni cerpadla
-    uint32_t attent_count = 0;        //pocet utlumu
-    uint32_t long_attents_count;     //pocet dlouhych utlumu (spusteni na chvili)
+    uint16_t feeder_overheat_count = 0;  //kolikrat se motor prehral
+    uint16_t tray_open_count = 0;       //kolikrat se otevrela nasypka
+    uint16_t restart_count = 0;           //kolikrat byl system restartovan
+    uint16_t overheat_count = 0;
+
 };
 
-struct Status {
-    ErrorCode error = ErrorCode::no_error;
+struct Counters2 {
+    uint32_t full_power_count = 0;
+    uint32_t low_power_count = 0;
+    uint32_t cool_count = 0;
+    uint16_t stop_count = 0;
+    uint16_t temp_read_failure_count=0; //kolikrat se objevila chyba teplomeru
+    uint16_t reserved = 0;
+    uint16_t reserved2 = 0;
 };
+
 
 /*
 struct Counters2 {
@@ -129,9 +151,8 @@ struct WiFi_NetSettings {
 union StorageSector {
     Config cfg;
     Tray tray;
-    Utilization util;
+    Runtime util;
     Counters1 cntr1;
-    Status status;
 //  Counters2 cntr2;
     TempSensor tempsensor;
     WiFi_NetSettings wifi_cfg;
@@ -141,7 +162,7 @@ union StorageSector {
     ~StorageSector() {}
 };
 
-static_assert(sizeof(StorageSector) <= 20);
+static_assert(sizeof(StorageSector) == 20);
 
 /* rezim kalibrace:
  *

@@ -5,27 +5,27 @@
 namespace kotel {
 
 using WideIcon = DotMatrix::Bitmap<8,6>;
-constexpr WideIcon icon_no_network =
+constexpr auto icon_no_network = WideIcon(
         "O O O   "
         " OOO    "
         "  O  O O"
         "  O   O "
         "  O  O O"
-        "        ";
-constexpr WideIcon icon_network_ok =
+        "        ");
+constexpr auto icon_network_ok = WideIcon(
         "O O O   "
         " OOO    "
         "  O    O"
         "  O O O "
         "  O  O  "
-        "        ";
-constexpr WideIcon icon_tray_open =
+        "        ");
+constexpr auto icon_tray_open = WideIcon(
         "   #   #"
         "  #    #"
         " #     #"
         "#       "
         "#####  #"
-        "#####   ";
+        "#####   ");
 
 
 

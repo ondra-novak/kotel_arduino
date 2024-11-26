@@ -86,7 +86,6 @@ bool handle_serial(Controller &controller) {
                             "Help: \r\n"
                             "/s - status, \r\n"
                             "/c - config, \r\n"
-                            "/s - stats, \r\n"
                             "/d - dump eeprom, \r\n"
                             "/e <field>=<value> simulate temperature\r\n"
                             "/x - disable simulate temperature\r\n"
@@ -104,11 +103,6 @@ bool handle_serial(Controller &controller) {
                         case 'c':
                             print_ok();
                             controller.config_out(Serial);
-                            print_dot();
-                            break;
-                        case 't':
-                            print_ok();
-                            controller.stats_out(Serial);
                             print_dot();
                             break;
                         case 'd':

@@ -6,6 +6,7 @@ html {
 
 }
 
+
 .varovani {
     text-align: center;
     padding: 1em;
@@ -738,4 +739,40 @@ input.valerror {
 .subsection > .sectionname {
         color:  #FF8;
         border-bottom: 2px solid #fff3;
+}
+
+table.excel {
+    width: 100%;!;
+    border: 1px solid #888;
+    border-collapse: collapse;
+    background: white;
+}
+
+table.excel tbody {color: black;}
+table.excel tbody th {text-align:left; background:#CCC}
+table.excel tr > * {
+    border: 1px solid black;    
+    padding: 0.25em;
+}
+table.excel tr > td {
+    text-align:right;
+    white-space:nowrap
+}
+table.excel th.sub {
+    padding-left: 1em;
+}
+table.excel td.e {
+    background: #DDB;
+}
+table.excel th.sub::before {
+    content: "-";
+    display: inline-block;
+    padding: 0 00.5em
+}
+table.excel thead th {
+    background:#888;
+}
+
+.prvekspopisem > .icon {
+    height: 10em;
 }

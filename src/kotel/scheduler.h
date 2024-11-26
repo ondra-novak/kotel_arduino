@@ -35,7 +35,7 @@ public:
                 x._task->run(tp);
                 auto util = millis() - start;;
                 auto rt = x._task->_run_time;
-                if (rt > 0) rt = rt -1;
+                if (rt > 0) rt = rt - (rt/20+1);
                 x._task->_run_time = std::max<unsigned long>(rt, util);
                 x._tp = x._task->get_scheduled_time();
                 heap_push(_items, N, compare);

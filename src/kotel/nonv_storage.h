@@ -70,9 +70,10 @@ public:
 
     Config config;
     Tray tray;
-    Utilization utlz;
+    Runtime runtm;
     Counters1 cntr1;
-    Status status;
+    Runtime2 runtm2;
+    Counters2 cntr2;
     TempSensor temp;
     WiFi_SSID wifi_ssid;
     WiFi_Password wifi_password;
@@ -83,8 +84,10 @@ public:
         _eeprom.begin();
         _eeprom.read_file(file_config, config);
         _eeprom.read_file(file_tray, tray);
-        _eeprom.read_file(file_util, utlz);
+        _eeprom.read_file(file_runtime1, runtm);
+        _eeprom.read_file(file_runtime2, runtm2);
         _eeprom.read_file(file_cntrs1, cntr1);
+        _eeprom.read_file(file_cntrs2, cntr2);
         _eeprom.read_file(file_tempsensor, temp);
         _eeprom.read_file(file_wifi_ssid, wifi_ssid);
         _eeprom.read_file(file_wifi_pwd, wifi_password);
@@ -102,12 +105,14 @@ public:
         _update_flag = true;
     }
 
-    void flush() {
+    void commit() {
         if (_update_flag) {
             _eeprom.update_file(file_config,config);
             _eeprom.update_file(file_tray,tray);
-            _eeprom.update_file(file_util,utlz);
+            _eeprom.update_file(file_runtime1,runtm);
             _eeprom.update_file(file_cntrs1,cntr1);
+            _eeprom.update_file(file_runtime2,runtm2);
+            _eeprom.update_file(file_cntrs2,cntr2);
             _eeprom.update_file(file_tempsensor,temp);
             _eeprom.update_file(file_wifi_ssid,wifi_ssid);
             _eeprom.update_file(file_wifi_pwd,wifi_password);

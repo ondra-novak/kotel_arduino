@@ -193,9 +193,6 @@ void process_command(const Command &cmd) {
             new(&kotel::controller) kotel::Controller;
             kotel::controller.begin();
             break;
-        case Command::clear_error:
-            kotel::controller.clear_error();
-            break;
         default:break;
     }
 }

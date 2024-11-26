@@ -9,7 +9,7 @@ namespace kotel {
     return _next_change;
 }
 
-constexpr DotMatrix::Bitmap<5,6> fann_anim[] = {
+constexpr DotMatrix::Bitmap<5,6> fann_anim[] =  {
         "  X  "
         "  X  "
         "XXXXX"
@@ -36,7 +36,7 @@ constexpr DotMatrix::Bitmap<5,6> fann_anim[] = {
         "     ",
 };
 
-constexpr DotMatrix::Bitmap<3,6> feed_anim[] = {
+constexpr DotMatrix::Bitmap<3,6> feed_anim[] =  {
         " xx"
         " x "
         " x "
@@ -76,7 +76,7 @@ void DisplayControl::run(TimeStampMs cur_time) {
     auto phase_pos = _anim_phase & 0x7;
     bool alternate = !(_anim_phase & 0x8);
 
-    if (!_cntr.is_attenuation() && (_cntr.is_feeder_on() || _cntr.is_fan_on())) {
+    if ((_cntr.is_feeder_on() || _cntr.is_fan_on())) {
         if (_cntr.is_feeder_on()) {
             auto p = _anim_phase%3;
             feed_anim[p].draw(frame_buffer, 5,second_line);
