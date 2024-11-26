@@ -26,7 +26,6 @@ public:
         }
     }
 
-    virtual const char *name() const  override{ return "fan";}
 
     void stop() {
         _running = false;

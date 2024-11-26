@@ -27,8 +27,6 @@ public:
 
     DisplayControl(const Controller &cntr):_cntr(cntr) {}
 
-    virtual const char *name() const  override{ return "display";}
-
     void begin() {
         DotMatrix::enable_auto_drive(dot_driver, display_state, frame_buffer);
     }

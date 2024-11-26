@@ -20,6 +20,7 @@ set(COMMON_FILES
     controller.cpp
     display_control.cpp
     websocket.cpp
+    serial.cpp
 )
 
 add_library(kotel ${COMMON_FILES} )

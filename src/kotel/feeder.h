@@ -41,7 +41,6 @@ public:
 
     bool is_active() const {return _active;}
 
-    virtual const char *name() const override{ return "feeder";}
 
 protected:
     Storage &_storage;

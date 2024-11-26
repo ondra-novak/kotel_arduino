@@ -7,6 +7,7 @@
 
 #include "stringstream.h"
 
+#include "serial.h"
 #ifdef WEB_DEVEL
 #include <fstream>
 #endif
@@ -29,8 +30,10 @@ Controller::Controller()
         ,_auto_drive_cycle(this)
         ,_wifi_mon(this)
         ,_run_server(this)
+         ,_read_serial(this)
         ,_scheduler({&_feeder, &_fan, &_temp_sensors,  &_display,
-            &_motoruntime, &_auto_drive_cycle, &_wifi_mon, &_run_server})
+            &_motoruntime, &_auto_drive_cycle, &_wifi_mon, &_run_server,
+            &_read_serial})
         ,_server(80)
 {
 
@@ -663,28 +666,6 @@ void Controller::handle_server(MyHttpServer::Request &req) {
         _server.send_file_async(req, Ctx::css, embedded_style_css, true);
 #endif
         return; //do not stop
-    } else if (req.request_line.path == "/api/simulate_temperature") {
-        if (req.request_line.method == HttpMethod::PUT) {
-            std::string_view b = req.body;
-            SimulInfo sinfo;
-            do {
-               if (!update_settings_kv(simulate_temp_table, sinfo, split(b, "&"))) {
-                   _server.error_response(req, 400, {}, {}, {});
-               }
-            }while (!b.empty());
-            if (sinfo.input>0 && sinfo.output > 0) {
-                _temp_sensors.simulate_temperature(sinfo.input,sinfo.output);
-                _server.error_response(req, 202, {});
-            } else {
-                _server.error_response(req, 400, {}, {}, {});
-            }
-
-        } else if (req.request_line.method == HttpMethod::DELETE) {
-            _temp_sensors.disable_simulated_temperature();
-            _server.error_response(req, 202, {});
-        } else {
-            _server.error_response(req, 405, {}, {{"Allow","PUT, DELETE"}}, {});
-        }
     } else {
         _server.error_response(req, 404, "Not found");
     }
@@ -885,6 +866,8 @@ TimeStampMs Controller::auto_drive_cycle(TimeStampMs cur_time) {
     }
 }
 
+
+
 void Controller::handle_ws_request(MyHttpServer::Request &req)
 {
     static_buff.clear();
@@ -969,7 +952,7 @@ void Controller::handle_ws_request(MyHttpServer::Request &req)
     break;
     case WsReqCmd::enum_tasks:
         _scheduler.enum_tasks([&](const AbstractTimedTask *t){
-            print(static_buff,t->name()," ",t->_run_time," ",t->get_scheduled_time(),"\r\n");
+            print(static_buff,get_task_name(t)," ",t->_run_time," ",t->get_scheduled_time(),"\r\n");
         });
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
     default:
@@ -1046,6 +1029,45 @@ TimeStampMs Controller::run_server(TimeStampMs ) {
         handle_server(req);
     }
     return 1;
+}
+
+TimeStampMs Controller::read_serial(TimeStampMs) {
+    while (handle_serial(*this));
+    return 250;
+}
+
+
+std::string_view Controller::get_task_name(const AbstractTimedTask *task) {
+    if (task == &_feeder) return "feeder";
+    if (task == &_fan) return "fan";
+    if (task == &_temp_sensors) return "temp_sensors";
+    if (task == &_display) return "display";
+    if (task == &_motoruntime) return "motoruntime";
+    if (task == &_auto_drive_cycle) return "auto_drive_cycle";
+    if (task == &_wifi_mon) return "wifi_mon";
+    if (task == &_run_server) return "run_server";
+    if (task == &_read_serial) return "read_serial";
+    return "unknown";
+}
+
+bool Controller::enable_temperature_simulation(std::string_view b) {
+    SimulInfo sinfo;
+    do {
+       if (!update_settings_kv(simulate_temp_table, sinfo, split(b, "&"))) {
+           return false;
+       }
+    }while (!b.empty());
+    if (sinfo.input>0 && sinfo.output > 0) {
+        _temp_sensors.simulate_temperature(sinfo.input,sinfo.output);
+        return true;
+    } else {
+        return false;
+    }
+
+}
+
+void Controller::disable_temperature_simulation() {
+    _temp_sensors.disable_simulated_temperature();
 }
 
 }

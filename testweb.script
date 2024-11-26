@@ -1,5 +1,5 @@
-0 config tsinaddr=01-FD-7D-45-38-FC-89-40&tsoutaddr=02-6D-38-D9-78-EF-00-1E
-0 config operation_mode=1
+0 serial tsinaddr=01-FD-7D-45-38-FC-89-40&tsoutaddr=02-6D-38-D9-78-EF-00-1E
+0 serial m=1
 0 temp_set 35 23
 1 tray_open
 2 tray_close

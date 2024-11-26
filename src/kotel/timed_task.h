@@ -17,12 +17,12 @@ public:
     virtual TimeStampMs get_scheduled_time() const = 0;
     virtual void run(TimeStampMs cur_time) = 0;
     virtual ~AbstractTimedTask() = default;
-    virtual const char *name() const = 0;
 
     unsigned long _run_time = 0;
+    unsigned long _uid = 0;
 };
 
-template<typename X, TimeStampMs (X::*task)(TimeStampMs cur_time), const char *&_name>
+template<typename X, TimeStampMs (X::*task)(TimeStampMs cur_time)>
 class TimedTaskMethod: public AbstractTimedTask {
 public:
 
@@ -36,9 +36,6 @@ public:
     void wake_up(IScheduler &sch) {
         _next_call = 0;
         sch.reschedule();
-    }
-    virtual const char *name() const  override{
-        return _name;
     }
 
 

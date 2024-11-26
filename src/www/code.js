@@ -767,14 +767,12 @@ async function main() {
     })
 
     connection.onconnect = async function() {
+        Controller.read_config();
         let data = await connection.send_request(6,{});        
         document.getElementById("ssid").textContent = parseTextSector(data);
-        
-        
     }
     Controller.update_status_cycle();
     Controller.update_stats_cycle();
-    await Controller.read_config();
 
 }
 
