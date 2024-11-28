@@ -575,7 +575,7 @@ void Controller::send_file(MyHttpServer::Request &req, std::string_view content_
     path.append(file_name);
     std::ifstream f(path);
     if (!f) {
-        _server.error_response(req, 404, {}, {}, path);
+            _server.error_response(req, 404, {}, {}, path);
     } else {
         _server.send_simple_header(req, content_type, -1);
         int i = f.get();
@@ -631,26 +631,17 @@ void Controller::handle_server(MyHttpServer::Request &req) {
         } else {
             _server.error_response(req,400,{});
         }
-
     } else if (req.request_line.path == "/") {
 #ifdef WEB_DEVEL
         send_file(req, Ctx::html, "/index.html");
-#else
-        _server.send_file_async(req, HttpServerBase::ContentType::html, embedded_index_html, true);
-#endif
-        return; //do not stop
-    } else if (req.request_line.path == "/code.js") {
-#ifdef WEB_DEVEL
+    } else if (req.request_line.path.substr(req.request_line.path.length()-5) == ".html") {
+        send_file(req, Ctx::html, req.request_line.path);
+    } else if (req.request_line.path.substr(req.request_line.path.length()-3) == ".js") {
         send_file(req, Ctx::javascript, req.request_line.path);
-#else
-        _server.send_file_async(req, Ctx::javascript, embedded_code_js, true);
-#endif
-        return; //do not stop
-    } else if (req.request_line.path == "/style.css") {
-#ifdef WEB_DEVEL
+    } else if (req.request_line.path.substr(req.request_line.path.length()-4) == ".css") {
         send_file(req, Ctx::css, req.request_line.path);
 #else
-        _server.send_file_async(req, Ctx::css, embedded_style_css, true);
+        _server.send_file_async(req, HttpServerBase::ContentType::html, embedded_index_html, true);
 #endif
         return; //do not stop
     } else {

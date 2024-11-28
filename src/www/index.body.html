@@ -1,0 +1,317 @@
+<div class="header" id="netstatus">Kotel</div>
+<div id="stav" class="header_stav">
+    <div class="button" id="prepnout_rezim"></div>
+</div>
+<div class="varovani" id="simul_temp" hidden="hidden">POZOR: Simulovaná teplota, pouze test!!!</div>
+<div class="dashboard">
+    <div class="prvekspopisem">
+        <span>Výstupní teplota</span>
+        <div class="teplomer" id="vystupni_teplota">
+            <div class="label t20">20</div>
+            <div class="label t40">40</div>
+            <div class="label t60">60</div>
+            <div class="label t80">80</div>
+            <div class="label t100">100</div>
+            <div class="max ref needle"></div>
+            <div class="cur needle"></div>
+            <div class="label cur_temp">--.-</div>
+            <div class="label amp_temp">--.-</div>
+        </div>
+    </div>
+    <div class="prvekspopisem">
+        <span>Vstupní teplota</span>
+        <div class="teplomer" id="vstupni_teplota">
+            <div class="label t20">20</div>
+            <div class="label t40">40</div>
+            <div class="label t60">60</div>
+            <div class="label t80">80</div>
+            <div class="label t100">100</div>
+            <div class="min ref needle"></div>
+            <div class="cur needle"></div>
+            <div class="label cur_temp">--.-</div>
+            <div class="label amp_temp">--.-</div>
+        </div>
+    </div>
+    <div class="prvekspopisem">
+        <span>Zásobník</span>
+        <div class="zasobnik" id="zasobnik">
+            <div class="fill" style="height: 0"></div>
+            <div class="bok1 a"></div>
+            <div class="bok1 b"></div>
+            <div class="bok2 a"></div>
+            <div class="bok2 b"></div>
+            <div class="label">--</div>
+        </div>
+    </div>
+    <div class="ovladace prvekspopisem" id="horeni">
+        <span>Ovládání hoření</span>
+        <div id="ovladac_feeder">Podavač<div class="icon">
+                <div class="iconfeeder"></div>
+            </div>
+            <div id="mototempmax" hidden="hidden"></div>
+        </div>
+        <div id="ovladac_fan">Ventilátor<div class="icon">
+                <div class="iconfan"></div>
+            </div>
+        </div>
+        <div id="ovladac_pump">Čerpadlo<div class="icon">
+                <div class="iconpump"></div>
+            </div>
+        </div>
+    </div>
+    <div class="wifiinfo prvekspopisem" id="wifi">
+        <span>Připojení </span>
+        <div class="wifi"></div>
+        <div class="label">
+            <div id="ssid">---</div>
+            <div id="rssi">---</div>
+        </div>
+    </div>
+    <div class="prvekspopisem" id="stats_win">
+        <span>Přehledy</span>
+        <div class="icon">
+        <svg width="100px" height="100px" viewBox="0 0 1024 1024" class="icon"  version="1.1" xmlns="http://www.w3.org/2000/svg">
+            <path d="M978.578286 900.461714l-108.617143-108.617143c30.134857-39.570286 48.274286-88.795429 48.274286-142.189714a235.739429 235.739429 0 0 0-235.52-235.373714 235.739429 235.739429 0 0 0-235.373715 235.373714 235.739429 235.739429 0 0 0 235.446857 235.52c53.467429 0 102.692571-18.139429 142.189715-48.274286l108.617143 108.544a31.524571 31.524571 0 0 0 44.836571 0 31.744 31.744 0 0 0 0.146286-44.982857zM510.902857 649.654857a172.105143 172.105143 0 0 1 171.885714-171.885714 171.885714 171.885714 0 0 1 0 343.771428 172.178286 172.178286 0 0 1-171.885714-171.885714z m270.262857-378.514286c0 17.554286-14.262857 31.744-31.817143 31.744H431.396571a31.744 31.744 0 0 1 0-63.488h317.952c17.554286 0 31.817143 14.189714 31.817143 31.744z m-609.426285 620.032h211.968a31.890286 31.890286 0 0 1 0 63.634286H171.739429c-58.368 0-106.057143-47.542857-106.057143-106.057143V283.062857c0-14.262857 5.12-28.086857 14.262857-39.058286L240.420571 53.101714a57.417143 57.417143 0 0 1 43.885715-20.48h517.997714c58.441143 0 106.057143 47.542857 106.057143 106.057143V366.445714a31.744 31.744 0 0 1-63.634286 0V138.605714a42.422857 42.422857 0 0 0-42.276571-42.349714H336.018286V280.137143a50.688 50.688 0 0 1-50.980572 50.176H129.389714v518.509714c0 23.332571 19.017143 42.349714 42.349715 42.349714zM272.457143 113.810286l-128.512 152.868571h128.512v-152.868571z m79.506286 476.16a31.744 31.744 0 0 0 0-63.634286H240.64a31.744 31.744 0 0 0 0 63.634286h111.323429z m0 146.066285a31.744 31.744 0 0 0 0-63.561142H240.64a31.744 31.744 0 0 0 0 63.561142h111.323429z m31.744-353.206857H240.64a31.744 31.744 0 0 0 0 63.561143h143.067429a31.744 31.744 0 0 0 0-63.561143z" fill="#FFFFFF" />
+        </svg>
+        </div>
+    </div>
+</div>
+<div id="manualcontrolpanel" hidden="hidden">
+    <p>Panel ručního ovládání</p>
+    <div class="buttons">
+        <div class="button" id="man_feeder">Podavač<div class="iconfeeder"></div>
+        </div>
+        <div class="button" id="man_fan">Ventilátor<div class="iconfan"></div>
+        </div>
+    </div>
+    <div class="slider">
+        <input type="range" min="1" max="100" step="1" id="man_fan_speed">
+    </div>
+</div>
+
+
+<div class="okno section" id="nastav_zasobnik" hidden="hidden">
+    <div class="sectionname black">Přidat palivo</div>
+    <div class="chyba spojeni">Chyba připojení!</div>
+    <div class="sub_section unhide">
+        <div class="sectionname" onclick="unhide_section.call(this);">Pokročilé volby</div>
+        <label><span>Aktuální stav (ignoruj čas naplnění)</span><input type="checkbox" name="absnow"></label>
+        <label><span>Kalibrovat (zásobník je prázdný)</span><input type="checkbox" name="kalib"></label>
+        <div class="chyba kalibselhal">Kalibrace selhala, zásobník byl na začátku prázdný</div>
+    </div>
+    <label><span>Přidaný počet pytlů</span><input type="number" value="0" step="1" min="-15" max="15" size="3"
+            name="pytle"></label>
+    <div class="chyba male">Nesmí být záporné číslo</div>
+    <div class="chyba velke">Moc velká hodnota</div>
+    <div class="chyba prazdne">Musíš něco napsat</div>
+    <div class="buttonpanel">
+        <button>Plně naloženo</button>
+        <button>OK</button>
+        <button onclick="close_window.call(this)">Storno</button>
+    </div>
+</div>
+
+<div class="okno section" id="nastav_teplotu" hidden="hidden">
+    <div class="vstupni sectionname black">Minimální vstupní teplota</div>
+    <div class="vystupni sectionname black">Maximální výstupní teplota</div>
+    <div class="sub_section unhide">
+        <div class="sectionname" onclick="unhide_section.call(this);">Pokročilé volby</div>
+        <label><span>Síla trendu</span><input type="number" step="0.1" min="0" max="25"></label>
+        <div class="chyba trnd_male">Moc malá hodnota</div>
+        <div class="chyba trnd_velke">Moc velká hodnota</div>
+        <div class="chyba trnd_prazdne">Musíš něco napsat</div>
+        <label><span>HW adresa teploměru</span><button>Změnit</button></label>
+    </div>
+    <label><span>Teplota</span><input type="number" value="60" step="1" min="40" max="90" size="3"></label>
+    <div class="chyba male">Moc malá teplota</div>
+    <div class="chyba velke">Moc velká teplota</div>
+    <div class="chyba prazdne">Musíš něco napsat</div>
+    <div class="buttonpanel"><button onclick="nastav_teplotu_ok.call(this)">OK</button> <button
+            onclick="close_window.call(this)">Storno</button></div>
+</div>
+
+<div class="okno section" id="nastav_hw_teplomer" hidden="hidden">
+    <div class="sectionname black">Vyber teploměr</div>
+    <div class="list">
+
+    </div>
+    <div class="buttonpanel"><button>OK</button> <button onclick="close_window.call(this)">Storno</button></div>
+
+</div>
+<div class="okno section" id="nastav_wifi" hidden="hidden">
+    <div class="sectionname black">Nastavení připojení</div>
+    <div class="sub_section unhide">
+        <div class="sectionname" onclick="unhide_section.call(this);">Pokročilé volby</div>
+        <label><span>Použít DHCP</span><input type="checkbox" name="dhcp"></label>
+        <label><span>Adresa</span><input type="text" name="net.ip" maxlength="15" size="15"></label>
+        <label><span>Maska adresy</span><input type="text" name="net.netmask" maxlength="15" size="15"></label>
+        <label><span>Výchozí brána</span><input type="text" name="net.gateway" maxlength="15" size="15"></label>
+        <label><span>DNS adresa</span><input type="text" name="net.dns" maxlength="15" size="15"></label>
+        <div class="chyba addrerror">Některá z adres není v pořádku</div>
+    </div>
+    <label><span>Wifi SSID</span><input type="text" maxlength="20" size="17" name="wifi.ssid"></label>
+    <label><span>Wifi heslo</span><input type="text" maxlength="20" size="17" name="wifi.password"></label>
+    <p>Změny nastavení připojení se projeví po restartu zařízení</p>
+    <div class="buttonpanel"><button>OK</button> <button onclick="close_window.call(this)">Storno</button></div>
+</div>
+<div class="okno section" id="nastav_topeni" hidden="hidden">
+    <div class="sectionname black">Ovládání hoření</div>
+    <label><span>Výhřevnost MJ/kg</span><input type="number" min="5" max="25.5" step="0.1" name="hval""></label>
+
+    <div class=" subsection">
+        <div class="sectionname">Plný výkon</div>
+        <label><span>Výkon kW</span><input type="number" min="1" max="25" step="0.5" name="full.power_value"
+                data-local="1"></label>
+        <label><span>Ventilátor [%]</span><input type="number" min="1" max="100" step="1" name="full.fanpw"></label>
+</div>
+<div class="subsection">
+    <div class="sectionname">Snížený výkon</div>
+    <label><span>Výkon kW</span><input type="number" min="0.5" max="25" step="0.5" name="low.power_value"
+            data-local="1"></label>
+    <label><span>Výkon ventilátoru [%]</span><input type="number" min="1" max="100" step="1"
+            name="low.fanpw"></label>
+</div>
+<div class="subsection">
+    <div class="sectionname">Čerpadlo</div>
+    <label><span>Spínací výstupní teplota</span><input type="number" min="30" max="90" step="1"
+            name="tpump"></label>
+    <div class="sub_section unhide">
+        <div class="sectionname" onclick="unhide_section.call(this);">Pokročilé volby</div>
+        <label><span>V ručním ovládání čerpadlo trvale zapnuté</span><input type="checkbox"
+                id="pump_active_forever"></label>
+        <label><span>Ventilátor freq.dělič</span><input type="number" min="1" max="255" step="1"
+                name="fanpc"></label>
+        <label><span>Plný výkon - přikládání [s]</span><input type="number" min="1" max="255" step="1"
+                name="full.fueling"></label>
+        <label><span>Plný výkon - prohořívání [s]</span><input type="number" min="1" max="255" step="1"
+                name="full.burnout"></label>
+        <label><span>Snížený výkon - přikládání [s]</span><input type="number" min="1" max="255" step="1"
+                name="low.fueling"></label>
+        <label><span>Snížený výkon - prohořívání [s]</span><input type="number" min="1" max="255" step="1"
+                name="low.burnout"></label>
+    </div>
+</div>
+<div class="chyba fail">Některé hodnoty jsou chybně zadané nebo jsou mimo rozsah</div>
+<div class="buttonpanel"><button>OK</button> <button onclick="close_window.call(this)">Storno</button></div>
+</div>
+<div class="okno section" id="stats" hidden = "hidden">
+    <table class="excel">
+        <thead>
+            <tr>
+                <th>Událost</th>
+                <th>Počet</th>
+                <th>Doba</th>
+                <th>Prům.</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <th>Celkový provoz</th>
+                <td data-name="start_count" data-type="count"></td>
+                <td data-name="active_time" data-type="time"></td>
+                <td data-name="active_avg" data-type="time"></td>
+            </tr>
+            <tr>
+                <th>Bez restartu</th>
+                <td class="e"></td>
+                <td data-name="uptime"  data-type="time"></td>
+                <td class="e"></td>
+            </tr>
+            <tr>
+                <th>Automatické řízení</th>
+                <td data-name="switch_mode_count" data-type="count"></td>
+                <td data-name="auto_time" data-type="time"></td>
+                <td data-name="auto_avg" data-type="time"></td>
+            </tr>
+            <tr>
+                <th class="sub">plný výkon</th>
+                <td data-name="full_power_count" data-type="count"></td>
+                <td data-name="full_power_time" data-type="time"></td>
+                <td data-name="full_power_avg" data-type="time"></td>
+            </tr>
+            <tr>
+                <th class="sub">snížený výkon</th class="sub">
+                <td data-name="low_power_count" data-type="count"></td>
+                <td data-name="low_power_time" data-type="time"></td>
+                <td data-name="low_power_avg" data-type="time"></td>
+            </tr>
+            <tr>
+                <th class="sub">chlazení</th class="sub">
+                <td data-name="cool_count" data-type="count"></td>
+                <td data-name="cooling_time" data-type="time"></td>
+                <td data-name="cooling_avg" data-type="time"></td>
+            </tr>
+            <tr>
+                <th>Havarijní zastavení</th>
+                <td data-name="stop_count" data-type="count"></td>
+                <td data-name="stop_time" data-type="time"></td>
+                <td data-name="stop_avg" data-type="time"></td>
+            </tr>
+            <tr>
+                <th class="sub">přehřátí kotle</th>
+                <td data-name="overheat_count" data-type="count"></td>
+                <td data-name="overheat_time" data-type="time"></td>
+                <td data-name="overheat_avg" data-type="time"></td>
+            </tr>
+            <tr>
+                <th class="sub">přehřátí podavače</th>
+                <td data-name="feeder_overheat_count" data-type="count"></td>
+                <td class="e"></td>
+                <td class="e"></td>
+            </tr>
+            <tr>
+                <th class="sub">chyba teploměru</th>
+                <td data-name="temp_read_failure_count" data-type="count"></td>
+                <td class="e"></td>
+                <td class="e"></td>
+            </tr>
+            <tr>
+                <th class="sub">jiné</th>
+                <td data-name="other_failure_count" data-type="count"></td>
+                <td class="e"></td>
+                <td class="e"></td>
+            </tr>
+            <tr>
+                <th>Čerpadlo</th>
+                <td data-name="pump_start_count" data-type="count"></td>
+                <td data-name="pump_time" data-type="time"></td>
+                <td data-name="pump_avg" data-type="time"></td>
+            </tr>
+            <tr>
+                <th>Ventilátor</th>
+                <td data-name="fan_start_count" data-type="count"></td>
+                <td data-name="fan_time" data-type="time"></td>
+                <td data-name="fan_avg" data-type="time"></td>
+            </tr>
+            <tr>
+                <th>Podavač</th>
+                <td data-name="feeder_start_count" data-type="count"></td>
+                <td data-name="feeder_time" data-type="time"></td>
+                <td data-name="feeder_avg" data-type="time"></td>
+            </tr>
+            <tr>
+                <th>Otevření zásobníku</th>
+                <td data-name="tray_open_count" data-type="count"></td>
+                <td class="e"></td>
+                <td class="e"></td>
+            </tr>
+            <tr>
+                <th>Spotřeba paliva / výdrž pytle</th>
+                <td data-name="fuel_consuption"  data-type="p."></td>
+                <td data-name="bag_consump_time"  data-type="time"></td>
+                <td data-name="fuel_consuption_avg" data-type="p/d"></td>
+            </tr>
+            <tr>
+                <th>Chyby EEPROM</th>
+                <td data-name="eeprom_errors"  data-type="count"></td>
+                <td class="e"></td>
+                <td class="e"></td>
+            </tr>
+
+
+        </tbody>
+
+    </table>
+
+    <div class="buttonpanel"><button onclick="close_window.call(this)">Zavřít</button></div>
+</div>

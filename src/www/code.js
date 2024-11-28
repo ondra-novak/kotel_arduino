@@ -1,234 +1,7 @@
-"use strict";
+//@require utils.js
+//@require websocketclient.js
+//@require binary_formats.js
 
-function convert_to_form_urlencode(req) {
-    return Object.keys(req).map(x => {
-        return encodeURIComponent(x) + "=" + encodeURIComponent(req[x]);
-    }).join('&');
-}
-
-
-function delay(millis) {
-    return new Promise(ok => {
-        setTimeout(ok, millis);
-    });
-}
-
-function parse_response(text, sep = "\r\n") {
-    return text.split(sep).reduce((obj, line) => {
-        let kv = line.split('=', 2).map(x => x.trim());
-        if (kv[0]) {
-            obj[kv[0]] = kv[1];
-        }
-        return obj;
-    }, {});
-}
-
-class WebSocketExchange {
-
-    #ws = null;
-    #tosend = [];
-    #promises = {};
-    #enc = new TextEncoder();
-    #pingtm = -1;
-    onconnect = function() { };
-
-    send_request(cmd, content) {
-        return new Promise((ok, err) => {
-            if (typeof cmd == "string") cmd = this.#enc.encode(cmd);
-            else if (typeof cmd == "number") cmd = Uint8Array.from([cmd]);
-            else return Promise.reject(new TypeError("invalid command format"));
-            if (typeof content == "string") content = this.#enc.encode(content);
-            else if (!content instanceof ArrayBuffer) {
-                if (Array.isArray(content)) content = Uint8Array.from(content);
-                else Promise.reject(new TypeError("invalid content format"));
-            } else {
-                content = new Uint8Array(content);
-            }
-            let selector = cmd[0];
-            var mergedArray = new Uint8Array(cmd.length + content.length);
-            mergedArray.set(cmd, 0);
-            mergedArray.set(content, cmd.length);
-            if (!this.#promises[selector]) {
-                this.#promises[selector] = [];
-            }
-            this.#promises[selector].push([ok, err]);
-            this.#tosend.push(mergedArray);
-            this.flush();
-        });
-    }
-
-    reconnect(err) {
-        if (this.#ws) {
-            Object.keys(this.#promises).forEach(x => this.#promises[x].forEach(z => z[1](err)));
-            this.#promises = {};
-            this.#ws = null;
-            clearTimeout(this.#pingtm);
-            setTimeout(() => this.flush(), 1000);
-        }
-    }
-
-    reset_timeout() {
-        if (this.#pingtm >= 0) clearTimeout(this.#pingtm);
-        this.#pingtm = setTimeout(() => {
-            this.#pingtm = -1;
-            this.#ws.close();
-            this.reconnect(new TypeError("connection timeout"));
-        }, 5000);
-    }
-
-    flush() {
-        if (!this.#ws) {
-            this.#ws = new WebSocket(location.href.replace(/^http/, "ws") + "api/ws");
-            this.#ws.binaryType = "arraybuffer";
-            this.#ws.onerror = () => { this.reconnect(new TypeError("connection failed")); }
-            this.#ws.onclose = () => { this.reconnect(new TypeError("connection reset")); }
-            this.#ws.onmessage = (ev) => {
-                this.reset_timeout();
-                let data = ev.data;
-                let selector;
-                if (typeof data == "string") {
-                    selector = this.#enc.encode(data)[0];
-                    data = data.substr(1);
-                } else {
-                    data = new Uint8Array(data);
-                    selector = data[0];
-                    data = data.slice(1).buffer;
-
-                }
-                let p = this.#promises[selector];
-                if (p && p.length) {
-                    let q = p.shift();
-                    q[0](data);
-                }
-            }
-            this.#ws.onopen = () => {
-                this.onconnect();
-                this.flush();
-            }
-        } else if (this.#ws.readyState == WebSocket.OPEN) {
-            this.#tosend.forEach(x => this.#ws.send(x));
-            this.#tosend = [];
-        }
-    }
-
-
-
-
-}
-
-const StatusOutWs = [
-    ["uint32", "feeder_time"],
-    ["uint32", "tray_open_time"],
-    ["uint32", "tray_fill_time"],
-    ["int16", "bag_fill_count"],
-    ["int16", "bag_consumption"],
-    ["int16", "temp_output_value"],
-    ["int16", "temp_output_amp_value"],
-    ["int16", "temp_input_value"],
-    ["int16", "temp_input_amp_value"],
-    ["int16", "rssi"],
-    ["uint8", "temp_sim"],
-    ["uint8", "temp_input_status"],
-    ["uint8", "temp_output_status"],
-    ["uint8", "mode"],
-    ["uint8", "automode"],
-    ["uint8", "tray_open"],
-    ["uint8", "feeder_overheat"],
-    ["uint8", "pump"],
-    ["uint8", "feeder"],
-    ["uint8", "fan"],
-];
-
-const ManualControlWs = [
-    ["uint8", "feeder_timer"],
-    ["uint8", "fan_timer"],
-    ["uint8", "fan_speed"],
-    ["uint8", "force_pump"]
-];
-
-const SetFuelWs = [
-    ["int8", "bagcount"],
-    ["int8", "kalib"],
-    ["int8", "absnow"],
-    ["int8", "full"],
-];
-
-const StatsOutWs = [
-    ["uint32", "fan_time"],
-    ["uint32", "pump_time"],
-    ["uint32", "full_power_time"],
-    ["uint32", "low_power_time"],
-    ["uint32", "cooling_time"],
-    ["uint32", "active_time"],
-    ["uint32", "overheat_time"],
-    ["uint32", "stop_time"],
-    ["uint32", "reserved1"],
-    ["uint32", "reserved2"],
-    ["uint32", "feeder_start_count"],
-    ["uint32", "fan_start_count"],
-    ["uint32", "pump_start_count"],
-    ["uint16", "feeder_overheat_count"],
-    ["uint16", "tray_open_count"],
-    ["uint16", "start_count"],
-    ["uint16", "overheat_count"],
-    ["uint32", "full_power_count"],
-    ["uint32", "low_power_count"],
-    ["uint32", "cool_count"],
-    ["uint16", "stop_count"],
-    ["uint16", "temp_read_failure_count"],
-    ["uint16", "reserved3"],
-    ["uint16", "reserved4"],
-    ["uint32", "feeder_time"],
-    ["uint32", "tray_open_time"],
-    ["uint32", "tray_fill_time"],
-    ["uint16", "bag_consump_time"],
-    ["uint16", "bag_fill_count"],
-    ["uint32", "eeprom_errors"],
-    ["uint32", "uptime"]
-
-];
-
-function decodeBinaryFrame(pattern, buffer) {
-    const view = new DataView(buffer);
-    let out = {};
-    let offset = 0;
-    pattern.forEach(x => {
-        switch (x[0]) {
-            case "uint32": out[x[1]] = view.getUint32(offset, true); offset += 4; break;
-            case "int16": out[x[1]] = view.getInt16(offset, true); offset += 2; break;
-            case "uint16": out[x[1]] = view.getUint16(offset, true); offset += 2; break;
-            case "uint8": out[x[1]] = view.getUint8(offset, true); offset += 1; break;
-            case "int8": out[x[1]] = view.getInt8(offset, true); offset += 1; break;
-            default: throw new TypeError("unknown field type:" + x[0]);
-        }
-    })
-    return out;
-}
-
-
-function encodeBinaryFrame(pattern, data) {
-
-    let arr = null;
-    let view = null;
-    for (let i = 0; i < 2; ++i) {
-        let offset = 0;
-        pattern.forEach(x => {
-            switch (x[0]) {
-                case "uint32": if (view) view.setUInt32(offset, data[x[1]]); offset += 4; break;
-                case "int16": if (view) view.setInt16(offset, data[x[1]]); offset += 2; break;
-                case "uint16": if (view) view.setUint16(offset, data[x[1]]); offset += 2; break;
-                case "uint8": if (view) view.setUint8(offset, data[x[1]]); offset += 1; break;
-                case "int8": if (view) view.setInt8(offset, data[x[1]]); offset += 1; break;
-                default: throw new TypeError("unknown field type:" + x[0]);
-            }
-        })
-
-        if (arr) break;
-        arr = new ArrayBuffer(offset);
-        view = new DataView(arr);
-    }
-    return arr;
-}
 
 let connection = new WebSocketExchange();
 
@@ -339,7 +112,7 @@ let Controller = {
 
 
 
-}
+};
 
 function update_config_form(cfg) {
     Object.keys(cfg).forEach(k => {
@@ -460,7 +233,7 @@ async function nastav_teplomer(field) {
             elem.onchange = () => {
                 selected = addr;
                 btn[0].disabled = false;
-            }
+            };
             sp.appendChild(elem);
             sp.appendChild(document.createTextNode(temp));
             lb.appendChild(sp);
@@ -476,7 +249,7 @@ function dialog_nastaveni_teploty(field, hw_field, trend_field) {
     el.hidden = false;
     el.dataset.field = field;
     el.dataset.hwfield = hw_field;
-    let imp = el.getElementsByTagName("input")[1]
+    let imp = el.getElementsByTagName("input")[1];
     let trnd = el.getElementsByTagName("input")[0];
     imp.value = Controller.config[field];
     trnd.value = parseFloat(Controller.config[trend_field]);
@@ -507,7 +280,7 @@ function dialog_nastaveni_teploty(field, hw_field, trend_field) {
             await Controller.set_config(cfg);
             el.hidden = true;
         }
-    }
+    };
     btm[1].disabled = false;
 }
 
@@ -565,14 +338,14 @@ async function nastav_wifi() {
         let err = false;
         Array.prototype.forEach.call(inputs, x => {
             if (x.getAttribute("type") == "text") {
-                let val = x.value
+                let val = x.value;
                 let name = x.name;
                 if (name.startsWith("net.")) {
                     const fld = val.split('.');
                     const e = fld.find(x => {
                         const v = parseInt(x);
                         return isNaN(v) || v < 0 || v > 255;
-                    })
+                    });
                     if (e !== undefined) err = true;
                 }
                 cfg[name] = val;
@@ -820,7 +593,7 @@ async function main() {
         Controller.man.force_pump = this.checked;
 
     });
-    
+
     el = document.getElementById("stats_win");
     el.addEventListener("click", function(){
         document.getElementById("stats").hidden = false;
@@ -831,13 +604,13 @@ async function main() {
         let data = await connection.send_request(6, {});
         document.getElementById("ssid").textContent = parseTextSector(data);
         Controller.update_stats_cycle();
-    }
+    };
     Controller.update_status_cycle();
 
     const day_seconds = 24*60*60;
     const hour_seconds = 60*60;
     const minute_seconds = 60;
-    
+
         Controller.on_stats_update = (data) => {
         const stattbl = document.getElementById("stats");
         data["active_avg"] = data["active_time"]/data["start_count"];
@@ -855,7 +628,7 @@ async function main() {
         data["fuel_consuption"] = data["feeder_time"]/data["bag_consump_time"];
         data["fuel_consuption_avg"] = data["fuel_consuption"]/(data["active_time"]/day_seconds);
         data["other_failure_count"] = data["stop_count"] - data["overheat_count"] - data["feeder_overheat_count"] -data["temp_read_failure_count"];
-        
+
         Array.prototype.forEach.call(stattbl.getElementsByTagName("td"),(el)=>{
              if (el.dataset.name) {
                 let s = "";
@@ -863,7 +636,7 @@ async function main() {
                 const format = el.dataset.type;
                  if (isNaN(val)){
                      el.textContent = "-";
-                } else if (format == "time") {                    
+                } else if (format == "time") {
                     el.textContent = formatInterval(val);
                 } else if (format == "count") {
                     el.textContent = val + "x";
@@ -874,7 +647,7 @@ async function main() {
                 }
              }
         });
-        
+
     }
 }
 

@@ -26,6 +26,7 @@ include_directories(AFTER ${CMAKE_CURRENT_LIST_DIR}/src/eeprom)
 include_directories(AFTER ${CMAKE_CURRENT_LIST_DIR}/src/SimpleDallasTemp)
 include_directories(AFTER ${CMAKE_CURRENT_LIST_DIR}/src/DotMatrix)
 
+add_subdirectory("src/build_web")
 add_subdirectory("src/www")
 
 include(library.cmake)

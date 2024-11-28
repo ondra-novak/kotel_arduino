@@ -1,3 +1,6 @@
 [submodule "src/DotMatrix"]
 	path = src/DotMatrix
 	url = https://github.com/ondra-novak/arduino_r4_dot_matrix.git
+[submodule "src/build_web"]
+	path = src/build_web
+	url = https://github.com/ondra-novak/spamaker.git
