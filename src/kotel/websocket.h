@@ -1,6 +1,7 @@
 #pragma once
 
 
+#include <array>
 #include <cstdint>
 #include <string_view>
 #include <vector>
@@ -410,15 +411,18 @@ inline constexpr bool build(const Message &message, Fn &&output, std::uint8_t *m
 
 }
 
+class WsAcceptStr: public std::array<char, 28> {
+public:
+    using std::array<char, 28>::array;
+    operator std::string_view() const {return {data(),size()};}
+};
 ///calculate WebSocket Accept header value from key
 /**
  * @param key content of Key header
  * @return content of Accept header
  */
-std::string calculate_ws_accept(std::string_view key);
+WsAcceptStr calculate_ws_accept(std::string_view key);
 
-///Generates random Key header value
-std::string generate_ws_key();
 
 
 }

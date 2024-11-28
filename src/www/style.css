@@ -56,7 +56,7 @@ div#rssi::after {
     height: 22px;
     border: 2px solid transparent;
     border-top: 2px solid currentColor;
-    border-radius: 30px;    
+    border-radius: 30px;
     position: absolute;
     content: "";
     left:2px;
@@ -289,7 +289,7 @@ cursor: pointer;
 }
 
 .teplomer .label {
-    position:absolute;   
+    position:absolute;
     left:0;
     right: 0;
 }
@@ -351,10 +351,10 @@ cursor: pointer;
 }
 
 .teplomer .max.needle::before {
-    border: 1px solid red;     
+    border: 1px solid red;
 }
 .teplomer .min.needle::before {
-    border: 1px solid green;    
+    border: 1px solid green;
 }
 
 .teplomer .needle::before {
@@ -377,7 +377,7 @@ cursor: pointer;
     background-color: currentcolor;
     margin:auto;
     border-radius: 1em;
-    
+
 }
 
 body {
@@ -474,7 +474,7 @@ body {
 
 .button:hover {
     border: 2px solid;
-    margin: -2px -2px;   
+    margin: -2px -2px;
 }
 
 .button:active {
@@ -524,7 +524,7 @@ body {
 
 #stav::before {
     display:block;
-    content:"Nahrávám...";"
+    content:"Nahrávám...";
     font-variant-caps:small-caps;
     font-weight: bold;
     text-align: center;
@@ -689,7 +689,7 @@ div#stav > * {
     bottom: 0;
     margin: auto;
     transform: scale(2.0);
-    
+
 }
 
 .wifiinfo .label {
@@ -712,9 +712,9 @@ input {
 
 #manualcontrolpanel .slider input {
     width: 100%;
-    box-sizing:border-box;    
+    box-sizing:border-box;
 }
-#manualcontrolpanel .slider {    
+#manualcontrolpanel .slider {
     margin-right: 10px;
     margin-left: 50%;
     margin-top: 0.5em;
@@ -742,7 +742,7 @@ input.valerror {
 }
 
 table.excel {
-    width: 100%;!;
+    width: 100%;
     border: 1px solid #888;
     border-collapse: collapse;
     background: white;
@@ -751,7 +751,7 @@ table.excel {
 table.excel tbody {color: black;}
 table.excel tbody th {text-align:left; background:#CCC}
 table.excel tr > * {
-    border: 1px solid black;    
+    border: 1px solid black;
     padding: 0.25em;
 }
 table.excel tr > td {
