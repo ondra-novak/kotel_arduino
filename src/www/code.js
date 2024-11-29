@@ -55,6 +55,7 @@ let Controller = {
             else out.temp_input_value = out.temp_input_value * 0.1;
             out.temp_output_amp_value = out.temp_output_amp_value * 0.1;
             out.temp_input_amp_value = out.temp_input_amp_value * 0.1;
+            out.time = new Date(Number(out.timestamp)*1000);
             this.status = out;
             this.on_status_update(out);
         } catch (e) {
@@ -333,7 +334,7 @@ async function nastav_wifi() {
     });
     let current_password = Controller.config["wifi.password"];
     inputs[0].checked = Controller.config["net.ip"] == "0.0.0.0";
-    buttons[0].onclick = async () => {
+    buttons[1].onclick = async () => {
         let cfg = {};
         let err = false;
         Array.prototype.forEach.call(inputs, x => {
@@ -365,6 +366,10 @@ async function nastav_wifi() {
             buttons[0].disabled = false;
             win.hidden = true;
         }
+    }
+    buttons[0].onclick = ()=>{
+        win.hidden = true;
+        dialog_show_code();
     }
 }
 
@@ -501,6 +506,109 @@ function formatInterval(seconds) {
     return result;
 }
 
+function dialog_registrace() {
+    return new Promise((ok)=>{
+        const replacements = {
+            "0":"O","1":"I",
+            "6":"G","7":"I",
+            "2":"Z","3":"E",
+            "5":"S","8":"B"
+        };
+        let win = document.getElementById("login");
+        let inputs =win.getElementsByTagName("input");
+        let buttons = win.getElementsByTagName("button");
+        Array.prototype.forEach.call(inputs ,(x,idx) =>{
+            x.oninput =()=>{
+                const v = replacements[x.value];
+                if (v) x.value = v;
+                x.value = x.value.toUpperCase();
+                if (x.value < 'A' || x.value>'Z') {
+                    x.value = "";
+                }
+                if(x.value.length == 1) {
+                    if (idx < inputs.length-1) {
+                        inputs[idx+1].focus();
+                    } else {
+                        buttons[1].focus();
+                    }
+                }
+            };
+            x.onkeydown = (ev)=>{
+                if (ev.key == "Backspace" && x.value == "" && idx > 0) {
+                    inputs[idx-1].focus();
+                 }
+            }
+            x.value = "";
+        });  
+        win.hidden = false; 
+        inputs[0].focus();
+        buttons[0].onclick = async ()=>{
+            hide_error(win);
+            try {
+                let resp = await fetch("/api/code", {
+                    "method":"POST"
+                });
+                inputs[0].focus();
+            } catch (e) {
+                show_error(win,"spojeni");
+            }
+        }
+        buttons[1].onclick = async () =>{
+            hide_error(win);
+            let code = inputs[0].value+inputs[1].value+inputs[2].value+inputs[3].value;
+            if (code.length < 4) show_error(win,"chybipismena");
+            else {
+                try {
+                    let resp = await fetch("/api/code",{
+                        method: "POST",
+                        body: code
+                    })
+                    if (resp.status != 200) {
+                        show_error(win,"neplatny");
+                    } else {
+                        let r = parse_response(await resp.text());
+                        ok(r.token);                                                 
+                        win.hidden = true;
+                    }                
+                } catch (e) {
+                    show_error(win,"spojeni");
+                }
+            }
+        }
+    });
+}
+
+async function confirm_dlg(id) {
+    return new Promise((ok,err)=>{
+        let win = document.getElementById(id);
+        win.hidden = false;
+        let btns = win.getElementsByTagName("button");
+        btns[0].onclick = ()=>{win.hidden = true; ok();};
+        btns[1].onclick = ()=>{win.hidden = true; err();};
+    });
+}
+
+async function  dialog_show_code() {
+    let win = document.getElementById("showcode");
+    win.hidden = false;
+    let tds = win.getElementsByTagName("td");
+    Array.prototype.forEach.call(tds,x=>x.textContent = "•");
+    let btns = win.getElementsByTagName("button");
+    btns[1].disabled = false;
+    btns[1].onclick = async ()=>{
+        let code =await connection.send_request("G");
+        Array.prototype.forEach.call(tds,(x,idx)=>x.textContent = code[idx]);    
+        btns[1].disabled = true;
+    };
+    btns[0].onclick = async ()=>{
+        win.hidden = true;
+        await confirm_dlg("potvrd_odparovani");
+        let tkn = parse_response(await connection.send_request("U"));
+        connection.set_token(tkn.token);
+    };
+    
+}
+
 async function main() {
     let ignore_man_change = false;
 
@@ -532,6 +640,7 @@ async function main() {
         document.getElementById("man_fan").classList.toggle("active", st.fan != 0);
         document.getElementById("zasobnik").classList.toggle("open", st.tray_open != 0);
         document.getElementById("simul_temp").hidden = st["temp_sim"] == 0;
+        document.getElementById("devicetime").textContent = st["time"].toLocaleString();
     };
     Controller.on_error = function(x, y) {
         document.getElementById("netstatus").classList.add("neterror");
@@ -599,12 +708,17 @@ async function main() {
         document.getElementById("stats").hidden = false;
     });
 
+
+    
     connection.onconnect = async function() {
         Controller.read_config();
         let data = await connection.send_request(6, {});
         document.getElementById("ssid").textContent = parseTextSector(data);
         Controller.update_stats_cycle();
     };
+
+    connection.ontokenreq = dialog_registrace;
+    
     Controller.update_status_cycle();
 
     const day_seconds = 24*60*60;

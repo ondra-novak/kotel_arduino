@@ -5,6 +5,7 @@
 
 #include "api/Server.h"
 
+class UDPClientBase;
 
 
 class TCPServer : public arduino::Server {
@@ -32,6 +33,7 @@ public:
   using Print::write;
 
   friend class TCPClient;
+  friend class UDPClientBase;
 
 protected:
   static std::string &modem_cmd(const char *prompt);

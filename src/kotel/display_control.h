@@ -31,6 +31,8 @@ public:
         DotMatrix::enable_auto_drive(dot_driver, display_state, frame_buffer);
     }
 
+    void display_code(IScheduler &sch, std::array<char, 4> code);
+
     virtual TimeStampMs get_scheduled_time() const override;
     virtual void run(TimeStampMs cur_time) override;
 
@@ -86,6 +88,7 @@ protected:
 
 
     void begin_scroll(const std::string_view text);
+    void display_url();
 };
 
 

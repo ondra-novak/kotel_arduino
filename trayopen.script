@@ -1,3 +1,4 @@
+0 config pair_secret=default_web
 0 serial m=0
 0 serial wifi.ssid=aaaa&wifi.password=xyz
 0 temp_set 60 80

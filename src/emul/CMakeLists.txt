@@ -9,10 +9,11 @@ set(emul_files emul.cpp
     wifi/WiFiClient.cpp
     wifi/WiFiServer.cpp
     wifi/WiFiS3.cpp
+    wifi/UDPClient.cpp
     temp_sim.cpp
     DotMatrix.cpp
     serial_emul.cpp
-
+    SoftwareATSE.cpp    
 )
 
 

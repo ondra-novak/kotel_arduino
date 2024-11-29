@@ -1,3 +1,4 @@
+
 #include "controller.h"
 
 #include "http_utils.h"
@@ -8,9 +9,15 @@
 #include "stringstream.h"
 
 #include "serial.h"
+#include <SoftwareATSE.h>
+
+#include "sha1.h"
 #ifdef WEB_DEVEL
 #include <fstream>
 #endif
+
+#define ENABLE_VDT 1
+
 namespace kotel {
 
 
@@ -30,16 +37,20 @@ Controller::Controller()
         ,_auto_drive_cycle(this)
         ,_wifi_mon(this)
         ,_run_server(this)
-         ,_read_serial(this)
+        ,_read_serial(this)
+        ,_refresh_wdt(this)
         ,_scheduler({&_feeder, &_fan, &_temp_sensors,  &_display,
             &_motoruntime, &_auto_drive_cycle, &_wifi_mon, &_run_server,
-            &_read_serial})
+            &_read_serial, &_refresh_wdt})
         ,_server(80)
 {
 
 }
 
 void Controller::begin() {
+#if ENABLE_VDT
+    WDT.begin(5000);
+#endif
     _fan.begin();
     _feeder.begin();
     _pump.begin();
@@ -50,6 +61,9 @@ void Controller::begin() {
     init_wifi();
     _server.begin();
     _storage.cntr1.restart_count++;
+    if (_storage.pair_secret_need_init) {
+        generate_pair_secret();
+    }
 }
 
 static inline bool defined_and_above(const std::optional<float> &val, float cmp) {
@@ -64,6 +78,7 @@ void Controller::run() {
     if (_sensors.tray_open) {
         _was_tray_open = true;
         _feeder.stop();
+        _fan.stop();
     } else {
         if (_was_tray_open) {
             _was_tray_open = false;
@@ -76,7 +91,9 @@ void Controller::run() {
         } else if (_storage.config.operation_mode == 0) {
             run_manual_mode();
         } else if (_storage.config.operation_mode == 1) {
-            if ( (!_temp_sensors.get_output_temp().has_value()) //we don't have output temperature
+            if (_cur_mode == DriveMode::init) {
+                run_init_mode();
+            } else if ( (!_temp_sensors.get_output_temp().has_value()) //we don't have output temperature
                 || (_temp_sensors.get_output_temp().has_value() //output temperature is less than input temperature
                         && _temp_sensors.get_input_temp().has_value()
                         && *_temp_sensors.get_output_temp() < *_temp_sensors.get_input_temp())
@@ -216,6 +233,9 @@ static constexpr std::pair<const char *, TextSector WiFi_SSID::*> wifi_ssid_tabl
 };
 static constexpr std::pair<const char *, PasswordSector WiFi_Password::*> wifi_password_table[] ={
         {"wifi.password", &WiFi_Password::password},
+};
+static constexpr std::pair<const char *, PasswordSector WiFi_Password::*> pair_sectet_table[] ={
+        {"pair_secret", &WiFi_Password::password},
 };
 
 static constexpr std::pair<const char *, IPAddr WiFi_NetSettings::*> wifi_netcfg_table[] ={
@@ -419,6 +439,7 @@ bool Controller::config_update(std::string_view body, std::string_view &&failed_
                 || update_settings(wifi_ssid_table, _storage.wifi_ssid, key, value)
                 || update_settings(wifi_password_table, _storage.wifi_password, key, value)
                 || update_settings(wifi_netcfg_table, _storage.wifi_config, key, value)
+                || update_settings(pair_sectet_table, _storage.pair_secret, key, value)
                 || update_settings(tray_control_table, _storage, key, value)
                 || update_settings(tray_control_table_2, _storage.tray, key, value);
         if (!ok) {
@@ -616,7 +637,32 @@ void Controller::handle_server(MyHttpServer::Request &req) {
             _list_temp_async.emplace(std::move(*req.client));
             return;
         }
-    } else if (req.request_line.path == "/api/ws" && req.request_line.method == HttpMethod::GET) {
+    } else if (req.request_line.path == "/api/code" && req.request_line.method == HttpMethod::POST) {
+        if (req.body.empty()) {
+            generate_otp_code();
+            _display.display_code(_scheduler, _last_code);
+            _server.error_response(req, 202, {});
+        } else if (std::string_view(_last_code.data(), _last_code.size()) == req.body) {
+            static_buff.clear();
+            gen_and_print_token();
+            _server.send_file_async(req, Ctx::text, static_buff.get_text(), false);
+            std::fill(_last_code.begin(), _last_code.end(),0);
+        } else {
+            _server.error_response(req, 409, "Conflict", {}, "code doesn't match");
+        }
+
+    } else if (req.request_line.path.substr(0,7) == "/api/ws" && req.request_line.method == HttpMethod::GET) {
+        uint16_t code = 0;
+        auto q = req.request_line.path.substr(7);
+        if (q.substr(0,7) != "?token=") {
+            code = 4020;
+        } else {
+            q = q.substr(7);
+            auto tkn = generate_signed_token(q);
+            if (std::string_view(tkn.data(), tkn.size()) != q) {
+                code = 4090;
+            }
+        }
         auto iter = std::find_if(req.headers, req.headers+req.headers_count, [&](const auto &hdr){
             return icmp(hdr.first,"Sec-WebSocket-Key");
         });
@@ -627,7 +673,11 @@ void Controller::handle_server(MyHttpServer::Request &req) {
                 {"Connection","upgrade"},
                 {"Sec-WebSocket-Accept",accp}
             },101,"Switching protocols");
-            return;
+            if (code) {
+                _server.send_ws_message(req, ws::Message{"",ws::Type::connClose, code});
+            } else {
+                 return;
+            }
         } else {
             _server.error_response(req,400,{});
         }
@@ -963,12 +1013,29 @@ void Controller::handle_ws_request(MyHttpServer::Request &req)
         });
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
         break;
+    case WsReqCmd::generate_code:
+        generate_otp_code();
+        static_buff.write(_last_code.data(), _last_code.size());
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
+        break;
+    case WsReqCmd::unpair_all:{
+        generate_pair_secret();
+        gen_and_print_token();
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
+        break;
+    case WsReqCmd::reset:{
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
+        delay(10000);   //delay more than 5 sec invokes WDT
+        break;
+    }
+    }break;
     default:
         break;
     }
 }
 
 struct StatusOutWs {
+    uint32_t cur_time;
     uint32_t feeder_time;
     uint32_t tray_open_time;
     uint32_t tray_fill_time;
@@ -1001,6 +1068,7 @@ static int16_t encode_temp(std::optional<float> v) {
 
 void Controller::status_out_ws(Stream &s) {
     StatusOutWs st{
+        get_current_time(),
         _storage.tray.feeder_time,
         _storage.tray.tray_open_time,
         _storage.tray.tray_fill_time,
@@ -1025,9 +1093,29 @@ void Controller::status_out_ws(Stream &s) {
     s.write(reinterpret_cast<const char *>(&st), sizeof(st));
 }
 
-TimeStampMs Controller::wifi_mon(TimeStampMs) {
+TimeStampMs Controller::wifi_mon(TimeStampMs cur_time) {
     _wifi_connected = WiFi.status() == WL_CONNECTED;
-    if (_wifi_connected) _wifi_rssi = WiFi.RSSI();
+    if (_wifi_connected) {
+        _wifi_rssi = WiFi.RSSI();
+
+        if (_time_resync < cur_time) {
+            _ntp.cancel();
+            if (_ntp.request("pool.ntp.org", 123) == 0) {
+                _time_resync = cur_time + 5000;
+            }
+        }
+
+        if (_ntp.is_ready()) {
+            set_current_time(static_cast<uint32_t>(_ntp.get_result()));
+            _time_resync = cur_time + 24*60*60*1000;
+        }
+
+    } else {
+        _ntp.cancel();
+        _time_resync = 0;
+    }
+
+
     return 1023;
 }
 
@@ -1081,6 +1169,71 @@ void Controller::disable_temperature_simulation() {
 bool Controller::is_overheat() const {
     return defined_and_above(_temp_sensors.get_output_temp(),_storage.config.output_max_temp)
             || defined_and_above(_temp_sensors.get_input_temp(),_storage.config.output_max_temp);
+}
+
+void Controller::generate_otp_code() {
+    constexpr char characters[] = "ABCDEFHIJKLOPQRSTUXYZ";
+    constexpr auto count_chars = sizeof(characters)-1;
+    SATSE.begin();
+    SATSE.random(reinterpret_cast<unsigned char *>(_last_code.data()), _last_code.size());
+    SATSE.end();
+    for (char &c: _last_code) c = characters[static_cast<unsigned char>(c) % count_chars];
+
+}
+
+std::array<char, 20> Controller::generate_token_random_code() {
+    unsigned char c[15];
+    SATSE.begin();
+    SATSE.random(c, 15);
+    SATSE.end();
+    std::array<char, 20> out;
+    base64url.encode(std::begin(c), std::end(c), out.begin());
+    return out;
+}
+
+std::array<char, 40> Controller::generate_signed_token(std::string_view random) {
+    std::array<char, 40> out;
+    std::array<char, 20> tmp;
+    std::fill(tmp.begin(), tmp.end(), 'A');
+    std::fill(out.begin(), out.end(), 'A');
+    random = random.substr(0, 20);
+    std::copy(random.begin(), random.end(), tmp.begin());
+    auto iter = tmp.begin();
+    for (unsigned int c: _storage.pair_secret.password.text) {*iter = *iter ^ c; ++iter;}
+    auto digest = SHA1(std::string_view(tmp.data(), 20)).final();
+    std::array<char, 30> digest_base64;
+    std::copy(random.begin(), random.end(), out.begin());
+    base64url.encode(digest.begin(), digest.end(), digest_base64.begin());
+    std::string_view digestw (digest_base64.data(), digest_base64.size());
+    digestw = digestw.substr(0,20);
+    std::copy(digestw.begin(), digestw.end(), out.begin()+20);
+    return out;
+}
+
+void Controller::generate_pair_secret() {
+    SATSE.begin();
+    SATSE.random(reinterpret_cast<unsigned char *>(_storage.pair_secret.password.text), sizeof(_storage.pair_secret.password.text));
+    SATSE.end();
+    _storage.save();
+}
+
+void Controller::gen_and_print_token() {
+    auto rnd = generate_token_random_code();
+    auto tkn = generate_signed_token({rnd.data(), rnd.size()});
+    print(static_buff, "token=", std::string_view(tkn.data(), tkn.size()),"\r\n");
+}
+
+TimeStampMs Controller::refresh_wdt(TimeStampMs) {
+#if ENABLE_VDT
+    WDT.refresh();
+#endif
+    return 100;
+}
+
+void Controller::run_init_mode() {
+    if (get_current_timestamp() > 6000) {
+        _cur_mode = DriveMode::unknown;
+    }
 }
 
 }

@@ -18,6 +18,8 @@ constexpr int active_pump = LOW;
 constexpr int inactive_pump = HIGH;
 constexpr int active_fan = LOW;
 constexpr int inactive_fan = HIGH;
+constexpr int tray_open_level = LOW;
+constexpr int motor_overheat_level = HIGH;
 
 }
 

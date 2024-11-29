@@ -19,13 +19,6 @@ constexpr auto icon_network_ok = WideIcon(
         "  O O O "
         "  O  O  "
         "        ");
-constexpr auto icon_tray_open = WideIcon(
-        "   #   #"
-        "  #    #"
-        " #     #"
-        "#       "
-        "#####  #"
-        "#####   ");
 
 
 

@@ -28,6 +28,7 @@ function decodeBinaryFrame(pattern, buffer) {
     let offset = 0;
     pattern.forEach(x => {
         switch (x[0]) {
+            case "uint64": out[x[1]] = view.getBigUint64(offset, true); offset += 8; break;
             case "uint32": out[x[1]] = view.getUint32(offset, true); offset += 4; break;
             case "int16": out[x[1]] = view.getInt16(offset, true); offset += 2; break;
             case "uint16": out[x[1]] = view.getUint16(offset, true); offset += 2; break;

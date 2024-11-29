@@ -1,4 +1,4 @@
-set(HTML_FILE ${CMAKE_BINARY_DIR}/../www/index.html.gz.base64)
+set(HTML_FILE ../www/index.html.gz.base64)
 
 set(HEADER_TEMPLATE ${CMAKE_CURRENT_LIST_DIR}/web_page.h.in)
 

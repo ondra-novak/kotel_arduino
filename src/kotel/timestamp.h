@@ -27,3 +27,7 @@ constexpr int32_t from_minutes(int minutes) {
 constexpr TimeStampMs max_timestamp = ~TimeStampMs{};
 
 
+uint32_t get_current_time();
+void set_current_time(uint32_t t);
+
+

@@ -12,7 +12,8 @@ constexpr unsigned int file_wifi_ssid = 6;
 constexpr unsigned int file_wifi_pwd = 7;
 constexpr unsigned int file_wifi_net = 8;
 constexpr unsigned int file_cntrs2 = 9;
-constexpr unsigned int file_directory_len = 10;
+constexpr unsigned int file_pair_secret = 10;
+constexpr unsigned int file_directory_len = 11;
 
 namespace kotel {
 

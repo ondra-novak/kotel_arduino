@@ -26,23 +26,31 @@ public:
 
     void run() {
         if (_flag_reschedule) do_reschedule();
-        do {
+        auto ln = N;
+        while (ln > 0) {
             auto tp = get_current_timestamp();
             if (tp >= _items[0]._tp) {
-                heap_pop(_items, N, compare);
-                auto &x = _items[N-1];
+                heap_pop(_items, ln, compare);
+                --ln;
+                auto &x = _items[ln];
                 auto start = millis();
                 x._task->run(tp);
                 auto util = millis() - start;;
                 auto rt = x._task->_run_time;
-                if (rt > 0) rt = rt - (rt/20+1);
-                x._task->_run_time = std::max<unsigned long>(rt, util);
+                if (util > rt) {
+                    x._task->_run_time += (util - rt)/10;
+                } else if (util < rt) {
+                    x._task->_run_time -= (rt - util)/10;
+                }
                 x._tp = x._task->get_scheduled_time();
-                heap_push(_items, N, compare);
             } else {
                 break;
             }
-        } while (true);
+        }
+        while (ln < N) {
+            ++ln;
+            heap_push(_items, ln, compare);
+        }
     }
 
     template<typename Fn>

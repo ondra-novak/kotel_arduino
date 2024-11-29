@@ -1,6 +1,7 @@
 #pragma once
 #include "wifi/WiFiClient.h"
 #include "wifi/WiFiServer.h"
+#include "wifi/UDPClient.h"
 
 #include <string>
 

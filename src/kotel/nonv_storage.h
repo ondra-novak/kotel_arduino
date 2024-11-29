@@ -77,7 +77,9 @@ public:
     TempSensor temp;
     WiFi_SSID wifi_ssid;
     WiFi_Password wifi_password;
+    WiFi_Password pair_secret;
     WiFi_NetSettings wifi_config;
+    bool pair_secret_need_init = false;
 
 
     void begin() {
@@ -92,6 +94,7 @@ public:
         _eeprom.read_file(file_wifi_ssid, wifi_ssid);
         _eeprom.read_file(file_wifi_pwd, wifi_password);
         _eeprom.read_file(file_wifi_net, wifi_config);
+        pair_secret_need_init = !_eeprom.read_file(file_pair_secret,pair_secret);
     }
     auto get_eeprom() const {
         return _eeprom;
@@ -117,6 +120,7 @@ public:
             _eeprom.update_file(file_wifi_ssid,wifi_ssid);
             _eeprom.update_file(file_wifi_pwd,wifi_password);
             _eeprom.update_file(file_wifi_net, wifi_config);
+            _eeprom.update_file(file_pair_secret, pair_secret);
             _update_flag = false;
         }
     }

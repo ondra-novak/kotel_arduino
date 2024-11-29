@@ -1,5 +1,6 @@
 
 const StatusOutWs = [
+    ["uint32", "timestamp"],
     ["uint32", "feeder_time"],
     ["uint32", "tray_open_time"],
     ["uint32", "tray_fill_time"],

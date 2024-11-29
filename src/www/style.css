@@ -95,6 +95,11 @@ div#rssi::after {
     gap: 5px;
     margin-top: 1em;
 }
+.buttonpanel .left{
+    position: absolute;
+    left: 1em;    
+}
+    
 
 .buttonpanel > button {
     min-width: 5em;
@@ -117,6 +122,8 @@ button {
     background-color:black;
     box-shadow: 5px 5px 5px 0px #00000091;
 }
+
+
 
 .zasobnik .label {
     position: absolute;
@@ -490,6 +497,10 @@ body {
     border-bottom: 1px solid #585f8d;
     font-weight: bold;
 }
+
+div#devicetime {
+    float: right;
+}
 .header::after {
     content: "";
     display:inline-block;
@@ -594,12 +605,15 @@ div#stav > * {
     content:"Automaticky / Snížený výkon";
 }
 #stav.mode2.automode2::before {
-    content:"Automaticky / Chlazení";
+    content:"Automaticky / Útlum";
 }
 #stav.mode3::before {
     content:"STOP";
 }
 #stav.mode4::before {
+    content:"Zahajování";
+}
+#stav.mode5::before {
     content:"Ostatní";
 }
 
@@ -775,4 +789,28 @@ table.excel thead th {
 
 .prvekspopisem > .icon {
     height: 10em;
+}
+
+#login input {
+    width: 1em;
+    font-size: 2em;
+    text-align:center;
+    text-transform: capitalize;
+}
+#login table {
+    margin: auto;
+    border: 1px solid;
+}
+#login button {
+    display:block;
+    margin: 1em auto;
+    
+}
+
+div#showcode{
+    text-align: center;
+}
+div#showcode table {
+    margin: 1em auto;
+    font-size: 2em;
 }

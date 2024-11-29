@@ -5,8 +5,19 @@ class WebSocketExchange {
     #promises = {};
     #enc = new TextEncoder();
     #pingtm = -1;
+    #token = "";
     onconnect = function() { };
+    ontokenreq = function() {return "";};
 
+    constructor() {
+        this.#token = localStorage["token"];
+    }
+    
+    set_token(tkn) {
+        this.#token = tkn
+        localStorage["token"] = tkn;
+    }
+    
     send_request(cmd, content) {
         return new Promise((ok, err) => {
             if (typeof cmd == "string") cmd = this.#enc.encode(cmd);
@@ -53,10 +64,17 @@ class WebSocketExchange {
 
     flush() {
         if (!this.#ws) {
-            this.#ws = new WebSocket(location.href.replace(/^http/, "ws") + "api/ws");
+            let uri = location.href.replace(/^http/, "ws") + "api/ws?token="+this.#token;
+            this.#ws = new WebSocket(uri);
             this.#ws.binaryType = "arraybuffer";
-            this.#ws.onerror = () => { this.reconnect(new TypeError("connection failed")); };
-            this.#ws.onclose = () => { this.reconnect(new TypeError("connection reset")); };
+            this.#ws.onerror = () => {this.reconnect(new TypeError("connection failed"));};
+            this.#ws.onclose = async (ev) => { 
+                if (ev.code > 4000) {
+                    let tkn = await this.ontokenreq();
+                    this.set_token(tkn);                    
+                }
+                this.reconnect(new TypeError("connection reset")); 
+            };
             this.#ws.onmessage = (ev) => {
                 this.reset_timeout();
                 let data = ev.data;

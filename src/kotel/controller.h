@@ -1,22 +1,17 @@
 #pragma once
 #include "feeder.h"
 #include "fan.h"
-
-
-
-
 #include "scheduler.h"
 #include "temp_sensors.h"
 #include "wifi_mon.h"
 #include "display_control.h"
 #include "sensors.h"
-
 #include "pump.h"
-
-
 #include "http_server.h"
 #include "http_utils.h"
+#include <WDT.h>
 
+#include "ntp.h"
 
 namespace kotel {
 
@@ -30,6 +25,7 @@ public:
         manual,
         automatic,
         stop,
+        init,
         other
     };
 
@@ -103,6 +99,7 @@ protected:
     TimeStampMs wifi_mon(TimeStampMs  cur_time);
     TimeStampMs run_server(TimeStampMs cur_time);
     TimeStampMs read_serial(TimeStampMs cur_time);
+    TimeStampMs refresh_wdt(TimeStampMs cur_time);
 protected:
 
 
@@ -115,9 +112,12 @@ protected:
     bool _was_tray_open = false;
     int16_t _wifi_rssi = -100;
 
-    DriveMode _cur_mode = DriveMode::unknown;
+    DriveMode _cur_mode = DriveMode::init;
     AutoMode _auto_mode = AutoMode::fullpower;
     TimeStampMs _flush_time = 0;
+    TimeStampMs _time_resync = 0;
+    NTPClient _ntp;
+
 
     static  const char *str_motoruntime;
     static  const char *str_auto_drive;
@@ -135,10 +135,12 @@ protected:
     TimedTaskMethod<Controller, &Controller::wifi_mon> _wifi_mon;
     TimedTaskMethod<Controller, &Controller::run_server> _run_server;
     TimedTaskMethod<Controller, &Controller::read_serial> _read_serial;
-    Scheduler<9> _scheduler;
+    TimedTaskMethod<Controller, &Controller::refresh_wdt> _refresh_wdt;
+    Scheduler<10> _scheduler;
     MyHttpServer _server;
     std::optional<TCPClient> _list_temp_async;
     StringStream<1024> static_buff;
+    std::array<char, 4> _last_code;
 
     enum class WsReqCmd {
         file_config = 0,
@@ -159,7 +161,12 @@ protected:
         failed_config = 'F',
         get_stats = 'T',
         ping = 'p',
-        enum_tasks = '#'
+        enum_tasks = '#',
+        generate_code = 'G',
+        unpair_all ='U',
+        reset = '!'
+
+
     };
 
     void control_pump();
@@ -167,6 +174,7 @@ protected:
     void run_auto_mode();
     void run_other_mode();
     void run_stop_mode();
+    void run_init_mode();
     void init_wifi();
 
     void handle_server(MyHttpServer::Request &req);
@@ -178,6 +186,13 @@ protected:
     void status_out_ws(Stream &s);
     std::string_view get_task_name(const AbstractTimedTask *task);
     bool is_overheat() const;
+    void generate_otp_code();
+    std::array<char, 20> generate_token_random_code();
+    std::array<char, 40> generate_signed_token(std::string_view random);
+    void generate_pair_secret();
+    void gen_and_print_token();
+    void update_time();
+
 };
 
 }
