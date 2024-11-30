@@ -1,3 +1,4 @@
+#include "WifiTCP.h"
 #include "TCPServer.h"
 #include "WiFiCommands.h"
 #include "WiFiTypes.h"
@@ -6,19 +7,6 @@
 
 using namespace std;
 
-std::string &TCPServer::modem_cmd(const char *prompt) {
-    static std::string str;
-    str.clear();
-    str.append(prompt);
-    return str;
-}
-
-
-std::string &TCPServer::modem_res() {
-    static std::string str;
-    str.clear();
-    return str;
-}
 
 
 /* -------------------------------------------------------------------------- */
@@ -36,10 +24,10 @@ bool TCPServer::available(TCPClient &cl) {
    if (!cl.empty_buffer()) return true;
 
    if(_sock != -1) {
-      string &res = modem_res();
+      string &res = WiFiUtils::modem_res();
       modem.begin();
       /* call the server available on esp so that the accept is performed */
-      if(modem.write(modem_cmd(PROMPT(_SERVERAVAILABLE)),res, "%s%d\r\n" , CMD_WRITE(_SERVERAVAILABLE), _sock)) {
+      if(modem.write(WiFiUtils::modem_cmd(PROMPT(_SERVERAVAILABLE)),res, "%s%d\r\n" , CMD_WRITE(_SERVERAVAILABLE), _sock)) {
          int client_sock = atoi(res.c_str());
          cl._sock = client_sock;
          return cl._sock >=0;
@@ -52,10 +40,10 @@ bool TCPServer::available(TCPClient &cl) {
 bool TCPServer::accept(TCPClient &cl) {
 /* -------------------------------------------------------------------------- */
    if(_sock != -1) {
-       string &res = modem_res();
+       string &res = WiFiUtils::modem_res();
       modem.begin();
       /* call the server accept on esp so that the accept is performed */
-      if(modem.write(modem_cmd(PROMPT(_SERVERACCEPT)),res, "%s%d\r\n" , CMD_WRITE(_SERVERACCEPT), _sock)) {
+      if(modem.write(WiFiUtils::modem_cmd(PROMPT(_SERVERACCEPT)),res, "%s%d\r\n" , CMD_WRITE(_SERVERACCEPT), _sock)) {
           int client_sock = atoi(res.c_str());
           if (client_sock >= 0) {
               cl._sock = client_sock;
@@ -73,9 +61,9 @@ bool TCPServer::accept(TCPClient &cl) {
 void TCPServer::begin(int port) {
 /* -------------------------------------------------------------------------- */
    if(_sock == -1) {
-       string &res = modem_res();
+       string &res = WiFiUtils::modem_res();
       modem.begin();
-      if(modem.write(modem_cmd(PROMPT(_BEGINSERVER)),res, "%s%d\r\n" , CMD_WRITE(_BEGINSERVER), port)) {
+      if(modem.write(WiFiUtils::modem_cmd(PROMPT(_BEGINSERVER)),res, "%s%d\r\n" , CMD_WRITE(_BEGINSERVER), port)) {
          _sock = atoi(res.c_str());
       }
    }
@@ -99,9 +87,9 @@ size_t TCPServer::write(uint8_t b){
 size_t TCPServer::write(const uint8_t *buf, size_t size) {
 /* -------------------------------------------------------------------------- */
    if(_sock >= 0) {
-       string &res = modem_res();
+       string &res = WiFiUtils::modem_res();
       modem.begin();
-      modem.write_nowait(modem_cmd(PROMPT(_SERVERWRITE)),res, "%s%d,%d\r\n" , CMD_WRITE(_SERVERWRITE), _sock, size);
+      modem.write_nowait(WiFiUtils::modem_cmd(PROMPT(_SERVERWRITE)),res, "%s%d,%d\r\n" , CMD_WRITE(_SERVERWRITE), _sock, size);
       if(modem.passthrough(buf,size)) {
          return size;
       }
@@ -114,9 +102,9 @@ size_t TCPServer::write(const uint8_t *buf, size_t size) {
 void TCPServer::end() {
 /* -------------------------------------------------------------------------- */
    if(_sock != -1) {
-       string &res = modem_res();
+       string &res = WiFiUtils::modem_res();
       modem.begin();
-      modem.write(modem_cmd(PROMPT(_SERVEREND)),res, "%s%d\r\n" , CMD_WRITE(_SERVEREND), _sock);
+      modem.write(WiFiUtils::modem_cmd(PROMPT(_SERVEREND)),res, "%s%d\r\n" , CMD_WRITE(_SERVEREND), _sock);
       _sock = -1;
    }
 }

@@ -3,7 +3,6 @@
 #include "fan.h"
 #include "scheduler.h"
 #include "temp_sensors.h"
-#include "wifi_mon.h"
 #include "display_control.h"
 #include "sensors.h"
 #include "pump.h"
@@ -63,6 +62,7 @@ public:
     void set_wifi_used() {_wifi_used = true;}
     bool is_wifi_used() const {return _wifi_used;}
     DriveMode get_drive_mode() const {return _cur_mode;}
+    const IPAddress &get_my_ip() const {return _my_ip;}
 
     struct ManualControlStruct {
         uint8_t _feeder_time = 0;
@@ -84,7 +84,6 @@ struct SetFuelParams {
     bool manual_control(std::string_view body, std::string_view &&error_field);
 
 
-    TimeStampMs run_http(TimeStampMs tmsp);
 
     TimeStampMs update_motorhours(TimeStampMs  now);
 
@@ -116,6 +115,7 @@ protected:
     AutoMode _auto_mode = AutoMode::fullpower;
     TimeStampMs _flush_time = 0;
     TimeStampMs _time_resync = 0;
+    TimeStampMs _last_net_activity = max_timestamp;
     NTPClient _ntp;
 
 
@@ -141,6 +141,7 @@ protected:
     std::optional<TCPClient> _list_temp_async;
     StringStream<1024> static_buff;
     std::array<char, 4> _last_code;
+    IPAddress _my_ip;
 
     enum class WsReqCmd {
         file_config = 0,

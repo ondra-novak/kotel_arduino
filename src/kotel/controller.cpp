@@ -574,6 +574,7 @@ void Controller::init_wifi() {
     } else if (ssid[0]) {
         WiFi.begin(ssid);
     }
+    _last_net_activity = max_timestamp;
 }
 
 bool Controller::is_wifi() const {
@@ -626,6 +627,7 @@ void Controller::handle_server(MyHttpServer::Request &req) {
     using Ctx = MyHttpServer::ContentType;
 
     set_wifi_used();
+    _last_net_activity = get_current_timestamp();
     if (req.request_line.method == HttpMethod::WS) {
         handle_ws_request(req);
         return;
@@ -701,10 +703,6 @@ void Controller::handle_server(MyHttpServer::Request &req) {
 }
 
 
-TimeStampMs Controller::run_http(TimeStampMs) {
-    return 200;
-
-}
 
 
 bool Controller::manual_control(const ManualControlStruct &cntr) {
@@ -1094,28 +1092,39 @@ void Controller::status_out_ws(Stream &s) {
 }
 
 TimeStampMs Controller::wifi_mon(TimeStampMs cur_time) {
-    _wifi_connected = WiFi.status() == WL_CONNECTED;
-    if (_wifi_connected) {
-        _wifi_rssi = WiFi.RSSI();
-
-        if (_time_resync < cur_time) {
-            _ntp.cancel();
-            if (_ntp.request("pool.ntp.org", 123) == 0) {
-                _time_resync = cur_time + 5000;
+    if (cur_time - 10000 > _last_net_activity) {
+        _server.end();
+        WiFiUtils::reset();
+        init_wifi();
+        _server.begin();
+    } else {
+        bool conn = WiFiUtils::status() == WL_CONNECTED;
+        if (conn) {
+            if (WiFiUtils::localIP(_my_ip)) {
+                _wifi_connected = true;
             }
         }
+        if (_wifi_connected) {
+            _wifi_rssi = WiFi.RSSI();
 
-        if (_ntp.is_ready()) {
-            set_current_time(static_cast<uint32_t>(_ntp.get_result()));
-            _time_resync = cur_time + 24*60*60*1000;
+            if (_time_resync < cur_time) {
+                _ntp.cancel();
+                if (_ntp.request("pool.ntp.org", 123) == 0) {
+                    _time_resync = cur_time + 5000;
+                }
+            }
+
+            if (_ntp.is_ready()) {
+                set_current_time(static_cast<uint32_t>(_ntp.get_result()));
+                _time_resync = cur_time + 24*60*60*1000;
+            }
+
+        } else {
+            _ntp.cancel();
+            _time_resync = 0;
         }
 
-    } else {
-        _ntp.cancel();
-        _time_resync = 0;
     }
-
-
     return 1023;
 }
 

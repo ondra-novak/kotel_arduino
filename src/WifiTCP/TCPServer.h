@@ -33,11 +33,7 @@ public:
   using Print::write;
 
   friend class TCPClient;
-  friend class UDPClientBase;
 
-protected:
-  static std::string &modem_cmd(const char *prompt);
-  static std::string &modem_res();
 
 };
 

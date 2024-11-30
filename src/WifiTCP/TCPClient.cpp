@@ -1,3 +1,4 @@
+#include "WifiTCP.h"
 #include "TCPClient.h"
 #include "TCPServer.h"
 #include "WiFiCommands.h"
@@ -8,13 +9,6 @@ int TCPClient::connect_timeout = 10000;
 
 using namespace std;
 
-std::string& TCPClient::modem_cmd(const char *prompt) {
-    return TCPServer::modem_cmd(prompt);
-}
-
-std::string& TCPClient::modem_res() {
-    return TCPServer::modem_res();
-}
 
 TCPClient::TCPClient(TCPClient &&c) :
         _sock(c._sock), _size(c._size - c._rdpos) {
@@ -43,9 +37,9 @@ void TCPClient::getSocket() {
     }
 
     if (_sock == -1) {
-        string &res = modem_res();
+        string &res = WiFiUtils::modem_res();
         modem.begin();
-        if (modem.write(modem_cmd(PROMPT(_BEGINCLIENT)), res, "%s",
+        if (modem.write(WiFiUtils::modem_cmd(PROMPT(_BEGINCLIENT)), res, "%s",
                 CMD(_BEGINCLIENT))) {
             _sock = atoi(res.c_str());
         }
@@ -65,16 +59,16 @@ int TCPClient::connect(IPAddress ip, uint16_t port) {
 int TCPClient::connect(const char *host, uint16_t port) {
     getSocket();
     if (_sock >= 0) {
-        string &res = modem_res();
+        string &res = WiFiUtils::modem_res();
         modem.begin();
         if (connect_timeout) {
-            if (modem.write(modem_cmd(PROMPT(_CLIENTCONNECT)), res,
+            if (modem.write(WiFiUtils::modem_cmd(PROMPT(_CLIENTCONNECT)), res,
                     "%s%d,%s,%d,%d\r\n", CMD_WRITE(_CLIENTCONNECT), _sock, host,
                     port, connect_timeout)) {
                 return 1;
             }
         } else {
-            if (modem.write(modem_cmd(PROMPT(_CLIENTCONNECTNAME)), res,
+            if (modem.write(WiFiUtils::WiFiUtils::modem_cmd(PROMPT(_CLIENTCONNECTNAME)), res,
                     "%s%d,%s,%d\r\n", CMD_WRITE(_CLIENTCONNECTNAME), _sock,
                     host, port)) {
                 return 1;
@@ -92,9 +86,9 @@ size_t TCPClient::write(uint8_t b) {
 size_t TCPClient::write(const uint8_t *buf, size_t size) {
 
     if (_sock >= 0) {
-        string &res = modem_res();
+        string &res = WiFiUtils::modem_res();
         modem.begin();
-        modem.write_nowait(modem_cmd(PROMPT(_CLIENTSEND)), res, "%s%d,%d\r\n",
+        modem.write_nowait(WiFiUtils::WiFiUtils::modem_cmd(PROMPT(_CLIENTSEND)), res, "%s%d,%d\r\n",
                 CMD_WRITE(_CLIENTSEND), _sock, size);
         if (modem.passthrough(buf, size)) {
             return size;
@@ -112,13 +106,13 @@ int TCPClient::available() {
         return 0;
     clear_buffer();
 
-    string &res = modem_res();
+    string &res = WiFiUtils::modem_res();
     modem.begin();
 
     /* important - it works one shot */
     modem.avoid_trim_results();
     modem.read_using_size();
-    if (modem.write(modem_cmd(PROMPT(_CLIENTRECEIVE)), res, "%s%d,%d\r\n",
+    if (modem.write(WiFiUtils::modem_cmd(PROMPT(_CLIENTRECEIVE)), res, "%s%d,%d\r\n",
             CMD_WRITE(_CLIENTRECEIVE), _sock, buffer_size)) {
         std::copy(res.begin(), res.end(), _buffer);
         _size = res.size();
@@ -149,9 +143,9 @@ int TCPClient::peek() {
         return _buffer[_rdpos];
     int rv = -1;
     if (_sock >= 0) {
-        string &res = modem_res();
+        string &res = WiFiUtils::modem_res();
         modem.begin();
-        if (modem.write(modem_cmd(PROMPT(_PEEK)), res, "%s%d\r\n",
+        if (modem.write(WiFiUtils::modem_cmd(PROMPT(_PEEK)), res, "%s%d\r\n",
                 CMD_WRITE(_PEEK), _sock)) {
             rv = atoi(res.c_str());
         }
@@ -162,9 +156,9 @@ int TCPClient::peek() {
 void TCPClient::flush() {
 
     if (_sock >= 0) {
-        string &res = modem_res();
+        string &res = WiFiUtils::modem_res();
         modem.begin();
-        modem.write(modem_cmd(PROMPT(_CLIENTFLUSH)), res, "%s%d\r\n",
+        modem.write(WiFiUtils::modem_cmd(PROMPT(_CLIENTFLUSH)), res, "%s%d\r\n",
                 CMD_WRITE(_CLIENTFLUSH), _sock);
     }
 }
@@ -172,9 +166,9 @@ void TCPClient::flush() {
 void TCPClient::stop() {
 
     if (_sock >= 0) {
-        string &res = modem_res();
+        string &res = WiFiUtils::modem_res();
         modem.begin();
-        modem.write(modem_cmd(PROMPT(_CLIENTCLOSE)), res, "%s%d\r\n",
+        modem.write(WiFiUtils::modem_cmd(PROMPT(_CLIENTCLOSE)), res, "%s%d\r\n",
                 CMD_WRITE(_CLIENTCLOSE), _sock);
         _sock = -1;
     }
@@ -186,9 +180,9 @@ uint8_t TCPClient::connected() {
     if (available() > 0)
         return 1;
     if (_sock >= 0) {
-        string &res = modem_res();
+        string &res = WiFiUtils::modem_res();
         modem.begin();
-        if (modem.write(modem_cmd(PROMPT(_CLIENTCONNECTED)), res, "%s%d\r\n",
+        if (modem.write(WiFiUtils::modem_cmd(PROMPT(_CLIENTCONNECTED)), res, "%s%d\r\n",
                 CMD_WRITE(_CLIENTCONNECTED), _sock)) {
             rv = atoi(res.c_str());
         }
@@ -207,9 +201,9 @@ bool TCPClient::operator!=(const TCPClient &whs) {
 IPAddress TCPClient::remoteIP() {
     IPAddress ip;
     if (_sock >= 0) {
-        string &res = modem_res();
+        string &res = WiFiUtils::modem_res();
         modem.begin();
-        if (modem.write(modem_cmd(PROMPT(_REMOTEIP)), res, "%s%d\r\n",
+        if (modem.write(WiFiUtils::modem_cmd(PROMPT(_REMOTEIP)), res, "%s%d\r\n",
                 CMD_WRITE(_REMOTEIP), _sock)) {
             ip.fromString(res.c_str());
             return ip;
@@ -222,9 +216,9 @@ uint16_t TCPClient::remotePort() {
 
     uint16_t rv = 0;
     if (_sock >= 0) {
-        string &res = modem_res();
+        string &res = WiFiUtils::modem_res();
         modem.begin();
-        if (modem.write(modem_cmd(PROMPT(_REMOTEPORT)), res, "%s%d\r\n",
+        if (modem.write(WiFiUtils::modem_cmd(PROMPT(_REMOTEPORT)), res, "%s%d\r\n",
                 CMD_WRITE(_REMOTEPORT), _sock)) {
             rv = atoi(res.c_str());
             return rv;

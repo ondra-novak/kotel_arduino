@@ -52,8 +52,6 @@ protected:
 
   void getSocket();
 
-  static std::string &modem_cmd(const char *prompt);
-  static std::string &modem_res();
 
 };
 

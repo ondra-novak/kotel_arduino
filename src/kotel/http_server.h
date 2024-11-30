@@ -61,6 +61,7 @@ public:
 
     HttpServer(int port);
     void begin();
+    void end();
 
 
     Request get_request();
@@ -205,6 +206,12 @@ template<unsigned int max_request_size, unsigned int max_header_lines>
 inline void HttpServer<max_request_size, max_header_lines>::begin() {
     _srv.begin();
 }
+
+template<unsigned int max_request_size, unsigned int max_header_lines>
+inline void HttpServer<max_request_size, max_header_lines>::end() {
+    _srv.end();
+}
+
 
 template<unsigned int max_request_size, unsigned int max_header_lines>
 inline typename  HttpServer<max_request_size, max_header_lines>::Request

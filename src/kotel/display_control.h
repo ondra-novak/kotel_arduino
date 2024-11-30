@@ -6,8 +6,9 @@
 #include "icons.h"
 
 #include <DotMatrix.h>
-
 #include <optional>
+#include <api/IPAddress.h>
+
 namespace kotel {
 
 
@@ -88,7 +89,7 @@ protected:
 
 
     void begin_scroll(const std::string_view text);
-    void display_url();
+    void display_url(const arduino::IPAddress &addr);
 };
 
 

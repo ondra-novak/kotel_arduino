@@ -13,8 +13,6 @@ public:
 protected:
     int _sock = -1;
 
-    static std::string& modem_cmd(const char *prompt);
-    static std::string& modem_res();
 
     int beginPacket(IPAddress ip, uint16_t p);
     int beginPacket(const char *host, uint16_t p);

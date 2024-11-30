@@ -148,7 +148,7 @@ void DisplayControl::run(TimeStampMs cur_time) {
             --_show_wifi_on;
             main_temp();
             if (_show_wifi_on == 0) {
-                display_url();
+                display_url(_cntr.get_my_ip());
             }
             return;
         }
@@ -188,7 +188,7 @@ void DisplayControl::run(TimeStampMs cur_time) {
 
     if (md != Controller::DriveMode::automatic) {
         if (_anim_phase>50 && !_cntr.is_wifi_used()) {
-            display_url();
+            display_url(_cntr.get_my_ip());
                 return;
         }
     }
@@ -277,10 +277,9 @@ void DisplayControl::display_code(IScheduler &sch, std::array<char, 4> code) {
     sch.reschedule();
 }
 
-void DisplayControl::display_url() {
+void DisplayControl::display_url(const arduino::IPAddress &addr) {
     char buff[100];
-    auto ip = WiFi.localIP();
-    sprintf(buff,"http://%s", ip.toString().c_str());
+    sprintf(buff,"http://%s", addr.toString().c_str());
     begin_scroll(buff);
 }
 

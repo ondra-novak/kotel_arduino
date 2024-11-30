@@ -81,14 +81,19 @@
 </div>
 <div id="manualcontrolpanel" hidden="hidden">
     <p>Panel ručního ovládání</p>
-    <div class="buttons">
+    <div class="twosides buttons">
         <div class="button" id="man_feeder">Podavač<div class="iconfeeder"></div>
         </div>
         <div class="button" id="man_fan">Ventilátor<div class="iconfan"></div>
         </div>
     </div>
+    <div class="twosides">
+    <label class="pump">
+        <input type="checkbox" id="pump_active_forever">Čerpadlo</input>
+    </label>
     <div class="slider">
         <input type="range" min="1" max="100" step="1" id="man_fan_speed">
+    </div>
     </div>
 </div>
 
@@ -179,8 +184,6 @@
     <label><span>Spínací výstupní teplota</span><input type="number" min="30" max="90" step="1" name="tpump"></label>
     <div class="sub_section unhide">
         <div class="sectionname" onclick="unhide_section.call(this);">Pokročilé volby</div>
-        <label><span>V ručním ovládání čerpadlo trvale zapnuté</span><input type="checkbox"
-                id="pump_active_forever"></label>
         <label><span>Ventilátor freq.dělič</span><input type="number" min="1" max="255" step="1" name="fanpc"></label>
         <label><span>Plný výkon - přikládání [s]</span><input type="number" min="1" max="255" step="1"
                 name="full.fueling"></label>

@@ -28,13 +28,22 @@ html {
     text-align: center;
 }
 
-#manualcontrolpanel .buttons {
+#manualcontrolpanel .twosides {
     display: flex;
     justify-content: space-around;
-    height: 5em;
     align-items: stretch;
+    gap: 1em;
+    margin: 1em;
 }
-#manualcontrolpanel .buttons > div {width: 40%;}
+#manualcontrolpanel .twosides.buttons {
+    height: 5em;    
+}
+#manualcontrolpanel .twosides >  * {
+    width: 100%;
+}
+#manualcontrolpanel .twosides >  .slider input {
+    width: 100%;
+}
 
 div#rssi::after {
     content: "dbm";
@@ -724,15 +733,6 @@ input {
     border-radius: 5px;
 }
 
-#manualcontrolpanel .slider input {
-    width: 100%;
-    box-sizing:border-box;
-}
-#manualcontrolpanel .slider {
-    margin-right: 10px;
-    margin-left: 50%;
-    margin-top: 0.5em;
-}
 
 
 input[type=number]{

@@ -1,26 +1,19 @@
+#include "WifiTCP.h"
 #include "UDPClient.h"
-#include "TCPServer.h"
 #include "WiFiCommands.h"
 #include "WiFiTypes.h"
 #include "Modem.h"
 
 
+
 using namespace std;
-
-std::string& UDPClientBase::modem_cmd(const char *prompt) {
-    return TCPServer::modem_cmd(prompt);
-}
-
-std::string& UDPClientBase::modem_res() {
-    return TCPServer::modem_res();
-}
 
 
 int UDPClientBase::open(uint16_t p) {
    if(_sock == -1) {
-      string &res = modem_res();
+      string &res = WiFiUtils::modem_res();
       modem.begin();
-      if(modem.write(modem_cmd(PROMPT(_UDPBEGIN)),res, "%s%d\r\n" , CMD_WRITE(_UDPBEGIN),p)) {
+      if(modem.write(WiFiUtils::modem_cmd(PROMPT(_UDPBEGIN)),res, "%s%d\r\n" , CMD_WRITE(_UDPBEGIN),p)) {
          _sock = atoi(res.c_str());
          return 0;
       }
@@ -30,9 +23,9 @@ int UDPClientBase::open(uint16_t p) {
 
 void UDPClientBase::close() {
     if(_sock >= 0) {
-       string &res = modem_res();
+       string &res = WiFiUtils::modem_res();
        modem.begin();
-       modem.write(modem_cmd(PROMPT(_UDPSTOP)),res, "%s%d\r\n" , CMD_WRITE(_UDPSTOP), _sock);
+       modem.write(WiFiUtils::modem_cmd(PROMPT(_UDPSTOP)),res, "%s%d\r\n" , CMD_WRITE(_UDPSTOP), _sock);
        _sock = -1;
     }
 
@@ -58,9 +51,9 @@ std::size_t UDPClientBase::receive(char *buffer, std::size_t buffer_size) {
 
 int UDPClientBase::beginPacket(IPAddress ip, uint16_t p) {
    if(_sock >= 0) {
-      string &res = modem_res();
+      string &res = WiFiUtils::modem_res();
       modem.begin();
-      if(modem.write(modem_cmd(PROMPT(_UDPBEGINPACKETIP)),res, "%s%d,%d,%s\r\n" , CMD_WRITE(_UDPBEGINPACKETIP),_sock,p,ip.toString().c_str())) {
+      if(modem.write(WiFiUtils::modem_cmd(PROMPT(_UDPBEGINPACKETIP)),res, "%s%d,%d,%s\r\n" , CMD_WRITE(_UDPBEGINPACKETIP),_sock,p,ip.toString().c_str())) {
          return 1;
       }
    }
@@ -69,9 +62,9 @@ int UDPClientBase::beginPacket(IPAddress ip, uint16_t p) {
 
 int UDPClientBase::beginPacket(const char *host, uint16_t p) {
    if(_sock >= 0) {
-      string &res = modem_res();
+      string &res = WiFiUtils::modem_res();
       modem.begin();
-      if(modem.write(modem_cmd(PROMPT(_UDPBEGINPACKETNAME)),res, "%s%d,%d,%s\r\n" , CMD_WRITE(_UDPBEGINPACKETNAME),_sock,p,host)) {
+      if(modem.write(WiFiUtils::modem_cmd(PROMPT(_UDPBEGINPACKETNAME)),res, "%s%d,%d,%s\r\n" , CMD_WRITE(_UDPBEGINPACKETNAME),_sock,p,host)) {
          return 1;
       }
    }
@@ -81,9 +74,9 @@ int UDPClientBase::beginPacket(const char *host, uint16_t p) {
 
 int UDPClientBase::endPacket() {
    if(_sock >= 0) {
-      string &res = modem_res();
+      string &res = WiFiUtils::modem_res();
       modem.begin();
-      if(modem.write(modem_cmd(PROMPT(_UDPENDPACKET)),res, "%s%d\r\n" , CMD_WRITE(_UDPENDPACKET), _sock)) {
+      if(modem.write(WiFiUtils::modem_cmd(PROMPT(_UDPENDPACKET)),res, "%s%d\r\n" , CMD_WRITE(_UDPENDPACKET), _sock)) {
          return 1;
       }
    }
@@ -93,9 +86,9 @@ int UDPClientBase::endPacket() {
 
 size_t UDPClientBase::write(const uint8_t *buf, size_t size) {
    if(_sock >= 0) {
-      string &res = modem_res();
+      string &res = WiFiUtils::modem_res();
       modem.begin();
-      modem.write_nowait(modem_cmd(PROMPT(_UDPWRITE)),res, "%s%d,%d\r\n" , CMD_WRITE(_UDPWRITE), _sock, size);
+      modem.write_nowait(WiFiUtils::modem_cmd(PROMPT(_UDPWRITE)),res, "%s%d,%d\r\n" , CMD_WRITE(_UDPWRITE), _sock, size);
       if(modem.passthrough(buf,size)) {
          return size;
       }
@@ -106,9 +99,9 @@ size_t UDPClientBase::write(const uint8_t *buf, size_t size) {
 
 int UDPClientBase::parsePacket() {
    if(_sock >= 0) {
-      string &res = modem_res();
+      string &res = WiFiUtils::modem_res();
       modem.begin();
-      if(modem.write(modem_cmd(PROMPT(_UDPPARSE)),res, "%s%d\r\n" , CMD_WRITE(_UDPPARSE), _sock)) {
+      if(modem.write(WiFiUtils::modem_cmd(PROMPT(_UDPPARSE)),res, "%s%d\r\n" , CMD_WRITE(_UDPPARSE), _sock)) {
          return atoi(res.c_str());
       }
    }
@@ -119,13 +112,13 @@ int UDPClientBase::parsePacket() {
 int UDPClientBase::read(char *buffer, std::size_t size) {
    int rv = -1;
    if(_sock >= 0) {
-      string &res = modem_res();
+      string &res = WiFiUtils::modem_res();
       modem.begin();
 
       /* important - it works one shot */
       modem.avoid_trim_results();
       modem.read_using_size();
-      if(modem.write(modem_cmd(PROMPT(_UDPREAD)),res, "%s%d,%d\r\n" , CMD_WRITE(_UDPREAD), _sock, size)) {
+      if(modem.write(WiFiUtils::modem_cmd(PROMPT(_UDPREAD)),res, "%s%d,%d\r\n" , CMD_WRITE(_UDPREAD), _sock, size)) {
          if(res.size() > 0) {
             for(std::size_t i = 0; i < size && i < res.size(); i++) {
                 buffer[i] = res[i];
@@ -142,9 +135,9 @@ int UDPClientBase::read(char *buffer, std::size_t size) {
 
 void UDPClientBase::flush() {
    if(_sock >= 0) {
-      string &res = modem_res();
+      string &res = WiFiUtils::modem_res();
       modem.begin();
-      modem.write(modem_cmd(PROMPT(_UDPFLUSH)),res, "%s%d\r\n" , CMD_WRITE(_UDPFLUSH), _sock);
+      modem.write(WiFiUtils::modem_cmd(PROMPT(_UDPFLUSH)),res, "%s%d\r\n" , CMD_WRITE(_UDPFLUSH), _sock);
    }
 }
 

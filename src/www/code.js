@@ -610,7 +610,7 @@ async function  dialog_show_code() {
 }
 
 async function main() {
-    let ignore_man_change = false;
+    let ignore_man_change = 0;
 
     Controller.on_status_update = function(st) {
         if (!ignore_man_change) {
@@ -619,8 +619,10 @@ async function main() {
             if (st.feeder == 0) delete Controller.man.feeder;
             if (st.mode == 1) Controller.config.m = 0;
             if (st.mode == 2) Controller.config.m = 1;
+            document.getElementById("man_feeder").classList.toggle("active", st.feeder != 0);
+            document.getElementById("man_fan").classList.toggle("active", st.fan != 0);
         } else {
-            ignore_man_change = false;
+            --ignore_man_change;
         }
         let stav = document.getElementById("stav");
         stav.className = "mode" + st.mode + " " + "automode" + st.automode + " " + "op" + Controller.config.m;
@@ -636,8 +638,6 @@ async function main() {
         document.getElementById("netstatus").classList.remove("neterror");
         document.getElementById("mototempmax").hidden = st["feeder_overheat"] == 0;
         document.getElementById("manualcontrolpanel").hidden = st.mode != 1;
-        document.getElementById("man_feeder").classList.toggle("active", st.feeder != 0);
-        document.getElementById("man_fan").classList.toggle("active", st.fan != 0);
         document.getElementById("zasobnik").classList.toggle("open", st.tray_open != 0);
         document.getElementById("simul_temp").hidden = st["temp_sim"] == 0;
         document.getElementById("devicetime").textContent = st["time"].toLocaleString();
@@ -680,20 +680,20 @@ async function main() {
     });
     el = document.getElementById("man_feeder");
     el.addEventListener("click", function() {
-        ignore_man_change = true;
+        ignore_man_change = 3;
         Controller.man.feeder = Controller.status.feeder == 0;
         this.classList.toggle("active");
 
     });
     el = document.getElementById("man_fan");
     el.addEventListener("click", function() {
-        ignore_man_change = true;
+        ignore_man_change = 3;
         Controller.man.fan = Controller.status.fan == 0;
         this.classList.toggle("active");
     });
     el = document.getElementById("man_fan_speed");
     el.addEventListener("change", function() {
-        ignore_man_change = true;
+        ignore_man_change = 3;
         Controller.man.fan_speed = this.value;
     });
     el.value = 100;
