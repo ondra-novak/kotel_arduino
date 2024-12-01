@@ -20,7 +20,7 @@ public:
     struct Request {
         TCPClient *client = nullptr;
         HttpRequestLine request_line = {};
-        const std::pair<std::string_view, std::string_view>  *headers = {};
+        const HeaderPair  *headers = {};
         std::size_t headers_count = {};
         std::string_view body = {};
     };
@@ -30,6 +30,7 @@ public:
         switch(code) {
             case 200: return "OK";
             case 202: return "Accepted";
+            case 304: return "Not Modified";
             case 400: return "Bad request";
             case 403: return "Forbidden";
             case 404: return "Not found";
@@ -121,7 +122,7 @@ public:
      * @note reuses server's buffer. You should avoid to reference any string
      * retrieved by request. It also destroys the request content
      */
-    void send_simple_header(Request &req, std::string_view content_type, int content_len = -1, bool compressed = false);
+    void send_simple_header(Request &req, std::string_view content_type, int content_len = -1, bool compressed = false, std::string_view etag = {});
 
     ///send file
     /**
@@ -137,7 +138,7 @@ public:
      * @param content_type content type
      * @param content content
      */
-    void send_file_async(Request &req, std::string_view content_type, std::string_view content, bool compressed = false);
+    void send_file_async(Request &req, std::string_view content_type, std::string_view content, bool compressed = false, std::string_view etag = {});
 
     void send_ws_message(Request &req, const ws::Message &msg);
 
@@ -430,8 +431,8 @@ inline void HttpServer<max_request_size, max_header_lines>::send_header(Request 
 }
 
 template<unsigned int max_request_size, unsigned int max_header_lines>
-void HttpServer<max_request_size, max_header_lines>::send_simple_header(Request &req, std::string_view content_type, int content_len, bool compressed) {
-    StaticVector<HeaderPair, 4> hp;
+void HttpServer<max_request_size, max_header_lines>::send_simple_header(Request &req, std::string_view content_type, int content_len, bool compressed, std::string_view etag) {
+    StaticVector<HeaderPair, 6> hp;
     char buff[20];
     char *c = std::end(buff);
     *(--c) = 0;
@@ -447,6 +448,10 @@ void HttpServer<max_request_size, max_header_lines>::send_simple_header(Request 
     }
     if (compressed) {
         hp.emplace_back("Content-Encoding", "gzip");
+    }
+    if (!etag.empty()) {
+        hp.emplace_back("ETag", etag);
+        hp.emplace_back("Cache-Control", "no-cache");
     }
     send_header(req, hp, 200, {});
 }
@@ -473,9 +478,22 @@ inline void HttpServer<max_request_size, max_header_lines>::send_ws_message(Requ
     }
 }
 template <unsigned int max_request_size, unsigned int max_header_lines>
-void HttpServer<max_request_size, max_header_lines>::send_file_async(Request &req, std::string_view content_type, std::string_view content, bool compressed) {
+void HttpServer<max_request_size, max_header_lines>::send_file_async(Request &req, std::string_view content_type, std::string_view content, bool compressed, std::string_view etag) {
+    if (!etag.empty()) {
+        auto b = req.headers;
+        auto e = req.headers+ req.headers_count;
+
+        auto p = std::find_if(b, e,[&](const HeaderPair &hp){
+            return icmp(hp.first, "if-none-match");
+        });
+        if (p != e && p->second.find(etag) != p->second.npos) {
+            send_header(req, {}, 304, {});
+            return;
+        }
+    }
+
     int content_len = content.size();
-    send_simple_header(req, content_type, content_len, compressed);
+    send_simple_header(req, content_type, content_len, compressed, etag);
     _sending_client = std::move(*req.client);
     _sending_buffer = content;
 }

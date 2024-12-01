@@ -6,6 +6,7 @@ class WebSocketExchange {
     #enc = new TextEncoder();
     #pingtm = -1;
     #token = "";
+    #ip = false;
     onconnect = function() { };
     ontokenreq = function() {return "";};
 
@@ -93,14 +94,20 @@ class WebSocketExchange {
                     let q = p.shift();
                     q[0](data);
                 }
+                this.#ip = false;
+                this.flush();
             };
             this.#ws.onopen = () => {
+                this.#ip = false;
                 this.onconnect();
                 this.flush();
             }
-        } else if (this.#ws.readyState == WebSocket.OPEN) {
-            this.#tosend.forEach(x => this.#ws.send(x));
-            this.#tosend = [];
+        } else if (this.#ws.readyState == WebSocket.OPEN && !this.#ip) {
+            if (this.#tosend.length) {
+                let x = this.#tosend.shift();
+                this.#ws.send(x);
+                this.#ip = true;
+            }        
         }
     }
 

@@ -51,28 +51,33 @@ public:
 
     virtual TimeStampMs get_scheduled_time() const override {return _next_call;}
     virtual void run(TimeStampMs cur_time) override {
-        auto pln = static_cast<unsigned int>(_stor.config.fan_pulse_count) * 20;
+        auto pln = static_cast<unsigned int>(_stor.config.fan_pulse_count);
+        auto spd = std::max<int>(std::min<int>(_speed, 100),1);
+        pln = std::max<unsigned int>(21, pln * spd / 100);
         if (_pulse) {
-            auto spd = std::max<int>(std::min<int>(_speed, 100),1);
             auto total = pln * 100 / spd;
             auto rest = total - pln;
-            _next_call += rest;
-            set_active(!_pulse);
-            if (_stop_time <= cur_time || !_running) {
-                set_active(false);
-                _running = false;
-                _next_call = max_timestamp;
+            if (rest > 0)  {
+                _next_call = cur_time+rest;
+                set_active(!_pulse);
+                if (_stop_time <= cur_time || !_running) {
+                    set_active(false);
+                    _running = false;
+                    _next_call = max_timestamp;
+                }
+            } else {
+                _next_call = cur_time+pln;
             }
         } else {
             set_active(!_pulse);
-            _next_call += pln;
+            _next_call = cur_time+pln;
         }
     }
 
 protected:
 
     Storage &_stor;
-    bool _pulse = false;
+    bool _pulse = true;
     bool _running = false;
     uint8_t _speed = 100;
     TimeStampMs _stop_time = 0;

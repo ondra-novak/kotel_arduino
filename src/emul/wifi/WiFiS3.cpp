@@ -59,3 +59,6 @@ std::int32_t CWifi::RSSI() {
     std::uniform_int_distribution<int> rnd(-70,-50);
     return rnd(rdev);
 }
+
+
+

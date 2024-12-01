@@ -21,11 +21,6 @@
 namespace kotel {
 
 
- const char *Controller::str_motoruntime = "motoruntime";
- const char *Controller::str_auto_drive = "auto_drive";
- const char *Controller::str_wifi_mon = "wifi_mon";
- const char *Controller::str_run_server = "run_server";
-
 
 Controller::Controller()
         :_feeder(_storage)
@@ -96,7 +91,8 @@ void Controller::run() {
             } else if ( (!_temp_sensors.get_output_temp().has_value()) //we don't have output temperature
                 || (_temp_sensors.get_output_temp().has_value() //output temperature is less than input temperature
                         && _temp_sensors.get_input_temp().has_value()
-                        && *_temp_sensors.get_output_temp() < *_temp_sensors.get_input_temp())
+                        && *_temp_sensors.get_input_temp() < _storage.config.pump_start_temp
+                        && !_auto_stop_disabled)
                 || (_temp_sensors.get_output_temp().has_value() //output temp is too low
                         && *_temp_sensors.get_output_temp() < _storage.config.pump_start_temp
                         && !_auto_stop_disabled)){
@@ -575,6 +571,8 @@ void Controller::init_wifi() {
         WiFi.begin(ssid);
     }
     _last_net_activity = max_timestamp;
+    _wifi_connected = false;
+
 }
 
 bool Controller::is_wifi() const {
@@ -693,7 +691,7 @@ void Controller::handle_server(MyHttpServer::Request &req) {
     } else if (req.request_line.path.substr(req.request_line.path.length()-4) == ".css") {
         send_file(req, Ctx::css, req.request_line.path);
 #else
-        _server.send_file_async(req, HttpServerBase::ContentType::html, embedded_index_html, true);
+        _server.send_file_async(req, HttpServerBase::ContentType::html, embedded_index_html, true, embedded_index_html_etag);
 #endif
         return; //do not stop
     } else {
@@ -857,7 +855,9 @@ TimeStampMs Controller::auto_drive_cycle(TimeStampMs cur_time) {
             _auto_mode = AutoMode::off;
         }
     } else {
-        if (t_output< _storage.config.output_max_temp) {
+        if (t_output< _storage.config.input_min_temp) {
+            _auto_mode = AutoMode::fullpower;
+        } else if (t_output< _storage.config.output_max_temp) {
             _auto_mode = AutoMode::lowpower;
         } else {
             _auto_mode = AutoMode::off;
@@ -1092,7 +1092,7 @@ void Controller::status_out_ws(Stream &s) {
 }
 
 TimeStampMs Controller::wifi_mon(TimeStampMs cur_time) {
-    if (cur_time - 10000 > _last_net_activity) {
+    if (cur_time > 30000 && cur_time - 30000 > _last_net_activity) {
         _server.end();
         WiFiUtils::reset();
         init_wifi();
@@ -1133,7 +1133,7 @@ TimeStampMs Controller::run_server(TimeStampMs ) {
     if (req.client) {
         handle_server(req);
     }
-    return 1;
+    return 20;
 }
 
 TimeStampMs Controller::read_serial(TimeStampMs) {
@@ -1152,6 +1152,7 @@ std::string_view Controller::get_task_name(const AbstractTimedTask *task) {
     if (task == &_wifi_mon) return "wifi_mon";
     if (task == &_run_server) return "run_server";
     if (task == &_read_serial) return "read_serial";
+    if (task == &_refresh_wdt) return "wdt";
     return "unknown";
 }
 

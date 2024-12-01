@@ -2,5 +2,42 @@
 
 #include "base64.h"
 
+class ETagCalc {
+public:
+    static constexpr unsigned int need_sz = sizeof(uint32_t) * 2+2;
+    
+ 
+    template<typename X>
+    static constexpr uint32_t fnv1a_hash_32(const X& str) {
+        constexpr uint32_t fnv_offset_basis = 2166136261u;
+        constexpr uint32_t fnv_prime = 16777619u;
+
+        uint32_t hash = fnv_offset_basis;
+        for (char c : str) {
+            hash ^= static_cast<uint32_t>(c);
+            hash *= fnv_prime;
+        }
+        return hash;
+    }
+    
+    template<typename X>
+    constexpr ETagCalc(const X& data) {
+        uint32_t h = fnv1a_hash_32(data);
+        _etag_data[0] = '"';
+        _etag_data[need_sz-1] = '"';
+        for (int i = need_sz - 2; i > 0; --i) {
+            auto p = h & 0xF;
+            h = h >> 4;
+            _etag_data[i] = p<10?('0'+p):('A'+p-10);
+        }
+    }
+    constexpr operator std::string_view() const {return {_etag_data, need_sz};}
+    
+protected:
+    char _etag_data[need_sz] = {};   
+        
+};
+
 constexpr auto embedded_index_html = binary_data("@HTML_CONTENT@");
+constexpr auto embedded_index_html_etag = ETagCalc(embedded_index_html);
 

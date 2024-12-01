@@ -594,17 +594,23 @@ async function  dialog_show_code() {
     let tds = win.getElementsByTagName("td");
     Array.prototype.forEach.call(tds,x=>x.textContent = "•");
     let btns = win.getElementsByTagName("button");
-    btns[1].disabled = false;
-    btns[1].onclick = async ()=>{
+    btns[2].disabled = false;
+    btns[2].onclick = async ()=>{
         let code =await connection.send_request("G");
         Array.prototype.forEach.call(tds,(x,idx)=>x.textContent = code[idx]);    
-        btns[1].disabled = true;
+        btns[2].disabled = true;
     };
-    btns[0].onclick = async ()=>{
+    btns[1].onclick = async ()=>{
         win.hidden = true;
         await confirm_dlg("potvrd_odparovani");
         let tkn = parse_response(await connection.send_request("U"));
         connection.set_token(tkn.token);
+    };
+    btns[0].onclick = async ()=>{
+        win.hidden = true;
+        await confirm_dlg("potvrd_odhlaseni");
+        connection.set_token("");
+        connection.reconnect("stop");
     };
     
 }

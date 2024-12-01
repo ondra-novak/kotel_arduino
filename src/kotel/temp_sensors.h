@@ -153,7 +153,7 @@ public:
 
 protected:
 
-    static constexpr unsigned int max_history_count = 32;
+    static constexpr unsigned int max_history_count = 50;
 
 
 

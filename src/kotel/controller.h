@@ -119,10 +119,6 @@ protected:
     NTPClient _ntp;
 
 
-    static  const char *str_motoruntime;
-    static  const char *str_auto_drive;
-    static  const char *str_wifi_mon;
-    static  const char *str_run_server;
 
     Storage _storage;
     Feeder _feeder;

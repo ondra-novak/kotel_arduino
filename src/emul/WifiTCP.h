@@ -9,13 +9,11 @@ struct WiFiUtils {
 
     static bool localIP(IPAddress &local_IP) {
         local_IP = WiFi.localIP();
-        return local_IP = IPAddress(0,0,0,0);
+        return local_IP != IPAddress(0,0,0,0);
     }
     static uint8_t status() {
         return WiFi.status();
     }
     static void reset() {
-
     }
-
 };

@@ -24,7 +24,8 @@ public:
         _flag_reschedule = true;
     }
 
-    void run() {
+    bool run() {
+        bool s = false;
         if (_flag_reschedule) do_reschedule();
         auto ln = N;
         while (ln > 0) {
@@ -34,6 +35,7 @@ public:
                 --ln;
                 auto &x = _items[ln];
                 auto start = millis();
+                s = true;
                 x._task->run(tp);
                 auto util = millis() - start;;
                 auto rt = x._task->_run_time;
@@ -51,6 +53,7 @@ public:
             ++ln;
             heap_push(_items, ln, compare);
         }
+        return s;
     }
 
     template<typename Fn>
@@ -61,6 +64,7 @@ public:
     }
 
 protected:
+
     struct Item { // @suppress("Miss copy constructor or assignment operator")
         TimeStampMs _tp;
         AbstractTimedTask *_task;

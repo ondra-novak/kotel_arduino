@@ -49,7 +49,7 @@ struct Config {
     uint8_t output_max_temp_samples = 10;
     uint8_t pump_start_temp = 40;
     uint8_t operation_mode = static_cast<uint8_t>(OperationMode::manual);
-    uint8_t fan_pulse_count = 5;
+    uint8_t fan_pulse_count = 100;
 };
 
 
