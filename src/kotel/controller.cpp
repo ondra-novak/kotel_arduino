@@ -11,6 +11,7 @@
 #include "serial.h"
 #include <SoftwareATSE.h>
 
+
 #include "sha1.h"
 #ifdef WEB_DEVEL
 #include <fstream>
@@ -43,13 +44,14 @@ Controller::Controller()
 }
 
 void Controller::begin() {
+    _storage.begin();
+    init_serial_log();
 #if ENABLE_VDT
     WDT.begin(5000);
 #endif
     _fan.begin();
     _feeder.begin();
     _pump.begin();
-    _storage.begin();
     _temp_sensors.begin();
     _display.begin();
     _scheduler.reschedule();
@@ -133,6 +135,7 @@ static constexpr std::pair<const char *, uint8_t Config::*> config_table[] ={
         {"m", &Config::operation_mode},
         {"fanpc", &Config::fan_pulse_count},
         {"tpump",&Config::pump_start_temp},
+        {"srlog",&Config::serial_log_out},
 };
 
 static constexpr std::pair<const char *, HeatValue Config::*> config_table_2[] ={
@@ -1243,6 +1246,17 @@ TimeStampMs Controller::refresh_wdt(TimeStampMs) {
 void Controller::run_init_mode() {
     if (get_current_timestamp() > 6000) {
         _cur_mode = DriveMode::unknown;
+    }
+}
+
+void Controller::init_serial_log() {
+    if (_storage.config.serial_log_out) {
+        digitalWrite(LED_BUILTIN, HIGH);
+#ifdef _MODEM_WIFIS3_H_
+        modem.debug(Serial, 100);
+#endif
+        Serial.println("Debug mode on");
+        digitalWrite(LED_BUILTIN, LOW);
     }
 }
 

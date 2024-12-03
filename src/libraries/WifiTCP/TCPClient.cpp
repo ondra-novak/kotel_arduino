@@ -92,6 +92,8 @@ size_t TCPClient::write(const uint8_t *buf, size_t size) {
                 CMD_WRITE(_CLIENTSEND), _sock, size);
         if (modem.passthrough(buf, size)) {
             return size;
+        } else {
+            return 0;
         }
     }
     return 0;

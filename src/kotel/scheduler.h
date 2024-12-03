@@ -40,7 +40,7 @@ public:
                 auto util = millis() - start;;
                 auto rt = x._task->_run_time;
                 if (util > rt) {
-                    x._task->_run_time += (util - rt)/10;
+                    x._task->_run_time = util;
                 } else if (util < rt) {
                     x._task->_run_time -= (rt - util)/10;
                 }

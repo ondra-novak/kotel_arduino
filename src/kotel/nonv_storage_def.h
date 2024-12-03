@@ -50,6 +50,7 @@ struct Config {
     uint8_t pump_start_temp = 40;
     uint8_t operation_mode = static_cast<uint8_t>(OperationMode::manual);
     uint8_t fan_pulse_count = 100;
+    uint8_t serial_log_out = 0;     //if there is 1, serial output is used for logging
 };
 
 

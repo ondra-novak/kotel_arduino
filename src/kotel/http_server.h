@@ -223,8 +223,8 @@ inline typename  HttpServer<max_request_size, max_header_lines>::Request
     if (!_sending_buffer.empty()) {
         auto c = _sending_buffer.substr(0, HttpServerBase::send_cluster);
         _sending_buffer = _sending_buffer.substr(c.size());
-        _sending_client.write(c.data(),c.size());
-        if (_sending_buffer.empty()) {
+        if (_sending_client.write(c.data(),c.size()) != c.size() || _sending_buffer.empty()) {
+            _sending_buffer = {};
             _sending_client.detach();
         }
         return ret;

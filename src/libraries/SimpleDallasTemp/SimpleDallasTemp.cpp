@@ -246,7 +246,7 @@ bool SimpleDallasTemp::async_cycle(AsyncState &st) {
                 _wire.select(st.addr.data());
             } else if (st.phase == 1) {
                 _wire.write(0xBE);
-            } else if (st.phase - 2 < sizeof(st.buffer)){
+            } else if (static_cast<std::size_t>(st.phase - 2) < sizeof(st.buffer)){
                 st.buffer[st.phase - 2] = _wire.read();
             } else {
                 st.state = AsyncCommand::done;

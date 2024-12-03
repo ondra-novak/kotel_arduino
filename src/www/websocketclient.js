@@ -7,6 +7,7 @@ class WebSocketExchange {
     #pingtm = -1;
     #token = "";
     #ip = false;
+    #opentm = null;
     onconnect = function() { };
     ontokenreq = function() {return "";};
 
@@ -63,13 +64,23 @@ class WebSocketExchange {
         }, 5000);
     }
 
+    #clearopentm() {
+        if (this.#opentm !== null) {
+            clearTimeout(this.#opentm);
+            this.#opentm  = null;
+        }
+    }
+    
     flush() {
         if (!this.#ws) {
             let uri = location.href.replace(/^http/, "ws") + "api/ws?token="+this.#token;
             this.#ws = new WebSocket(uri);
             this.#ws.binaryType = "arraybuffer";
-            this.#ws.onerror = () => {this.reconnect(new TypeError("connection failed"));};
-            this.#ws.onclose = async (ev) => { 
+            this.#ws.onerror = () => {
+                this.#clearopentm ();                
+                this.reconnect(new TypeError("connection failed"));};
+            this.#ws.onclose = async (ev) => {
+                this.#clearopentm ();
                 if (ev.code > 4000) {
                     let tkn = await this.ontokenreq();
                     this.set_token(tkn);                    
@@ -97,7 +108,12 @@ class WebSocketExchange {
                 this.#ip = false;
                 this.flush();
             };
+            this.#opentm = setTimeout(()=>{
+                this.#ws.close();                
+                this.reconnect(new TypeError("open timeout")); 
+            },5000);
             this.#ws.onopen = () => {
+                this.#clearopentm();
                 this.#ip = false;
                 this.onconnect();
                 this.flush();

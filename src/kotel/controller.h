@@ -188,7 +188,8 @@ protected:
     std::array<char, 40> generate_signed_token(std::string_view random);
     void generate_pair_secret();
     void gen_and_print_token();
-    void update_time();
+    //void update_time();
+    void init_serial_log();
 
 };
 
