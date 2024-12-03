@@ -284,3 +284,7 @@ int digitalRead(int pin) {
         default:return HIGH;
     }
 }
+
+int analogRead(int pin) {
+    return pin+100;
+}

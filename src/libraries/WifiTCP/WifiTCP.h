@@ -12,4 +12,5 @@ struct WiFiUtils {
     static uint8_t status();
     static void reset();
 
+
 };

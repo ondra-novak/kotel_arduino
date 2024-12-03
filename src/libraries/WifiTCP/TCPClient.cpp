@@ -88,7 +88,7 @@ size_t TCPClient::write(const uint8_t *buf, size_t size) {
     if (_sock >= 0) {
         string &res = WiFiUtils::modem_res();
         modem.begin();
-        modem.write_nowait(WiFiUtils::WiFiUtils::modem_cmd(PROMPT(_CLIENTSEND)), res, "%s%d,%d\r\n",
+        modem.write_nowait(WiFiUtils::modem_cmd(PROMPT(_CLIENTSEND)), res, "%s%d,%d\r\n",
                 CMD_WRITE(_CLIENTSEND), _sock, size);
         if (modem.passthrough(buf, size)) {
             return size;

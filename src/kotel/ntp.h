@@ -6,14 +6,14 @@ class NTPClient {
 public:
 
 
-    int request(const char *host,unsigned int port) {
+    int request(IPAddress addr, unsigned int port) {
         int r = _client.open(62123);
         if (r == -1) return r;
         _opened =true;
         std::fill(_client.begin(), _client.end(), 0);
         constexpr unsigned char hdr[4] = {0x23,0x00,0x06,0xEC};
         std::copy(std::begin(hdr), std::end(hdr), _client.data());
-        r = _client.send(host, port, _client.size());
+        r = _client.send(addr, port, _client.size());
         if (r == -1) {
             _client.close();
             return r;

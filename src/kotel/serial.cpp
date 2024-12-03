@@ -89,6 +89,7 @@ bool handle_serial(Controller &controller) {
                             "/d - dump eeprom, \r\n"
                             "/e <field>=<value> simulate temperature\r\n"
                             "/x - disable simulate temperature\r\n"
+                            "/k - kbtest\r\n"
                             "reset - factory reset\r\n"
                             "<field>=<value> - configuration");
                     print_dot();
@@ -119,6 +120,8 @@ bool handle_serial(Controller &controller) {
                             break;
                         case 'x': controller.disable_temperature_simulation();
                             print_ok();
+                            break;
+                        case 'k': Serial.println(analogRead(A1));
                             break;
                         default:
                             print_error("unknown command");

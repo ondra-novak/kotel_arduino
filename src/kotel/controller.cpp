@@ -1111,16 +1111,26 @@ TimeStampMs Controller::wifi_mon(TimeStampMs cur_time) {
             _wifi_rssi = WiFi.RSSI();
 
             if (_time_resync < cur_time) {
-                _ntp.cancel();
-                if (_ntp.request("pool.ntp.org", 123) == 0) {
-                    _time_resync = cur_time + 5000;
+                if (_ntp_addr == IPAddress{}) {
+                    _sdns.cancel();
+                    _sdns.request("pool.ntp.org");
+                    _time_resync = cur_time + 1000;
+                } else {
+                    _ntp.cancel();
+                    _time_resync = cur_time + 1000;
+                    _ntp.request(_ntp_addr, 123);
                 }
             }
-
+            if (_sdns.is_ready()) {
+                _ntp_addr = _sdns.get_result();
+                _time_resync = cur_time + 1;
+            }
             if (_ntp.is_ready()) {
                 set_current_time(static_cast<uint32_t>(_ntp.get_result()));
                 _time_resync = cur_time + 24*60*60*1000;
+                _ntp_addr = IPAddress{};
             }
+            return std::min<TimeStampMs>(1023, _time_resync - cur_time);
 
         } else {
             _ntp.cancel();
@@ -1132,9 +1142,11 @@ TimeStampMs Controller::wifi_mon(TimeStampMs cur_time) {
 }
 
 TimeStampMs Controller::run_server(TimeStampMs ) {
-    auto req = _server.get_request();
-    if (req.client) {
-        handle_server(req);
+    if (_wifi_connected) {
+        auto req = _server.get_request();
+        if (req.client) {
+            handle_server(req);
+        }
     }
     return 20;
 }

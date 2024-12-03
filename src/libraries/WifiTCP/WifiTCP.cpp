@@ -41,7 +41,7 @@ bool WiFiUtils::localIP(IPAddress &local_IP) {
 
 uint8_t WiFiUtils::status() {
    modem.begin();
-   modem.timeout(500);
+   modem.timeout(1000);
    while (Serial2.available()) Serial2.read();
    std::string &res = modem_res();
    if(modem.write(modem_cmd(PROMPT(_GETSTATUS)), res, CMD_READ(_GETSTATUS))) {
@@ -55,3 +55,6 @@ void WiFiUtils::reset() {
     std::string &res =modem_res();
     modem.write(modem_cmd(PROMPT(_SOFTRESETWIFI)),res, "%s" , CMD(_SOFTRESETWIFI));
 }
+
+
+

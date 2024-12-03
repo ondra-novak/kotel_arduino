@@ -60,5 +60,6 @@ std::int32_t CWifi::RSSI() {
     return rnd(rdev);
 }
 
-
-
+IPAddress CWifi::dnsIP(int) {
+    return IPAddress(8,8,8,8);
+}

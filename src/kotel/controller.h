@@ -11,6 +11,7 @@
 #include <WDT.h>
 
 #include "ntp.h"
+#include "simple_dns.h"
 
 namespace kotel {
 
@@ -117,6 +118,8 @@ protected:
     TimeStampMs _time_resync = 0;
     TimeStampMs _last_net_activity = max_timestamp;
     NTPClient _ntp;
+    IPAddress _ntp_addr;
+    SimpleDNS _sdns;
 
 
 

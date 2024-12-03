@@ -11,10 +11,17 @@ unsigned long millis();
 #define INPUT 1
 #define OUTPUT 2
 #define INPUT_PULLUP 3
+#define INPUT_PULLDOWN 4
 #define LED_BUILTIN 13
+#define A0 100
+#define A1 101
+#define A2 102
+
 
 void digitalWrite(int pin, int mode);
+void digitalWrite(int pin, int mode);
 int digitalRead(int pin);
+int analogRead(int pin);
 void pinMode(int pin, int mode);
 inline void delay(int) {}
 

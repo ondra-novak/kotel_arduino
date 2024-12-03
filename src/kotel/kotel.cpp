@@ -15,8 +15,6 @@ void setup() {
     pinMode(pin_out_fan_on, OUTPUT);
     pinMode(pin_out_feeder_on, OUTPUT);
     pinMode(pin_out_pump_on, OUTPUT);
-    pinMode(pin_in_pulpup, INPUT_PULLUP);
-    pinMode(LED_BUILTIN, OUTPUT);
     controller.begin();
 
 }
