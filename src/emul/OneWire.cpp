@@ -1,9 +1,5 @@
 #include "OneWire.h"
-#if defined(ARDUINO_MINIMA) || defined(ARDUINO_UNOWIFIR4)
 
-#include <Arduino.h>
-
-#endif
 
 void OneWire::begin(uint8_t pin)
 {
@@ -15,12 +11,11 @@ void OneWire::begin(uint8_t pin)
 bool OneWire::enable_power(bool power) {
     if (power) {
         _parasite_power = true;
-        return power_pin();
+        power_pin();
     } else {
         _parasite_power = false;
         init_pin();
     }
-    return true;
 }
 
 // Perform the onewire reset function.  We will wait up to 250uS for
@@ -90,6 +85,7 @@ bool OneWire::write_bytes(const uint8_t *buf, uint16_t count) {
 }
 
 bool OneWire::read_internal(uint8_t &v) {
+    if (!wait_for_release()) return false;
     v = 0;
     for (uint8_t bitMask = 0x01; bitMask; bitMask <<= 1) {
         bool st;
@@ -109,14 +105,11 @@ bool OneWire::read_bytes(uint8_t *buf, uint16_t count) {
   return power_pin();
 }
 
-bool OneWire::select(const Address &rom) {
-    return select(rom.data);
-}
-bool OneWire::select(const uint8_t *rom)
+bool OneWire::select(const Address &rom)
 {
     if (write(0x55)) {
         for (unsigned int i = 0; i < 8; i++) {
-            if (!write(rom[i])) return false;
+            if (!write(rom.data[i])) return false;
         }
         return true;
     }
@@ -133,12 +126,11 @@ OneWire::SearchState OneWire::search_begin() {
 
 OneWire::SearchState OneWire::search_begin(uint8_t family_code) {
     OneWire::SearchState st;
-    st.ROM_NO[0] = family_code;
-    for (uint8_t i = 1; i < 8; i++) st.ROM_NO[i] = 0;
+    st.ROM_NO.data[0] = family_code;
+    for (uint8_t i = 1; i < 8; i++) st.ROM_NO.data[i] = 0;
     st.LastDiscrepancy = 64;
     st.LastFamilyDiscrepancy = 0;
     st.LastDeviceFlag = false;
-    return st;
 }
 
 //
@@ -157,10 +149,7 @@ OneWire::SearchState OneWire::search_begin(uint8_t family_code) {
 // Return TRUE  : device found, ROM number in ROM_NO buffer
 //        FALSE : device not found, end of search
 //
-bool OneWire::search(SearchState &state, Address &newAddr, bool alert_only ) {
-    return search(state, newAddr.data, alert_only);
-}
-bool OneWire::search(SearchState &state, uint8_t *newAddr, bool alert_only )
+bool OneWire::search(SearchState &state, Address &newAddr, bool alert_only )
 {
    uint8_t id_bit_number;
    uint8_t last_zero, rom_byte_number;
@@ -201,7 +190,7 @@ bool OneWire::search(SearchState &state, uint8_t *newAddr, bool alert_only )
                 // on a previous next then pick the same as last time
                 if (id_bit_number < state.LastDiscrepancy) {
                     search_direction =
-                            ((state.ROM_NO[rom_byte_number] & rom_byte_mask) > 0);
+                            ((state.ROM_NO.data[rom_byte_number] & rom_byte_mask) > 0);
                 } else {
                     // if equal to last pick 1, if not then pick 0
                     search_direction = (id_bit_number == state.LastDiscrepancy);
@@ -219,9 +208,9 @@ bool OneWire::search(SearchState &state, uint8_t *newAddr, bool alert_only )
             // set or clear the bit in the ROM byte rom_byte_number
             // with mask rom_byte_mask
             if (search_direction)
-                state.ROM_NO[rom_byte_number] |= rom_byte_mask;
+                state.ROM_NO.data[rom_byte_number] |= rom_byte_mask;
             else
-                state.ROM_NO[rom_byte_number] &= ~rom_byte_mask;
+                state.ROM_NO.data[rom_byte_number] &= ~rom_byte_mask;
 
             // serial number search direction write bit
             if (!write_bit(search_direction)) return false;
@@ -250,10 +239,10 @@ bool OneWire::search(SearchState &state, uint8_t *newAddr, bool alert_only )
         }
         search_result = true;
     }
-    if (!state.ROM_NO[0]) {
+    if (!state.ROM_NO.data[0]) {
         search_result = false;
     } else {
-        for (int i = 0; i < 8; ++i) newAddr[i] = state.ROM_NO[i];
+        newAddr = state.ROM_NO;
     }
     return power_pin() && search_result;
 }
@@ -320,7 +309,6 @@ uint16_t OneWire::crc16(const uint8_t* input, uint16_t len, uint16_t crc)
 
 #if defined(ARDUINO_MINIMA) || defined(ARDUINO_UNOWIFIR4)
 
-
 void OneWire::init_pin() {
     pinMode(_pin, _pull_up?INPUT_PULLUP:INPUT);
     _powered = false;
@@ -351,7 +339,7 @@ bool OneWire::power_pin() {
     if (!wait_for_release()) return false;
     init_pin();
     digitalWrite(_pin, HIGH);
-    pinMode(_pin, OUTPUT);
+    pinMode(_pin, OUTPUT)
     _powered = true;
     return true;
 }

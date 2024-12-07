@@ -73,7 +73,7 @@ class WebSocketExchange {
     
     flush() {
         if (!this.#ws) {
-            let uri = location.href.replace(/^http/, "ws") + "api/ws?token="+this.#token;
+            let uri = location.href.replace(/^http/, "ws").replace(/(.*)\/.*$/,"$1/") + "api/ws?token="+this.#token;
             this.#ws = new WebSocket(uri);
             this.#ws.binaryType = "arraybuffer";
             this.#ws.onerror = () => {

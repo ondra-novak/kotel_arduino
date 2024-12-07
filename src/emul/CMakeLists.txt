@@ -13,7 +13,8 @@ set(emul_files emul.cpp
     temp_sim.cpp
     DotMatrix.cpp
     serial_emul.cpp
-    SoftwareATSE.cpp    
+    SoftwareATSE.cpp
+     
 )
 
 

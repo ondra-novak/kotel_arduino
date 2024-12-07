@@ -11,6 +11,8 @@ add_custom_target(kotel_webpage DEPENDS ${CMAKE_CURRENT_LIST_DIR}/web_page.h)
 add_dependencies(kotel_webpage kotel_webfiles_compress)
 
 
+add_definitions(-DEMULATOR)
+
 set(COMMON_FILES
     kotel.cpp
     http_server.cpp

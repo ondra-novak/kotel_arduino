@@ -13,10 +13,11 @@ set(INTERMEDIATE_FILES ${CMAKE_CURRENT_LIST_DIR}/index.html
                 ${CMAKE_BINARY_DIR}/src/www/index.html
                 ${CMAKE_BINARY_DIR}/src/www/index.html.gz.base64)
 
-add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/src/www/index.html
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/index.html
+                          ${CMAKE_BINARY_DIR}/www/index_dev.html
                    COMMAND spamake packed ${CMAKE_CURRENT_LIST_DIR}/main.js index.html
-                   COMMAND spamake devel ${CMAKE_CURRENT_LIST_DIR}/main.js ${CMAKE_CURRENT_LIST_DIR}/index.html
-                   DEPENDS ${ALL_FILES})
+                   COMMAND spamake develsl ${CMAKE_CURRENT_LIST_DIR}/main.js ${CMAKE_BINARY_DIR}/www/index_dev.html
+                   DEPFILE ${CMAKE_CURRENT_BINARY_DIR}/index.html.d)
 
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/src/www/index.html.gz.base64
                    COMMAND gzip -cn --best index.html | base64 -w 0  > index.html.gz.base64

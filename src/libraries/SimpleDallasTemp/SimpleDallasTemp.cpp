@@ -1,5 +1,6 @@
 #include "SimpleDallasTemp.h"
-#include <OneWire.h>
+
+#include <../OneWire/OneWire.h>
 
 constexpr uint8_t DS18S20MODEL = 0x10;
 constexpr uint8_t DS18B20MODEL = 0x28;
@@ -51,18 +52,17 @@ bool SimpleDallasTemp::is_valid_address(const Address &addr) {
 
 }
 
-unsigned long SimpleDallasTemp::request_temp(const Address &addr) {
-    _wire.reset();
-    _wire.select(addr.data());
-    _wire.write(0x44);
-    return 750;
+bool SimpleDallasTemp::request_temp(const Address &addr) {
+    return _wire.reset() &&
+           _wire.select(addr.data()) &&
+           _wire.write(0x44);
 }
 
-unsigned long SimpleDallasTemp::request_temp() {
-    _wire.reset();
-    _wire.skip();
-    _wire.write(0x44);
-    return 750;
+bool SimpleDallasTemp::request_temp() {
+    return _wire.reset() &&
+           _wire.select_all() &&
+           _wire.write(0x44);
+
 }
 
 
@@ -149,10 +149,9 @@ std::optional<int32_t> SimpleDallasTemp::read_temp_raw(const Address &addr) {
     bool b =  _wire.reset();
     if (b) {
         uint8_t data[12];
-        _wire.select(addr.data());
-        _wire.write(0xBE);
+        if (!_wire.select(addr.data()) || !_wire.write(0xBE)) return {};
         for ( int i = 0; i < 9; i++) {
-            data[i] = _wire.read();
+            if (!_wire.read(data[i])) return false;
         }
         if ( _wire.crc8( data, 8) == data[8]) {
             int32_t result;
@@ -177,9 +176,7 @@ std::optional<float> SimpleDallasTemp::read_temp_celsius(const Address &addr) {
     }
 }
 
-void SimpleDallasTemp::wire_reset_search() {
-    _wire.reset_search();
-}
+
 
 std::optional<int32_t> SimpleDallasTemp::async_read_temp_raw(AsyncState &st) {
     if (st.st != Status::ok) return {};
@@ -239,15 +236,20 @@ void SimpleDallasTemp::async_read_temp(AsyncState &st, const Address &addr) {
 }
 
 bool SimpleDallasTemp::async_cycle(AsyncState &st) {
+    auto com_error = [&]{
+        st.state = AsyncCommand::done;
+        st.st = Status::fault_shortgnd;
+        return true;
+    };
     switch(st.state) {
         case AsyncCommand::done: return true;
         case AsyncCommand::read_temp:
             if (st.phase == 0) {
-                _wire.select(st.addr.data());
+                if (!_wire.select(st.addr.data())) return com_error();
             } else if (st.phase == 1) {
-                _wire.write(0xBE);
+                if (!_wire.write(0xBE)) return com_error();
             } else if (static_cast<std::size_t>(st.phase - 2) < sizeof(st.buffer)){
-                st.buffer[st.phase - 2] = _wire.read();
+                if (!_wire.read(st.buffer[st.phase - 2])) return com_error();
             } else {
                 st.state = AsyncCommand::done;
                 return true;
@@ -256,9 +258,9 @@ bool SimpleDallasTemp::async_cycle(AsyncState &st) {
             break;
         case AsyncCommand::request_temp_addr:
             if (st.phase == 0) {
-                _wire.select(st.addr.data());
+                if (!_wire.select(st.addr.data())) return com_error();
             } else if (st.phase == 1) {
-                _wire.write(0x44);
+                if (!_wire.write(0x44)) return com_error();
             } else {
                 st.state = AsyncCommand::done;
                 return true;
@@ -267,9 +269,9 @@ bool SimpleDallasTemp::async_cycle(AsyncState &st) {
             break;
         case AsyncCommand::request_temp_global:
             if (st.phase == 0) {
-                _wire.skip();
+                if (!_wire.select_all()) return com_error();
             } else if (st.phase == 1) {
-                _wire.write(0x44);
+                if (!_wire.write(0x44)) return com_error();
             } else {
                 st.state = AsyncCommand::done;
                 return true;
@@ -281,6 +283,12 @@ bool SimpleDallasTemp::async_cycle(AsyncState &st) {
 
 }
 
-bool SimpleDallasTemp::wire_search(Address &addr) {return _wire.search(addr.data());
-
+void SimpleDallasTemp::enum_devices_cb(EnumCallback &cb) {
+    auto st = _wire.search_begin();
+    Address addr;
+    while (_wire.search(st, addr.data())) {
+        if (is_valid_address(addr) && !cb(addr)) break;
+    }
 }
+
+

@@ -253,7 +253,7 @@ function dialog_nastaveni_teploty(field, hw_field, trend_field) {
     let imp = el.getElementsByTagName("input")[1];
     let trnd = el.getElementsByTagName("input")[0];
     imp.value = Controller.config[field];
-    trnd.value = parseFloat(Controller.config[trend_field]);
+    trnd.value = (parseFloat(Controller.config[trend_field])/6).toFixed(1);
     let btm = el.getElementsByTagName("button");
     btm[0].onclick = () => {
         nastav_teplomer(hw_field);
@@ -276,7 +276,7 @@ function dialog_nastaveni_teploty(field, hw_field, trend_field) {
             show_error(el, "trnd_velke")
         } else {
             cfg[field] = val;
-            cfg[trend_field] = (trnd_val).toFixed(0);
+            cfg[trend_field] = (trnd_val*6).toFixed(0);
             btm[1].disabled = true;
             await Controller.set_config(cfg);
             el.hidden = true;
@@ -374,8 +374,9 @@ async function nastav_wifi() {
 }
 
 
-function power_to_params(vyhrevnost_el, power_el, fueling_el, burnout_el) {
-    const ref_power = 70 * vyhrevnost_el.valueAsNumber / 17.0;
+function power_to_params(vyhrevnost_el, bct_el, power_el, fueling_el, burnout_el) {
+    const spotreba = bct_el.valueAsNumber;
+    const ref_power = 70 * spotreba * vyhrevnost_el.valueAsNumber / (17.0 * 3350);
     const ref_power10 = Math.floor(ref_power * 10);
     const need_power10 = Math.floor(power_el.value * 10);
     let a = 1;
@@ -390,40 +391,58 @@ function power_to_params(vyhrevnost_el, power_el, fueling_el, burnout_el) {
         burnout_el.value = b - a;
         return;
     }
-    const fueling = Math.max(2.0, Math.floor(power_el.valueAsNumber * (30 + power_el.valueAsNumber) / ref_power));
-    const cycle = Math.round(fueling * ref_power / power_el.valueAsNumber);
-    const burnout = cycle - fueling;
+    let mval = 5;
+    let fueling;
+    let cycle;
+    let burnout;
+    while (mval > 0) {
+        fueling = Math.max(mval, Math.floor(power_el.valueAsNumber * (30 + power_el.valueAsNumber) / ref_power));
+        cycle = Math.round(fueling * ref_power / power_el.valueAsNumber);
+        burnout = cycle - fueling;
+        if (burnout <=250) break;
+        --mval
+    }    
     fueling_el.value = fueling.toFixed(0);
     burnout_el.value = burnout.toFixed(0);
 }
 
-function params_to_power(vyhrevnost_el, power_el, fueling_el, burnout_el) {
-    const ref_power = 70 * vyhrevnost_el.valueAsNumber / 17.0;
+function params_to_power(vyhrevnost_el, bct_el, power_el, fueling_el, burnout_el) {
+    const spotreba = bct_el.valueAsNumber;
+    const ref_power = 70 * spotreba * vyhrevnost_el.valueAsNumber / (17.0 * 3350);
     power_el.value = (fueling_el.valueAsNumber * ref_power / (fueling_el.valueAsNumber + burnout_el.valueAsNumber)).toFixed(1);
 }
 
 function power_conv_init(el) {
     const lst = el.getElementsByTagName("input");
+    const slc = el.getElementsByTagName("select");
     let controls = {};
     Array.prototype.forEach.call(lst, x => controls[x.name] = x);
     let hh = [];
+    let heat_value = controls["hval"];
+    let bct = controls["tray.bct"];
     ["full", "low"].forEach(pfx => {
         let power_value = controls[pfx + ".power_value"];
-        let heat_value = controls["hval"];
         let fueling = controls[pfx + ".fueling"];
         let burnout = controls[pfx + ".burnout"];
-        let p2w = params_to_power.bind(this, heat_value, power_value, fueling, burnout);
-        let w2p = power_to_params.bind(this, heat_value, power_value, fueling, burnout);
-        [fueling, burnout].forEach(x => x.onchange = p2w);
-        [fueling, burnout].forEach(x => x.oninput = p2w);
+        let p2w = params_to_power.bind(this, heat_value, bct, power_value, fueling, burnout);
+        let w2p = power_to_params.bind(this, heat_value, bct, power_value, fueling, burnout);        
+        [fueling, burnout].forEach(x => x.onchange = x.oninput = p2w); 
         power_value.onchange = w2p;
         power_value.oninput = w2p;
         hh.push(w2p);
         p2w();
     });
-    controls["hval"].onchange = () => {
+    [heat_value, bct].forEach(x=>x.onchange = x.oninput = () => {
         hh.forEach(x => x());
-    };
+        slc[0].value = heat_value.valueAsNumber;
+    });
+    slc[0].value = heat_value.valueAsNumber;
+    slc[0].onchange = function() {
+        if (this.value) {
+            heat_value.value = this.value;
+            hh.forEach(x => x());
+        }
+    }
 }
 
 function dialog_nastaveni_zasobniku() {

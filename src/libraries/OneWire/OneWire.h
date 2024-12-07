@@ -1,182 +1,176 @@
-#ifndef OneWire_h
-#define OneWire_h
-
-#ifdef __cplusplus
+#pragma once
 
 #include <stdint.h>
 
-#if defined(__AVR__)
-#include <util/crc16.h>
-#endif
+class OneWire {
+public:
+    OneWire() = default;
 
-#if ARDUINO >= 100
-#include <Arduino.h>       // for delayMicroseconds, digitalPinToBitMask, etc
-#else
-#include "WProgram.h"      // for delayMicroseconds
-#include "pins_arduino.h"  // for digitalPinToBitMask, etc
-#endif
+    ///Address structure
+    struct Address {
+        uint8_t data[8] = {};
+    };
 
-// You can exclude certain features from OneWire.  In theory, this
-// might save some space.  In practice, the compiler automatically
-// removes unused code (technically, the linker, using -fdata-sections
-// and -ffunction-sections when compiling, and Wl,--gc-sections
-// when linking), so most of these will not result in any code size
-// reduction.  Well, unless you try to use the missing features
-// and redesign your program to not need them!  ONEWIRE_CRC8_TABLE
-// is the exception, because it selects a fast but large algorithm
-// or a small but slow algorithm.
+    ///Search state - to store state during search
+    struct SearchState {
+        uint8_t ROM_NO[8] = {};
+        uint8_t LastDiscrepancy = 0;
+        uint8_t LastFamilyDiscrepancy = 0;
+        bool LastDeviceFlag = false;
+    };
 
-// you can exclude onewire_search by defining that to 0
-#ifndef ONEWIRE_SEARCH
-#define ONEWIRE_SEARCH 1
-#endif
-
-// You can exclude CRC checks altogether by defining this to 0
-#ifndef ONEWIRE_CRC
-#define ONEWIRE_CRC 1
-#endif
-
-// Select the table-lookup method of computing the 8-bit CRC
-// by setting this to 1.  The lookup table enlarges code size by
-// about 250 bytes.  It does NOT consume RAM (but did in very
-// old versions of OneWire).  If you disable this, a slower
-// but very compact algorithm is used.
-#ifndef ONEWIRE_CRC8_TABLE
-#define ONEWIRE_CRC8_TABLE 1
-#endif
-
-// You can allow 16-bit CRC checks by defining this to 1
-// (Note that ONEWIRE_CRC must also be 1.)
-#ifndef ONEWIRE_CRC16
-#define ONEWIRE_CRC16 1
-#endif
-
-// Board-specific macros for direct GPIO
-#include "util/OneWire_direct_regtype.h"
-
-class OneWire
-{
-  private:
-    IO_REG_TYPE bitmask;
-    volatile IO_REG_TYPE *baseReg;
-
-#if ONEWIRE_SEARCH
-    // global search state
-    unsigned char ROM_NO[8];
-    uint8_t LastDiscrepancy;
-    uint8_t LastFamilyDiscrepancy;
-    bool LastDeviceFlag;
-#endif
-
-  public:
-    OneWire() { }
-    OneWire(uint8_t pin) { begin(pin); }
+    ///initialize and assign pin
+    /**
+     * @param pin pin number
+     */
     void begin(uint8_t pin);
 
-    // Perform a 1-Wire reset cycle. Returns 1 if a device responds
-    // with a presence pulse.  Returns 0 if there is no device or the
-    // bus is shorted or otherwise held low for more than 250uS
-    uint8_t reset(void);
+    ///Enable parasite power
+    /**
+     * Set true to begin powering the line by activate HIGH value. The power
+     * is kept when the bus is not used.
 
-    // Issue a 1-Wire rom select command, you do the reset first.
-    void select(const uint8_t rom[8]);
+     * @param power true to enable power, false to disable power.
+     * @retval true power active
+     * @retval false failed to active power, the bus is shorted!
+     */
+    bool enable_power(bool power);
 
-    // Issue a 1-Wire rom skip command, to address all on bus.
-    void skip(void);
+    ///Enable pullup resistor
+    /**
+     * @param pullup true to enable pullup, false to disable
+     *
+     * @note this enable setting to INPUT_PULLUP when bus is released. Otherwise it
+     * is set to INPUT (high impedance)
+     */
+    void enable_pullup(bool pullup);
 
-    // Write a byte. If 'power' is one then the wire is held high at
-    // the end for parasitically powered devices. You are responsible
-    // for eventually depowering it by calling depower() or doing
-    // another read or write.
-    void write(uint8_t v, uint8_t power = 0);
 
-    void write_bytes(const uint8_t *buf, uint16_t count, bool power = 0);
+    ///reset and check presence
+    /**
+     * @retval true device is present
+     * @retval false reset failed, no device is present or bus is shorted
+     *
+     * You need to call reset to begin data exchange
+     */
+    bool reset(void);
+    ///select device to communicate
+    /**
+     * @param rom rom address
+     * @retval true success
+     * @retval false failure, bus is shorted
+     */
+    bool select(const Address &rom);
 
-    // Read a byte.
-    uint8_t read(void);
+    bool select(const uint8_t *rom);
 
-    void read_bytes(uint8_t *buf, uint16_t count);
+    ///select all devices
+    /**
+     * @retval true success
+     * @retval false failure, bus is shorted
+     */
+    bool select_all(void);
 
-    // Write a bit. The bus is always left powered at the end, see
-    // note in write() about that.
-    void write_bit(uint8_t v);
+    ///write byte
+    /**
+     * @param v byte to write
+     * @retval true success
+     * @retval false failure, bus is shorted
+     */
+    bool write(uint8_t v);
 
-    // Read a bit.
-    uint8_t read_bit(void);
+    ///write bytes
+    /**
+     * @param buf buffer
+     * @param count buffer size
+     * @retval true success
+     * @retval false failure, bus is shorted
+     */
+    bool write_bytes(const uint8_t *buf, uint16_t count);
 
-    // Stop forcing power onto the bus. You only need to do this if
-    // you used the 'power' flag to write() or used a write_bit() call
-    // and aren't about to do another read or write. You would rather
-    // not leave this powered if you don't have to, just in case
-    // someone shorts your bus.
-    void depower(void);
+    ///read byte
+    /**
+     * @param byte reference to variable which receives byte
+     * @retval true success
+     * @retval false failure, bus is shorted
+     */
+    bool read(uint8_t &byte);
 
-#if ONEWIRE_SEARCH
-    // Clear the search state so that if will start from the beginning again.
-    void reset_search();
+    ///read bytes
+    /**
+     * @param buf buffer
+     * @param count buffer size
+     * @retval true success
+     * @retval false failure, bus is shorted
+     */
+    bool read_bytes(uint8_t *buf, uint16_t count);
 
-    // Setup the search to find the device type 'family_code' on the next call
-    // to search(*newAddr) if it is present.
-    void target_search(uint8_t family_code);
+    ///begin search
+    /**
+     * @return search state object
+     */
+    static SearchState search_begin();
+    ///begin search for family code
+    /**
+     *
+     * @param family_code
+     * @return search state object
+     */
+    static SearchState search_begin(uint8_t family_code);
+    ///perform search
+    /**
+     * @param state search state
+     * @param addr reference to found address
+     * @param alert_only search for alerts only
+     * @retval true found
+     * @retval false search is finished, or error (shorted bus)
+     */
+    bool search(SearchState &state, Address &addr, bool alert_only = false);
 
-    // Look for the next device. Returns 1 if a new address has been
-    // returned. A zero might mean that the bus is shorted, there are
-    // no devices, or you have already retrieved all of them.  It
-    // might be a good idea to check the CRC to make sure you didn't
-    // get garbage.  The order is deterministic. You will always get
-    // the same devices in the same order.
-    bool search(uint8_t *newAddr, bool search_mode = true);
-#endif
+    bool search(SearchState &state, uint8_t *addr, bool alert_only = false);
 
-#if ONEWIRE_CRC
-    // Compute a Dallas Semiconductor 8 bit CRC, these are used in the
-    // ROM and scratchpad registers.
     static uint8_t crc8(const uint8_t *addr, uint8_t len);
-
-#if ONEWIRE_CRC16
-    // Compute the 1-Wire CRC16 and compare it against the received CRC.
-    // Example usage (reading a DS2408):
-    //    // Put everything in a buffer so we can compute the CRC easily.
-    //    uint8_t buf[13];
-    //    buf[0] = 0xF0;    // Read PIO Registers
-    //    buf[1] = 0x88;    // LSB address
-    //    buf[2] = 0x00;    // MSB address
-    //    WriteBytes(net, buf, 3);    // Write 3 cmd bytes
-    //    ReadBytes(net, buf+3, 10);  // Read 6 data bytes, 2 0xFF, 2 CRC16
-    //    if (!CheckCRC16(buf, 11, &buf[11])) {
-    //        // Handle error.
-    //    }     
-    //          
-    // @param input - Array of bytes to checksum.
-    // @param len - How many bytes to use.
-    // @param inverted_crc - The two CRC16 bytes in the received data.
-    //                       This should just point into the received data,
-    //                       *not* at a 16-bit integer.
-    // @param crc - The crc starting value (optional)
-    // @return True, iff the CRC matches.
     static bool check_crc16(const uint8_t* input, uint16_t len, const uint8_t* inverted_crc, uint16_t crc = 0);
-
-    // Compute a Dallas Semiconductor 16 bit CRC.  This is required to check
-    // the integrity of data received from many 1-Wire devices.  Note that the
-    // CRC computed here is *not* what you'll get from the 1-Wire network,
-    // for two reasons:
-    //   1) The CRC is transmitted bitwise inverted.
-    //   2) Depending on the endian-ness of your processor, the binary
-    //      representation of the two-byte return value may have a different
-    //      byte order than the two bytes you get from 1-Wire.
-    // @param input - Array of bytes to checksum.
-    // @param len - How many bytes to use.
-    // @param crc - The crc starting value (optional)
-    // @return The CRC16, as defined by Dallas Semiconductor.
     static uint16_t crc16(const uint8_t* input, uint16_t len, uint16_t crc = 0);
-#endif
-#endif
+
+protected:
+    uint8_t _pin = 0;
+    bool _powered = false;
+    bool _parasite_power = false;
+    bool _pull_up = false;
+
+    ///write one bit
+    /**
+     * @param v if v is zero, then zero is written otherwise one is written
+     * @retval true success
+     * @retval false failure, bus is shorted
+     *
+     * @note this function doesn't recover the power
+     */
+    bool write_bit(uint8_t v);
+    ///read one bit
+    /**
+     *
+     * @param v variable receives bit
+     * @retval true success
+     * @retval false bus is shorted
+     */
+    bool read_bit(bool &v);
+
+    ///set pin to initial state (PULLUP)
+    void init_pin();
+    ///release pin
+    void release_pin();
+    void hold_low_pin();
+    bool read_pin();
+    bool power_pin();
+    void wait_for(unsigned long micro);
+    bool wait_for(unsigned long micro, bool pin_value);
+    bool wait_for_release();
+
+    bool write_internal(uint8_t v);
+    bool read_internal(uint8_t &v);
 };
 
-// Prevent this name from leaking into Arduino sketches
-#ifdef IO_REG_TYPE
-#undef IO_REG_TYPE
-#endif
 
-#endif // __cplusplus
-#endif // OneWire_h
+

@@ -38,21 +38,35 @@ public:
         Status st = {};
     };
 
+    class EnumCallback {
+    public:
+        virtual ~EnumCallback() = default;
+        virtual bool operator()(const Address &addr) = 0;
+    };
+
     SimpleDallasTemp(OneWire &one);
+
+
+    void enum_devices_cb(EnumCallback &cb);
 
 
     template<typename Fn>
     void enum_devices(Fn &&fn) {
         static_assert(std::is_invocable_r_v<bool, Fn, Address>);
-        wire_reset_search();
-        Address addr;
-        while (wire_search(addr)) {
-            if (is_valid_address(addr) && !fn(addr)) break;
-        }
+
+        class CB: public EnumCallback {
+        public:
+            CB(Fn &fn):_fn(fn) {}
+            virtual bool operator()(const Address &addr) {return _fn(addr);}
+        protected:
+            Fn &_fn;
+        };
+        CB cb(fn);
+        enum_devices_cb(cb);
     }
     bool is_valid_address(const Address &addr);
-    unsigned long request_temp(const Address &addr);
-    unsigned long request_temp();   //global
+    bool request_temp(const Address &addr);
+    bool request_temp();   //global
 
     std::optional<int32_t> read_temp_raw(const Address &addr);
     std::optional<float> read_temp_celsius(const Address &addr);
@@ -99,10 +113,6 @@ protected:
     static Status calculateTemperature(const uint8_t* deviceAddress,
                                     const uint8_t* scratchPad, int32_t &result) ;
 
-    //we need this to hide that there is no wire in emulation
-    void wire_reset_search();
-    //we need this to hide that there is no wire in emulation
-    bool wire_search(Address &addr);
 };
 
 

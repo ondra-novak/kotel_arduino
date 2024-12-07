@@ -1,7 +1,7 @@
 #pragma once
-#include "TCPClient.h"
-#include "TCPServer.h"
-#include "UDPClient.h"
+#include <../r4ext/TCPClient.h>
+#include <../r4ext/TCPServer.h>
+#include <../r4ext/UDPClient.h>
 
 struct WiFiUtils {
 

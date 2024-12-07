@@ -1,5 +1,6 @@
+#include "../r4ext/WifiTCP.h"
+
 #include "Modem.h"
-#include "WifiTCP.h"
 
 std::string& WiFiUtils::modem_cmd(const char *prompt) {
     static std::string str;

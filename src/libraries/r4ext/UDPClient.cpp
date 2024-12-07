@@ -1,5 +1,7 @@
-#include "WifiTCP.h"
-#include "UDPClient.h"
+#include "../r4ext/UDPClient.h"
+
+#include <../r4ext/WifiTCP.h>
+
 #include "WiFiCommands.h"
 #include "WiFiTypes.h"
 #include "Modem.h"

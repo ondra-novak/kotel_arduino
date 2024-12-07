@@ -13,8 +13,9 @@
 
 
 #include "sha1.h"
-#ifdef WEB_DEVEL
+#ifdef EMULATOR
 #include <fstream>
+extern std::string www_path;
 #endif
 
 #define ENABLE_VDT 1
@@ -591,10 +592,12 @@ constexpr std::pair<const char *, uint8_t Controller::ManualControlStruct::*> ma
 };
 
 
-#ifdef WEB_DEVEL
+#ifdef EMULATOR
+
+
 
 void Controller::send_file(MyHttpServer::Request &req, std::string_view content_type, std::string_view file_name) {
-    std::string path = "./src/www";
+    std::string path = www_path;
     path.append(file_name);
     std::ifstream f(path);
     if (!f) {
@@ -685,21 +688,22 @@ void Controller::handle_server(MyHttpServer::Request &req) {
             _server.error_response(req,400,{});
         }
     } else if (req.request_line.path == "/") {
-#ifdef WEB_DEVEL
-        send_file(req, Ctx::html, "/index.html");
-    } else if (req.request_line.path.substr(req.request_line.path.length()-5) == ".html") {
-        send_file(req, Ctx::html, req.request_line.path);
-    } else if (req.request_line.path.substr(req.request_line.path.length()-3) == ".js") {
-        send_file(req, Ctx::javascript, req.request_line.path);
-    } else if (req.request_line.path.substr(req.request_line.path.length()-4) == ".css") {
-        send_file(req, Ctx::css, req.request_line.path);
-#else
         _server.send_file_async(req, HttpServerBase::ContentType::html, embedded_index_html, true, embedded_index_html_etag);
-#endif
-        return; //do not stop
+#ifdef EMULATOR
+    } else {
+        std::string_view ext = req.request_line.path.substr(req.request_line.path.find('.')+1);
+        std::string_view ctx;
+        if (ext == "html") ctx = Ctx::html;
+        else if (ext == "js") ctx = Ctx::javascript;
+        else if (ext == "css") ctx = Ctx::css;
+        else ctx = Ctx::text;
+        send_file(req, ctx, req.request_line.path);
+    }
+#else
     } else {
         _server.error_response(req, 404, "Not found");
     }
+#endif
     req.client->stop();
 }
 

@@ -685,6 +685,7 @@ div#stav > * {
     padding: 5px;
     gap: 1em;
     align-items: center;
+    position: relative;
 }
 
 .section {
@@ -724,7 +725,7 @@ div#stav > * {
 }
 
 
-input {
+input, select {
     border: 1px solid transparent;
     color: wheat;
     font-size: 1.1em;
@@ -814,3 +815,28 @@ div#showcode table {
     margin: 1em auto;
     font-size: 2em;
 }
+
+#nastav_topeni select {
+    border: 0;
+    background-color: black;
+    text-align: center;
+}
+
+label[data-unit]::after, label[data-unit]::before {
+    display: block;
+    position: absolute;
+    right: 0.5em;
+    top: 1em;
+    font-size: 0.9em;
+    pointer-events: none;
+    color: wheat;    
+}
+label[data-unit=s]::after { content:"s";}
+label[data-unit=m]::after { content:"m";}
+label[data-unit=ms]::after { content:"ms";}
+label[data-unit=oc]::after { content:"°C";}
+label[data-unit=pc]::after { content:"%";}
+label[data-unit=kw]::after { content:"kW";}
+label[data-unit=mjkg]::after { content:"kg"; font-size:0.8em; top: 1.4em;right: 0.65em}
+label[data-unit=mjkg]::before { content:"MJ"; font-size:0.8em; top: 0.4em;border-bottom:solid 1px }
+

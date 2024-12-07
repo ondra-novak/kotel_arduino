@@ -16,7 +16,6 @@ public:
         tray_open = digitalRead(pin_in_tray) == tray_open_level;
     }
 
-
 };
 
 

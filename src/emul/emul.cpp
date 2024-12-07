@@ -5,6 +5,7 @@
 #include "temp_sim.h"
 #include "serial_emul.h"
 
+#include <filesystem>
 #include <thread>
 #include <iostream>
 #include <fstream>
@@ -14,6 +15,8 @@ void DotMatrix::enable_auto_drive(DotMatrix::TimerFunction, unsigned int) {}
 void DotMatrix::DirectDrive::activate_row(int, bool) {}
 void DotMatrix::DirectDrive::deactivate_row(int) {}
 void DotMatrix::DirectDrive::clear_matrix() {}
+
+std::string www_path = {};
 
 template<typename ... Args>
 void log_line(Args ... text) {
@@ -211,6 +214,12 @@ void smooth_temp(const Command &cmd, unsigned long time) {
 }
 
 int main(int argc, char **argv) {
+
+    auto cur_dir = std::filesystem::current_path();
+    std::filesystem::path bin_dir;
+    if (argv[0][0] == '/') bin_dir = argv[0];
+    else bin_dir = cur_dir / argv[0];
+    www_path = bin_dir.parent_path().parent_path()/"www";
 
 
     if (argc < 2) {

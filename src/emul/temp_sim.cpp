@@ -1,4 +1,5 @@
 #include "../SimpleDallasTemp/SimpleDallasTemp.h"
+#include "OneWire.h"
 
 #include <algorithm>
 #include <iterator>
@@ -23,13 +24,15 @@ bool SimpleDallasTemp::is_valid_address(const Address &a) {
     return std::find(std::begin(devices), std::end(devices), a) != std::end(devices);
 }
 
-unsigned long SimpleDallasTemp::request_temp(const Address &) {
-    return 750;
+bool SimpleDallasTemp::request_temp(const Address &) {
+    return true;
 }
 
-unsigned long SimpleDallasTemp::request_temp() {
-   return 750;
+bool SimpleDallasTemp::request_temp() {
+   return true;
 }
+
+void OneWire::begin(uint8_t ) {}
 
 std::optional<float> SimpleDallasTemp::read_temp_celsius(const Address &addr) {
     auto iter = std::find(std::begin(devices), std::end(devices), addr);
@@ -41,16 +44,11 @@ std::optional<float> SimpleDallasTemp::read_temp_celsius(const Address &addr) {
     return temps[index];
 }
 
-static int srch_index = 0;
 
-void SimpleDallasTemp::wire_reset_search() {
-    srch_index = 0;
-}
-bool SimpleDallasTemp::wire_search(Address &addr) {
-    if (srch_index >= count_devices) return false;
-    addr = devices[srch_index];
-    ++srch_index;
-    return true;
+void SimpleDallasTemp::enum_devices_cb(EnumCallback &cb) {
+    for (const auto &x: devices) {
+        if (!cb(x)) return;
+    }
 }
 
 
