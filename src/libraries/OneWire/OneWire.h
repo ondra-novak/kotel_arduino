@@ -4,6 +4,17 @@
 
 class OneWire {
 public:
+
+    static constexpr unsigned int param_A = 6;
+    static constexpr unsigned int param_B = 64;
+    static constexpr unsigned int param_C = 60;
+    static constexpr unsigned int param_D = 10;
+    static constexpr unsigned int param_E = 9;
+    static constexpr unsigned int param_F = 55;
+    static constexpr unsigned int param_H = 480;
+    static constexpr unsigned int param_I = 70;
+    static constexpr unsigned int param_J = 410;
+
     OneWire() = default;
 
     ///Address structure
@@ -33,15 +44,6 @@ public:
      * @param power true to enable power, false to disable power.
      * @retval true power active
      * @retval false failed to active power, the bus is shorted!
-     */
-    bool enable_power(bool power);
-
-    ///Enable pullup resistor
-    /**
-     * @param pullup true to enable pullup, false to disable
-     *
-     * @note this enable setting to INPUT_PULLUP when bus is released. Otherwise it
-     * is set to INPUT (high impedance)
      */
     void enable_pullup(bool pullup);
 
@@ -129,14 +131,13 @@ public:
 
     bool search(SearchState &state, uint8_t *addr, bool alert_only = false);
 
+
     static uint8_t crc8(const uint8_t *addr, uint8_t len);
     static bool check_crc16(const uint8_t* input, uint16_t len, const uint8_t* inverted_crc, uint16_t crc = 0);
     static uint16_t crc16(const uint8_t* input, uint16_t len, uint16_t crc = 0);
 
 protected:
     uint8_t _pin = 0;
-    bool _powered = false;
-    bool _parasite_power = false;
     bool _pull_up = false;
 
     ///write one bit
@@ -157,19 +158,79 @@ protected:
      */
     bool read_bit(bool &v);
 
-    ///set pin to initial state (PULLUP)
-    void init_pin();
-    ///release pin
-    void release_pin();
-    void hold_low_pin();
-    bool read_pin();
-    bool power_pin();
-    void wait_for(unsigned long micro);
-    bool wait_for(unsigned long micro, bool pin_value);
+    using MicroType = unsigned long;
+    static constexpr MicroType micro_msb = MicroType(1) << (sizeof(MicroType) * 8 - 1);
+
+    ///put pin to low, wait given microseconds, release it and wait
+    /**
+     * @param hold_us hold microseconds
+     * @param stabilize_us delay to stabilize bus (wait for pull up resistor)
+     */
+    void hold_low_for(unsigned long hold_us, unsigned long stabilize_us);
+
+    ///wait until bus is released
+    /**
+     * Waits up to 500uS while bus is LOW. Then wait 8uS before returns. If the
+     * bus is not relesed in time, return sfalse
+     * @return true bus is free
+     * @return false bus is occupied
+     */
     bool wait_for_release();
+
+
+    ///get timepoint for waiting
+    /**
+     * @param micro micro seconds after current time
+     * @return timepoint usable for wait_until
+     */
+    static MicroType get_timepoint(unsigned long micro);
+    ///wait until timepoint is reached
+    static void wait_until(unsigned long tp);
+    ///repeat call of function until time is reached
+    /**
+     * @param tp timepoint to reach
+     * @param fn function to call in cycle. The function must return true to interrupt waiting
+     * @retval true function returned true
+     * @retval false function returned false for whole period
+     */
+    template<typename Fn>
+    static bool wait_until(unsigned long tp, Fn &&fn);
+    ///update timepoint
+    static unsigned long update_timepoint(unsigned long tp, unsigned long micro);
+    ///wait for given
+    static void wait_for(unsigned long micro);
+    ///wait for given microseconds while pin value equals given argument
+    /**
+     * @param micro microseconds to wait
+     * @param pin_value test value
+     * @retval true pin changed
+     * @retval false timeout
+     */
+    bool wait_for(unsigned long micro, bool pin_value);
 
     bool write_internal(uint8_t v);
     bool read_internal(uint8_t &v);
+
+    //----------- MUST BE IMPLEMENTED ON PLATFORM
+
+    ///set pin to initial state
+    void init_pin();
+    ///hold pin at low value
+    void hold_low_pin();
+    ///release pin, set it to high impedance
+    void release_pin();
+    ///read pin value
+    /**
+     * @retval true pin is in high impedance
+     * @retval false pin is low
+     */
+    bool read_pin();
+
+    ///get current microsecond time.
+    static MicroType get_current_time();
+
+    //----------- END OF PLATFORM DEPEND IMPLEMENTATION
+
 };
 
 

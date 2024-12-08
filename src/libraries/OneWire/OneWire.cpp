@@ -11,63 +11,46 @@ void OneWire::begin(uint8_t pin)
     init_pin();
 }
 
-
-bool OneWire::enable_power(bool power) {
-    if (power) {
-        _parasite_power = true;
-        return power_pin();
-    } else {
-        _parasite_power = false;
-        init_pin();
-    }
-    return true;
-}
-
-// Perform the onewire reset function.  We will wait up to 250uS for
-// the bus to come high, if it doesn't then it is broken or shorted
-// and we return a 0;
-//
-// Returns 1 if a device asserted a presence pulse, 0 otherwise.
-//
 bool OneWire::reset(void)
 {
     if (!wait_for_release()) return false;
     //initiate reset
-    hold_low_pin();
-    //wait 480 for reset
-    wait_for(480);
-    //release the pin
-    release_pin();
-    //wait up 500 uS to presence
-    if (!wait_for(500, true)) return false;
+    //low 480, high 70
+    hold_low_for(param_H,param_I);
+    //sample for 70
+    if (!wait_for(param_I, true)) return false;
+    //wait for 410
+    wait_for(param_J);
     //this is ok
     return true;
 }
 
+
 bool OneWire::write_bit(uint8_t v)
 {
+    //if bus is low, wait for release
     if (!wait_for_release()) return false;
+
     if (v) {
-        hold_low_pin();
-        wait_for(10);
-        release_pin();
-        wait_for(55);
+        //low 6, high 64
+        hold_low_for(param_A, param_B);
     } else {
-        hold_low_pin();
-        wait_for(65);
-        release_pin();
-        wait_for(5);
+        //low 60, high 10
+        hold_low_for(param_C, param_D);
     }
     return true;
 }
 
 bool OneWire::read_bit(bool &v)
 {
+    //if bus is low, wait for release
     if (!wait_for_release()) return false;
-    hold_low_pin();
-    wait_for(3);
-    release_pin();
-    v =  !wait_for(53, true);
+    //low 6, high 9
+    hold_low_for(param_A, param_E);
+    //sample and wait for 55
+    auto tp = get_timepoint(param_F);
+    v = !wait_for(param_F, true);
+    wait_until(tp);
     return true;
 }
 
@@ -79,14 +62,14 @@ bool OneWire::write_internal(uint8_t v) {
     return true;
 }
 bool OneWire::write(uint8_t v) {
-    return write_internal(v) && power_pin();
+    return write_internal(v);
 }
 
 bool OneWire::write_bytes(const uint8_t *buf, uint16_t count) {
   for (uint16_t i = 0 ; i < count ; i++) {
       if (!write_internal(buf[i])) return false;
   }
-  return power_pin();
+  return true;
 }
 
 bool OneWire::read_internal(uint8_t &v) {
@@ -100,13 +83,13 @@ bool OneWire::read_internal(uint8_t &v) {
 }
 
 bool OneWire::read(uint8_t &byte) {
-    return read_internal(byte) && power_pin();
+    return read_internal(byte);
 }
 
 bool OneWire::read_bytes(uint8_t *buf, uint16_t count) {
   for (uint16_t i = 0 ; i < count ; i++)
      if (!read_internal(buf[i])) return false;
-  return power_pin();
+  return true;
 }
 
 bool OneWire::select(const Address &rom) {
@@ -142,40 +125,20 @@ OneWire::SearchState OneWire::search_begin(uint8_t family_code) {
 }
 
 //
-// Perform a search. If this function returns a '1' then it has
-// enumerated the next device and you may retrieve the ROM from the
-// OneWire::address variable. If there are no devices, no further
-// devices, or something horrible happens in the middle of the
-// enumeration then a 0 is returned.  If a new device is found then
-// its address is copied to newAddr.  Use OneWire::reset_search() to
-// start over.
-//
-// --- Replaced by the one from the Dallas Semiconductor web site ---
-//--------------------------------------------------------------------------
-// Perform the 1-Wire Search Algorithm on the 1-Wire bus using the existing
-// search state.
-// Return TRUE  : device found, ROM number in ROM_NO buffer
-//        FALSE : device not found, end of search
+
 //
 bool OneWire::search(SearchState &state, Address &newAddr, bool alert_only ) {
     return search(state, newAddr.data, alert_only);
 }
 bool OneWire::search(SearchState &state, uint8_t *newAddr, bool alert_only )
 {
-   uint8_t id_bit_number;
-   uint8_t last_zero, rom_byte_number;
-   bool search_result;
+   uint8_t id_bit_number = 1;
+   uint8_t last_zero = 0;
+   uint8_t rom_byte_number = 0;
+   uint8_t rom_byte_mask = 1;
+   bool search_result = false;
    bool id_bit = true;
    bool cmp_id_bit = true;
-
-   unsigned char rom_byte_mask;
-
-   // initialize for search
-   id_bit_number = 1;
-   last_zero = 0;
-   rom_byte_number = 0;
-   rom_byte_mask = 1;
-   search_result = false;
 
    if (state.LastDeviceFlag) return false;
 
@@ -255,7 +218,7 @@ bool OneWire::search(SearchState &state, uint8_t *newAddr, bool alert_only )
     } else {
         for (int i = 0; i < 8; ++i) newAddr[i] = state.ROM_NO[i];
     }
-    return power_pin() && search_result;
+    return  search_result;
 }
 
 
@@ -322,8 +285,8 @@ uint16_t OneWire::crc16(const uint8_t* input, uint16_t len, uint16_t crc)
 
 
 void OneWire::init_pin() {
+    digitalWrite(_pin, LOW);
     pinMode(_pin, _pull_up?INPUT_PULLUP:INPUT);
-    _powered = false;
 }
 
 void OneWire::release_pin() {
@@ -331,62 +294,71 @@ void OneWire::release_pin() {
 }
 
 void OneWire::hold_low_pin() {
-    if (_powered) {
-        digitalWrite(_pin, LOW);
-        _powered = false;
-    } else {
-        pinMode(_pin, OUTPUT);
-    }
+    pinMode(_pin, OUTPUT);
 }
 
 bool OneWire::read_pin() {
     return digitalRead(_pin);
 }
 
-inline unsigned long cur_micro() {
+
+unsigned long OneWire::get_current_time() {
     return micros();
 }
 
-bool OneWire::power_pin() {
-    if (!wait_for_release()) return false;
-    init_pin();
-    digitalWrite(_pin, HIGH);
-    pinMode(_pin, OUTPUT);
-    _powered = true;
-    return true;
-}
-
-#else
-inline unsigned long cur_micro() {
-    return 0;
-}
 #endif
 
 
-using MicroType = decltype(cur_micro());
-constexpr MicroType micro_msb = MicroType(1) << (sizeof(MicroType) * 8 - 1);
+
+OneWire::MicroType OneWire::get_timepoint(unsigned long micro) {
+    return update_timepoint(get_current_time(), micro);
+}
+
+OneWire::MicroType OneWire::update_timepoint(OneWire::MicroType tp, unsigned long micro) {
+    return tp + micro;
+}
+void OneWire::wait_until(unsigned long tp) {
+   while ((get_current_time() - tp) & micro_msb);
+}
+
+template<typename Fn>
+bool OneWire::wait_until(unsigned long tp, Fn &&fn) {
+   while ((get_current_time() - tp) & micro_msb) {
+       if (fn()) return true;
+   }
+   return false;
+}
 
 void OneWire::wait_for(unsigned long micro) {
-    auto n = cur_micro();
-    auto m = n + micro;
-    while ((n - m) & micro_msb) {
-        n = cur_micro();
-    }
+    wait_until(get_timepoint(micro));
 }
 
 bool OneWire::wait_for(unsigned long micro, bool pin_value) {
-    auto n = cur_micro();
-    auto m = n + micro;
-    while ((n - m) & micro_msb ) {
-        if (read_pin() != pin_value) return true;
-        n = cur_micro();
-    }
-    return false;
+    return wait_until(get_timepoint(micro), [&]{
+        return read_pin() != pin_value;
+    });
+}
 
+void OneWire::hold_low_for(unsigned long hold_ms, unsigned long stabilize_ms) {
+    auto tp = get_timepoint(hold_ms);
+    //hold pin low
+    hold_low_pin();
+    //wait given microseconds
+    wait_until(tp);
+    //update timepoint
+    tp = update_timepoint(tp, stabilize_ms);
+    //release pin
+    release_pin();
+    //wait 5us to stabilize bus
+    wait_until(tp);
 }
 
 bool OneWire::wait_for_release() {
-    return wait_for(500, false);
+    //bus is released when is HIGH
+    if (!wait_for(500, false)) return false;
+    //wait 5 uS to ensure, that pullup resistor settled bus
+    wait_for(param_D);
+    return true;
 }
 
 void OneWire::enable_pullup(bool pullup) {
