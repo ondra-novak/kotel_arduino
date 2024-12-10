@@ -43,7 +43,7 @@ public:
      * @note this enable setting to INPUT_PULLUP when bus is released. Otherwise it
      * is set to INPUT (high impedance)
      */
-    void enable_pullup(bool pullup);
+    void enable_pullup(bool ) {}
 
 
     ///reset and check presence

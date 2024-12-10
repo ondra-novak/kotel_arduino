@@ -1099,7 +1099,7 @@ void Controller::status_out_ws(Stream &s) {
 }
 
 TimeStampMs Controller::wifi_mon(TimeStampMs cur_time) {
-    if (cur_time > 30000 && cur_time - 30000 > _last_net_activity) {
+    if (cur_time > 10000 && cur_time - 10000 > _last_net_activity) {
         _server.end();
         WiFiUtils::reset();
         init_wifi();
@@ -1118,23 +1118,25 @@ TimeStampMs Controller::wifi_mon(TimeStampMs cur_time) {
                 if (_ntp_addr == IPAddress{}) {
                     _sdns.cancel();
                     _sdns.request("pool.ntp.org");
-                    _time_resync = cur_time + 1000;
+                    _time_resync = cur_time + 5000;
                 } else {
                     _ntp.cancel();
-                    _time_resync = cur_time + 1000;
+                    _time_resync = cur_time + 5000;
                     _ntp.request(_ntp_addr, 123);
                 }
             }
             if (_sdns.is_ready()) {
                 _ntp_addr = _sdns.get_result();
                 _time_resync = cur_time + 1;
+                _sdns.cancel();
             }
             if (_ntp.is_ready()) {
                 set_current_time(static_cast<uint32_t>(_ntp.get_result()));
                 _time_resync = cur_time + 24*60*60*1000;
                 _ntp_addr = IPAddress{};
+                _ntp.cancel();
             }
-            return std::min<TimeStampMs>(1023, _time_resync - cur_time);
+
 
         } else {
             _ntp.cancel();
@@ -1267,12 +1269,10 @@ void Controller::run_init_mode() {
 
 void Controller::init_serial_log() {
     if (_storage.config.serial_log_out) {
-        digitalWrite(LED_BUILTIN, HIGH);
 #ifdef _MODEM_WIFIS3_H_
         modem.debug(Serial, 100);
 #endif
         Serial.println("Debug mode on");
-        digitalWrite(LED_BUILTIN, LOW);
     }
 }
 

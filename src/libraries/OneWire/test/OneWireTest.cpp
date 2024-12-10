@@ -75,6 +75,14 @@ static void clear_state() {
     cur_global_pin_val = true;
 }
 
+
+void OneWire::enable_interrupt() {
+}
+
+
+void OneWire::disable_interrupt() {
+}
+
 void OneWire::init_pin() {
     set_master_pin(true);
 }
@@ -118,18 +126,11 @@ int check_delays(std::initializer_list<unsigned long> delays) {
 }
 
 void print_global_times() {
-    unsigned long z = 0;
-    if (global_pin_changes.empty()) {
-        std::cout << "{}";
-    } else {
-        std::string_view sep = "{";
-        for (auto x: global_pin_changes) {
-            std::cout  << sep << x - z;
-            sep = ",";
-            z = x;
-        }
-        std::cout << "}";
-
+    unsigned int a = 1;
+    for (auto x: global_pin_changes) {
+        std::cout  << x << "," << a << std::endl;
+        a = 1- a;
+        std::cout  << x << "," << a << std::endl;
     }
 
 }

@@ -30,7 +30,9 @@ public:
         ,_temp_reader(_wire) {}
 
     void begin() {
+        _wire.enable_pullup(true);
         _wire.begin(pin_in_one_wire);
+
     }
 
     virtual TimeStampMs get_scheduled_time() const override {

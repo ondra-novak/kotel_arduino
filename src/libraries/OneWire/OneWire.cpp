@@ -33,7 +33,10 @@ bool OneWire::write_bit(uint8_t v)
 
     if (v) {
         //low 6, high 64
-        hold_low_for(param_A, param_B);
+        disable_interrupt();
+        hold_low_for(param_A, 0);
+        enable_interrupt();
+        wait_for(param_B);
     } else {
         //low 60, high 10
         hold_low_for(param_C, param_D);
@@ -45,12 +48,14 @@ bool OneWire::read_bit(bool &v)
 {
     //if bus is low, wait for release
     if (!wait_for_release()) return false;
+    disable_interrupt();
     //low 6, high 9
     hold_low_for(param_A, param_E);
     //sample and wait for 55
     auto tp = get_timepoint(param_F);
     v = !wait_for(param_F, true);
     wait_until(tp);
+    enable_interrupt();
     return true;
 }
 
@@ -149,7 +154,7 @@ bool OneWire::search(SearchState &state, uint8_t *newAddr, bool alert_only )
     // loop to do the search
     do {
         // read a bit and its complement
-        if (!read_bit(id_bit) || read_bit(cmp_id_bit)) return false;
+        if (!read_bit(id_bit) || !read_bit(cmp_id_bit)) return false;
 
         // check for no devices on 1-wire
         if (id_bit && cmp_id_bit) {
@@ -306,6 +311,15 @@ unsigned long OneWire::get_current_time() {
     return micros();
 }
 
+void OneWire::enable_interrupt() {
+    interrupts();
+}
+
+
+void OneWire::disable_interrupt() {
+    noInterrupts();
+}
+
 #endif
 
 
@@ -364,3 +378,5 @@ bool OneWire::wait_for_release() {
 void OneWire::enable_pullup(bool pullup) {
     _pull_up = pullup;
 }
+
+

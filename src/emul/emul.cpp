@@ -270,20 +270,32 @@ unsigned long millis() {
     return static_cast<unsigned long>(simspeed * current_cycle);
 }
 
-static int pins[20] = {};
+static char pins[20] = "IIIIIIIIIIIIIIIIIII";
+
+void logPins() {
+    log_line("PINS: ", pins);
+
+}
 
 void digitalWrite(int pin, int level) {
-    pins[pin] = level;
-    char buff[30];
-    for (int i = 0; i<20; ++i) {
-        buff[i] = '0'+pins[i];
-    }
-    buff[20] = 0;
-    log_line("PINS: ", buff);
+    char &c = pins[pin];
+    if (c != '0' || c != '1') return;
+    char prev = c;
+    c = level==HIGH?'1':'0';
+    if (c != prev) logPins();
 }
 
 void pinMode(int pin, int mode) {
-    log_line("Set pin mode: ", pin, " = ", mode);
+    char &c = pins[pin];
+    char prev = c;
+    switch (mode) {
+        case OUTPUT: c = '0';break;
+        case INPUT: c = 'I';break;
+        case INPUT_PULLUP: c = 'P';break;
+        default: c = '?';break;
+    }
+    if (c != prev) logPins();
+
 }
 
 int digitalRead(int pin) {

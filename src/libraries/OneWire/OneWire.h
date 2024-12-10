@@ -229,6 +229,10 @@ protected:
     ///get current microsecond time.
     static MicroType get_current_time();
 
+    static void enable_interrupt();
+
+    static void disable_interrupt();
+
     //----------- END OF PLATFORM DEPEND IMPLEMENTATION
 
 };

@@ -51,7 +51,7 @@ protected:
             if (a) {
                 ++_storage.cntr1.feeder_start_count;
             }
-            digitalWrite(pin_out_feeder_on, a?active_feeder:inactive_feeder);
+            pinMode(pin_out_feeder_on, a?active_feeder:inactive_feeder);
             _active = a;
             return true;
         } else {

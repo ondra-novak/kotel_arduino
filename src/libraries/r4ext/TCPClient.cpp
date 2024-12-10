@@ -113,6 +113,14 @@ int TCPClient::available() {
     string &res = WiFiUtils::modem_res();
     modem.begin();
 
+    if(modem.write(string(PROMPT(_AVAILABLE)),res, "%s%d\r\n" , CMD_WRITE(_AVAILABLE),_sock)) {
+       int rv = atoi(res.c_str());
+       if (rv <=0) {
+          return 0;
+       }
+    }
+
+
     /* important - it works one shot */
     modem.avoid_trim_results();
     modem.read_using_size();
