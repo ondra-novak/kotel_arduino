@@ -1,7 +1,7 @@
 #include "../kotel/kotel.h"
 #include "../kotel/controller.h"
 #include "../kotel/http_server.h"
-#include "../DotMatrix/DotMatrix.h"
+#include "../libraries/DotMatrix/DotMatrix.h"
 #include "temp_sim.h"
 #include "serial_emul.h"
 
