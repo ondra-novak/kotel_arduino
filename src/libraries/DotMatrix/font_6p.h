@@ -1,3 +1,4 @@
+#pragma once
 namespace DotMatrix {
 
 constexpr auto font_6p = FontP<7, 6>({FontFaceP<7, 6>

@@ -1,3 +1,4 @@
+#pragma once
 namespace DotMatrix {
 constexpr Font<6,4> font_5x3 ({
         "    "
