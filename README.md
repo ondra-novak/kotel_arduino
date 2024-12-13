@@ -63,6 +63,26 @@ Po restartu jednotky by mělo dojít k připojení na Wifi. Mělo by být aktivn
 
 **Autorizace** - aby bylo možné ovládat jednotku z prohlížeče, je třeba provést autorizaci. Ta se provádí ověřením fyzické dostupnosti jednotky přes zobrazení písmenného kódu na DotMatrix matici. Zadáním správné kombinace do prohlížeče dojde k autorizaci.
 
+## Překlad v Arduino IDE
+
+Složku `libraries` je třeba nalinkovat do stejnojmenné složky ve složce Arduino (nebo tam nalinkovat všechny podsložky). Poté stačí oteřít sketch `kotel.ino` ve složce `kotel`
+
+## Simulace
+
+Přeložením v Linux pomocí CMake lze spustit simulaci.
+
+```
+mkdir build
+cd build
+cmake ..
+make all
+cd ..
+build/bin/emul <scénář>
+```
+
+scénář je některý soubor .script v rootu (nebo si můžete napsat vlasní). Port na kterém lze v emulaci zařízení ovládat je 8080 (zpravidla localhost:8080). V souboru index_dev.html je vývojovářská verze webové aplikace, kterou lze upravovat v Chrome (css a js)
+
+
 
 
 
