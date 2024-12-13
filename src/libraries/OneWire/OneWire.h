@@ -211,7 +211,7 @@ protected:
     bool write_internal(uint8_t v);
     bool read_internal(uint8_t &v);
 
-    //----------- MUST BE IMPLEMENTED ON PLATFORM
+    //----------- MUST BE IMPLEMENTED ON THE TARGET PLATFORM
 
     ///set pin to initial state
     void init_pin();
@@ -228,9 +228,9 @@ protected:
 
     ///get current microsecond time.
     static MicroType get_current_time();
-
+    ///enable interrupts
     static void enable_interrupt();
-
+    ///disable interrupts
     static void disable_interrupt();
 
     //----------- END OF PLATFORM DEPEND IMPLEMENTATION

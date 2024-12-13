@@ -210,6 +210,8 @@ inline void HttpServer<max_request_size, max_header_lines>::begin() {
 
 template<unsigned int max_request_size, unsigned int max_header_lines>
 inline void HttpServer<max_request_size, max_header_lines>::end() {
+    if (_sending_client) _sending_client.stop();
+    if (_active_client) _active_client.stop();
     _srv.end();
 }
 

@@ -34,6 +34,7 @@ public:
         auto data = _client.receive();
         if (data.empty()) return false;
         _result = parseDNSResponse(data);
+        cancel();
         return true;
     }
     uint64_t get_result() const {

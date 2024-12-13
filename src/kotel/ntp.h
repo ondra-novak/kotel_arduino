@@ -39,8 +39,7 @@ public:
             _result = seconds;
         }
         _result -= NTP_UNIX_EPOCH_DIFF;
-        _client.close();
-        _opened = false;
+        cancel();
         return true;
     }
     uint64_t get_result() const {

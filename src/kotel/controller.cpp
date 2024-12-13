@@ -1099,8 +1099,10 @@ void Controller::status_out_ws(Stream &s) {
 }
 
 TimeStampMs Controller::wifi_mon(TimeStampMs cur_time) {
-    if (cur_time > 10000 && cur_time - 10000 > _last_net_activity) {
+    if (cur_time > 30000 && cur_time - 30000 > _last_net_activity) {
         _server.end();
+        _ntp.cancel();
+        _sdns.cancel();
         WiFiUtils::reset();
         init_wifi();
         _server.begin();
@@ -1128,13 +1130,11 @@ TimeStampMs Controller::wifi_mon(TimeStampMs cur_time) {
             if (_sdns.is_ready()) {
                 _ntp_addr = _sdns.get_result();
                 _time_resync = cur_time + 1;
-                _sdns.cancel();
             }
             if (_ntp.is_ready()) {
                 set_current_time(static_cast<uint32_t>(_ntp.get_result()));
                 _time_resync = cur_time + 24*60*60*1000;
                 _ntp_addr = IPAddress{};
-                _ntp.cancel();
             }
 
 
