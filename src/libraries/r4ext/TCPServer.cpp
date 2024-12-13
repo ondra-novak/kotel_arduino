@@ -1,6 +1,6 @@
 #include "../r4ext/TCPServer.h"
 
-#include <../r4ext/WifiTCP.h>
+#include "../r4ext/WifiTCP.h"
 
 #include "WiFiCommands.h"
 #include "WiFiTypes.h"

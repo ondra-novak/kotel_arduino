@@ -37,7 +37,7 @@ struct RunTests<Test, std::integer_sequence<int, indexes... > > {
  * @tparam count count of tests. It runs test from TestCase<0>, TestCase<1> ... TestCase<N-1>
  *
  * The value is evaluated to true. In case test failed, this line is not compiled
- * You can use static_assert(run_tests<...>) to run all tests
+ * You can use static_assert(run_tests"...") to run all tests
  */
 template<template<int> class Test, int count>
 constexpr bool run_tests = RunTests<Test, std::make_integer_sequence<int, count> >::result;

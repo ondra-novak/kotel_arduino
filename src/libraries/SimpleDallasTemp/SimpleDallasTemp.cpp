@@ -1,6 +1,6 @@
 #include "SimpleDallasTemp.h"
 
-#include <../OneWire/OneWire.h>
+#include "../OneWire/OneWire.h"
 
 constexpr uint8_t DS18S20MODEL = 0x10;
 constexpr uint8_t DS18B20MODEL = 0x28;
