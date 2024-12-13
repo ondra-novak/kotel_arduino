@@ -476,6 +476,6 @@ void disable_auto_drive();
 
 
 }
-#include "../DotMatrix/bitmap.h"
-#include "../DotMatrix/font_6p.h"
-#include "../DotMatrix/font_5x3.h"
+#include "bitmap.h"
+#include "font_6p.h"
+#include "font_5x3.h"

@@ -1,4 +1,4 @@
-#include "../DotMatrix/DotMatrix.h"
+#include "../libraries/DotMatrix/DotMatrix.h"
 
 #include <algorithm>
 #include <iterator>
