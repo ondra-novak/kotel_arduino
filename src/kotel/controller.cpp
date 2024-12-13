@@ -72,6 +72,7 @@ void Controller::run() {
     _sensors.read_sensors();
     _temp_sensors.async_cycle(_scheduler);
     auto prev_mode = _cur_mode;
+    bool start_mode = _start_mode_until > get_current_timestamp();
     control_pump();
     if (_sensors.tray_open) {
         _was_tray_open = true;
@@ -95,10 +96,10 @@ void Controller::run() {
                 || (_temp_sensors.get_output_temp().has_value() //output temperature is less than input temperature
                         && _temp_sensors.get_input_temp().has_value()
                         && *_temp_sensors.get_input_temp() < _storage.config.pump_start_temp
-                        && !_auto_stop_disabled)
+                        && !start_mode)
                 || (_temp_sensors.get_output_temp().has_value() //output temp is too low
                         && *_temp_sensors.get_output_temp() < _storage.config.pump_start_temp
-                        && !_auto_stop_disabled)){
+                        && !start_mode)){
                 run_stop_mode();
             } else {
                 run_auto_mode();
@@ -500,9 +501,9 @@ void Controller::control_pump() {
 }
 
 void Controller::run_manual_mode() {
-    _auto_stop_disabled = true;
     _cur_mode = DriveMode::manual;
     _auto_mode = AutoMode::notset;
+    _start_mode_until = get_current_timestamp() + from_minutes(60);
 
 }
 
@@ -886,7 +887,6 @@ TimeStampMs Controller::auto_drive_cycle(TimeStampMs cur_time) {
     switch (_auto_mode) {
         default:
         case AutoMode::off:
-            _auto_stop_disabled = false;
             _fan.stop();
             _feeder.stop();
             return TempSensors::measure_interval;
@@ -894,7 +894,6 @@ TimeStampMs Controller::auto_drive_cycle(TimeStampMs cur_time) {
             p = &_storage.config.full_power;
             break;
         case AutoMode::lowpower:
-            _auto_stop_disabled = false;
             p = &_storage.config.low_power;
             break;
     }

@@ -105,7 +105,6 @@ protected:
 
     Sensors _sensors;
 
-    bool _auto_stop_disabled = false;
     bool _wifi_used = false;
     bool _wifi_connected = false;
     bool _force_pump = false;
@@ -117,6 +116,7 @@ protected:
     TimeStampMs _flush_time = 0;
     TimeStampMs _time_resync = 0;
     TimeStampMs _last_net_activity = max_timestamp;
+    TimeStampMs _start_mode_until = 0;
     NTPClient _ntp;
     IPAddress _ntp_addr;
     SimpleDNS _sdns;

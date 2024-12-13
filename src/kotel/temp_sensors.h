@@ -56,17 +56,17 @@ public:
             case State::write_request:
                 _temp_reader.async_request_temp(_temp_async_state);
                 _state = State::write_request_timeout;
-                _next_read_time = cur_time + 200;
+                _next_read_time = cur_time + measure_interval/4;
                 break;
             case State::read_temp1:
                 _temp_reader.async_read_temp(_temp_async_state, _stor.temp.input_temp);
                 _state = State::read_temp1_timeout;
-                _next_read_time = cur_time + 200;
+                _next_read_time = cur_time + measure_interval/4;
                 break;
             case State::read_temp2:
                 _temp_reader.async_read_temp(_temp_async_state, _stor.temp.output_temp);
                 _state = State::read_temp2_timeout;
-                _next_read_time = cur_time + 200;
+                _next_read_time = cur_time + measure_interval/4;
                 break;
             default:
                 _next_read_time = _next_measure_time;
