@@ -1,9 +1,76 @@
 #pragma once
-#include <array>
-#include <cstdint>
-#include <type_traits>
-#include <string_view>
-namespace DotMatrix {
+#include <stdint.h>
+
+namespace Matrix_MAX7219 {
+
+
+
+template<typename T, T val>
+struct integral_constant {
+    using type = T;
+    static constexpr T value = val;
+};
+
+template<typename T, unsigned int count, bool _progmem>
+class array {
+public:
+
+    using value_type = T;
+    using sram_type = array<T,count,false>;
+    using prom_type = array<T,count,true>;
+    constexpr array() = default;
+    constexpr array(const array &arr) = default;
+    constexpr array(const T (&x)[count]) {
+        unsigned int p = 0;
+        for (const auto &i: x) items[p++] = i;
+    }
+    const T *begin() const {return items;}
+    const T *end() const {return items+count;}
+    const T &operator[](unsigned int index) const {return items[index];}
+
+    decltype(auto) load(unsigned int index) const {
+#ifdef __AVR__
+        if constexpr(_progmem) {
+            T out;
+            memcpy_P(&out, items+index, sizeof(T));
+            return out;
+        } else {
+            return items[index];
+        }
+#else
+        return items[index];
+#endif
+    }
+
+
+protected:
+    T items[count] = {};
+};
+
+class string_view {
+public:
+
+    constexpr string_view() = default;
+    constexpr string_view(const char *x):x(x),count(slen(x)) {}
+
+    const char *begin() const {return x;}
+    const char *end() const {return x+count;}
+
+protected:
+    const char *x = nullptr;
+    unsigned int count = 0;
+    static constexpr unsigned int slen(const char *x) {
+        auto *p = x;
+        while (*p) ++p;
+        return p - x;
+    }
+};
+
+template<typename T>                // For lvalues (T is T&),
+T&& forward(T&& param)         // take/return lvalue refs.
+{                                   // For rvalues (T is T),
+    return static_cast<T&&>(param); // take/return rvalue refs.
+}
 
 ///define bitmap blt operation
 enum class BltOp {
@@ -53,7 +120,7 @@ struct ColorMap {
  * Similar as framebuffer, bitmap has zero point at left-top. X extends right,
  * Y extends bottom
  */
-template<unsigned int width, unsigned int height>
+template<unsigned int width, unsigned int height, bool _progmem>
 class Bitmap {
 public:
     static constexpr auto w = width;
@@ -131,6 +198,21 @@ public:
         }
     }
 
+    decltype(auto) load() const {
+#ifdef __AVR__
+        if constexpr(_progmem) {
+            Bitmap<width, height, false> out;
+            memcpy_P(&out, *this, sizeof(out));
+            return out;
+        } else {
+            return reinterpret_cast<const Bitmap<width, height, false> &>(*this);
+        }
+#else
+        return reinterpret_cast<const Bitmap<width, height, false> &>(*this);
+#endif
+    }
+
+
     template<typename FrameBuffer>
     constexpr void draw(FrameBuffer &fb, unsigned int x, unsigned int y, ColorMap colors = {},
             BltOp blt_op = BltOp::copy,
@@ -159,8 +241,9 @@ struct BitBlt {
      * @param colors specifies colors of each pixel state
      */
     template <typename Bitmap, typename FrameBuffer>
-    static constexpr void bitblt(const Bitmap &bm, FrameBuffer &fb, int col, int row,
+    static constexpr void bitblt(const Bitmap &bm_P, FrameBuffer &fb, int col, int row,
         const ColorMap &colors = { }) {
+        decltype(auto) bm = bm_P.load();
         auto h = bm.get_height();
         auto w = bm.get_width();
         for (int y = 0; y < h; ++y) {
@@ -231,10 +314,10 @@ public:
 
     ///construct view from the bitmap
     template<int _w, int _h>
-    BitmapView(const Bitmap<_w, _h> &bp) :
+    BitmapView(const Bitmap<_w, _h, false> &bp) :
             width(_w), height(_h), ref(&bp), get_pixel_fn(
                     [](const BitmapView &me, int w, int h) {
-                        auto b = reinterpret_cast<const Bitmap<_h, _w>*>(me.ref);
+                        auto b = reinterpret_cast<const Bitmap<_h, _w, false>*>(me.ref);
                         if (w < _w && h < _h) {
                             return b->set_pixel(w, h);
                         }
@@ -254,7 +337,7 @@ protected:
  * sometimes width can be various
  */
 template<unsigned int height, unsigned int width>
-using FontFace = Bitmap<width,height>;
+using FontFace = Bitmap<width,height,false>;
 
 ///helper class for proportional font face
 /**
@@ -266,15 +349,15 @@ struct FontFaceP {
     ///actual width (can be less than max_width)
     uint8_t width;
     ///character face itself
-    Bitmap<max_width,height> face;
+    Bitmap<max_width,height,false> face;
 };
 ///Declaration of normal font
-template<unsigned int height, unsigned int width>
-using Font = std::array<FontFace<height, width>, 96>;
+template<unsigned int height, unsigned int width, bool progmem>
+using Font = array<FontFace<height, width>, 96, progmem>;
 ///Declaration of proportional font
 ///
-template<unsigned int height, unsigned int max_width>
-using FontP = std::array<FontFaceP<height, max_width>, 96>;
+template<unsigned int height, unsigned int max_width, bool progmem>
+using FontP = array<FontFaceP<height, max_width>, 96, progmem>;
 
 ///helps to detect font type (fixed/proportional)
 template<typename T>
@@ -287,7 +370,7 @@ struct FontFaceSpec<FontFaceP<height, max_width> > {
      constexpr uint8_t get_width() const {
         return ch.width;
     }
-     constexpr const Bitmap<max_width, height> &get_face() const {
+     constexpr const Bitmap<max_width, height, false> &get_face() const {
         return ch.face;
     }
 };
@@ -298,7 +381,7 @@ struct FontFaceSpec<FontFace<height,width> > {
      constexpr uint8_t get_width() const{
         return width;
     }
-     constexpr const Bitmap<width, height> &get_face() const {
+     constexpr const Bitmap<width, height, false> &get_face() const {
         return ch;
     }
 };
@@ -315,8 +398,8 @@ auto do_for_character(const Font &font, int ascii_char, Fn &&fn) {
     if (ascii_char < 33) ascii_char = 32;
     else if (ascii_char > 127) ascii_char = '?';
     ascii_char -= 32;
-    const auto &chdef = font[ascii_char];
-    using Spec = FontFaceSpec<std::decay_t<decltype(chdef)> >;
+    decltype(auto) chdef = font.load(ascii_char);
+    using Spec = FontFaceSpec<typename Font::value_type>;
     return fn(Spec{chdef});
 }
 
@@ -359,6 +442,11 @@ struct TextRender {
         });
     }
 
+    struct Coords {
+        unsigned int x;
+        unsigned int y;
+    };
+
     ///render text
     /**
      * @param fb frame buffer
@@ -370,21 +458,21 @@ struct TextRender {
      * @return new x and new y coordinate (to continue in rendering)
      */
     template<typename FrameBuffer, typename Font>
-    static std::pair<unsigned int, unsigned int> render_text(FrameBuffer &fb, const Font &font,
-            unsigned int x, unsigned int y, std::string_view text, const ColorMap &cols = {}) {
+    static Coords render_text(FrameBuffer &fb, const Font &font,
+            Coords coords, string_view text, const ColorMap &cols = {}) {
         for (char c: text) {
-            auto s = render_character(fb, font, x, y, c, cols);
+            auto s = render_character(fb, font, coords.x, coords.y, c, cols);
             if constexpr(rot == Rotation::rot0) {
-                x+=s;
+                coords.x+=s;
             } else if constexpr(rot == Rotation::rot90) {
-                y+=s;
+                coords.y+=s;
             } else if constexpr(rot == Rotation::rot180) {
-                x-=s;
+                coords.x-=s;
             } else if constexpr(rot == Rotation::rot270) {
-                y-=s;
+                coords.y-=s;
             }
         }
-        return {x,y};
+        return coords;
     }
 };
 
@@ -392,8 +480,8 @@ template<typename T, T from, T to>
 struct ToIntergalValue {
     template<typename Fn>
     static constexpr  auto call(T val, Fn &&fn) {
-        if (val == from) return fn(std::integral_constant<T, from>());
-        else return ToIntergalValue<T, static_cast<T>(static_cast<int>(from)+1), to>::call(val, std::forward<Fn>(fn));
+        if (val == from) return fn(integral_constant<T, from>());
+        else return ToIntergalValue<T, static_cast<T>(static_cast<int>(from)+1), to>::call(val, forward<Fn>(fn));
     }
 };
 
@@ -401,13 +489,13 @@ template<typename T, T x>
 struct ToIntergalValue<T, x, x> {
     template<typename Fn>
     static constexpr  auto call(T , Fn &&fn) {
-        return fn(std::integral_constant<T, x>());
+        return fn(integral_constant<T, x>());
     }
 };
 
-template<unsigned int w, unsigned int h>
+template<unsigned int w, unsigned int h, bool P>
 template<typename FrameBuffer>
-constexpr void Bitmap<w,h>::draw(FrameBuffer &fb, unsigned int x, unsigned int y, ColorMap colors,
+constexpr void Bitmap<w,h,P>::draw(FrameBuffer &fb, unsigned int x, unsigned int y, ColorMap colors,
         BltOp blt_op, Rotation r) const {
     ToIntergalValue<BltOp, BltOp::copy, BltOp::copy_neg>
         ::call(blt_op,[&](auto c_op){
