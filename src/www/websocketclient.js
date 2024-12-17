@@ -1,5 +1,6 @@
 class WebSocketExchange {
 
+    #timeout=10000;
     #ws = null;
     #tosend = [];
     #promises = {};
@@ -14,7 +15,11 @@ class WebSocketExchange {
     constructor() {
         this.#token = localStorage["token"];
     }
-    
+
+    connect() {
+        this.flush();
+    }
+        
     set_token(tkn) {
         this.#token = tkn
         localStorage["token"] = tkn;
@@ -49,6 +54,7 @@ class WebSocketExchange {
         if (this.#ws) {
             Object.keys(this.#promises).forEach(x => this.#promises[x].forEach(z => z[1](err)));
             this.#promises = {};
+            this.#ws.close();
             this.#ws = null;
             clearTimeout(this.#pingtm);
             setTimeout(() => this.flush(), 1000);
@@ -61,7 +67,7 @@ class WebSocketExchange {
             this.#pingtm = -1;
             this.#ws.close();
             this.reconnect(new TypeError("connection timeout"));
-        }, 5000);
+        }, this.#timeout);
     }
 
     #clearopentm() {
@@ -111,7 +117,7 @@ class WebSocketExchange {
             this.#opentm = setTimeout(()=>{
                 this.#ws.close();                
                 this.reconnect(new TypeError("open timeout")); 
-            },5000);
+            },this.#timeout);
             this.#ws.onopen = () => {
                 this.#clearopentm();
                 this.#ip = false;

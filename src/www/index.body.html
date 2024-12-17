@@ -1,4 +1,4 @@
-<div class="header" id="netstatus">Kotel<div id="devicetime"></div></div>
+<div class="header" id="netstatus"><div id="devicedate"></div>Kotel<div id="devicetime"></div></div>
 <div id="stav" class="header_stav">
     <div class="button" id="prepnout_rezim"></div>
 </div>
@@ -40,7 +40,7 @@
             <div class="bok1 b"></div>
             <div class="bok2 a"></div>
             <div class="bok2 b"></div>
-            <div class="label">--</div>
+            <div class="label">---</div>
         </div>
     </div>
     <div class="ovladace prvekspopisem" id="horeni">
@@ -106,8 +106,13 @@
         <label><span>Aktuální stav (ignoruj čas naplnění)</span><input type="checkbox" name="absnow"></label>
         <label><span>Kalibrovat (zásobník je prázdný)</span><input type="checkbox" name="kalib"></label>
         <div class="chyba kalibselhal">Kalibrace selhala, zásobník byl na začátku prázdný</div>
+        <div class="chyba kalibselhal">Kalibrace selhala, zásobník byl na začátku prázdný</div>
+    <label data-unit="kg"><span>Hmotnost pytle</span><input type="number" value="0" step="1" min="0" max="255" name="hmotnost_pytle"></label>
+    <div class="chyba neplatnahodnotahp">Neplatná hodnota</div>
+    <label data-unit="kg"><span>Kapacita zásobníku</span><input type="number" value="1" step="1" min="0" max="255" name="kapacita_zas"></label>
+    <div class="chyba neplatnahodnotakap">Neplatná hodnota</div>
     </div>
-    <label><span>Přidaný počet pytlů</span><input type="number" value="0" step="1" min="-15" max="15" size="3"
+    <label><span>Přidaný počet pytlů</span><input type="number" value="0" step="1" min="-15" max="15"
             name="pytle"></label>
     <div class="chyba male">Nesmí být záporné číslo</div>
     <div class="chyba velke">Moc velká hodnota</div>
@@ -165,16 +170,7 @@
 </div>
 <div class="okno section" id="nastav_topeni" hidden="hidden">
     <div class="sectionname black">Ovládání hoření</div>
-    <label data-unit=mjkg><span>Výhřevnost</span><select name="typ_paliva">
-        <option></option>
-        <option value="17">Dřevěné pelety</option>
-        <option value="15">Šťovíkové pelety</option>
-        <option value="16">Pelety z obylné slámy</option>
-        <option value="16">Řepkové pelety</option>
-        <option value="17">Topolové pelety</option>        
-        <option value="14">Sláma</option>
-    </select><input type="number" min="5" max="25.5" step="0.1" name="hval""></label>
-
+    <label data-unit=mjkg><span>Výhřevnost</span><input type="number" min="5" max="25.5" step="0.1" name="hval""></label>
     <div class=" subsection">
         <div class="sectionname">Plný výkon</div>
         <label  data-unit=kw><span>Výkon</span><input type="number" min="1" max="25" step="0.5" name="full.power_value"
@@ -202,7 +198,7 @@
         <label data-unit=s><span>Snížený výkon - prohořívání</span><input type="number" min="1" max="255" step="1"
                  name="low.burnout"></label>
         <label data-unit=s><span>Doba podání 1 pytle podavačem</span><input type="number" min="1" max="65535" step="1"
-                name="tray.bct"></label>
+                name="tray.f1kgt"></label>
                 
     </div>
 </div>
@@ -210,6 +206,7 @@
 <div class="buttonpanel"><button>OK</button> <button onclick="close_window.call(this)">Storno</button></div>
 </div>
 <div class="okno section" id="stats" hidden="hidden">
+    <div class="sectionname">Přehledy</div>
     <table class="excel">
         <thead>
             <tr>
@@ -251,7 +248,7 @@
                 <td data-name="low_power_avg" data-type="time"></td>
             </tr>
             <tr>
-                <th class="sub">chlazení</th class="sub">
+                <th class="sub">útlum</th class="sub">
                 <td data-name="cool_count" data-type="count"></td>
                 <td data-name="cooling_time" data-type="time"></td>
                 <td data-name="cooling_avg" data-type="time"></td>
@@ -281,12 +278,6 @@
                 <td class="e"></td>
             </tr>
             <tr>
-                <th class="sub">jiné</th>
-                <td data-name="other_failure_count" data-type="count"></td>
-                <td class="e"></td>
-                <td class="e"></td>
-            </tr>
-            <tr>
                 <th>Čerpadlo</th>
                 <td data-name="pump_start_count" data-type="count"></td>
                 <td data-name="pump_time" data-type="time"></td>
@@ -311,10 +302,10 @@
                 <td class="e"></td>
             </tr>
             <tr>
-                <th>Spotřeba paliva / výdrž pytle</th>
-                <td data-name="fuel_consuption" data-type="p."></td>
-                <td data-name="bag_consump_time" data-type="time"></td>
-                <td data-name="fuel_consuption_avg" data-type="p/d"></td>
+                <th>Spotřeba paliva</th>
+                <td data-name="consumed_kg_total" data-type="kg"></td>
+                <td class="e"></td>
+                <td data-name="consumed_kg_avg" data-type="kg/d"></td>
             </tr>
             <tr>
                 <th>Chyby EEPROM</th>
@@ -328,7 +319,7 @@
 
     </table>
 
-    <div class="buttonpanel"><button onclick="close_window.call(this)">Zavřít</button></div>
+    <div class="buttonpanel"><button class="left">Vynulovat</button><button onclick="close_window.call(this)">Zavřít</button></div>
 </div>
 <div class="okno section" id="login" hidden="hidden">
     <div class="sectionname black">Spárovat toto zařízení</div>
@@ -379,5 +370,10 @@
 <div class="okno section" id="potvrd_odhlaseni" hidden="hidden">
     <div class="sectionname black">Potvrzení</div>
     <p>Opravdu si přeješ toto zařízení odhlásit</p>
+    <div class="buttonpanel"><button>OK</button> <button>Storno</button></div>
+</div>
+<div class="okno section" id="potvrd_vynulovat" hidden="hidden">
+    <div class="sectionname black">Potvrzení</div>
+    <p>Opravdu si přeješ vynulovat statistiky</p>
     <div class="buttonpanel"><button>OK</button> <button>Storno</button></div>
 </div>

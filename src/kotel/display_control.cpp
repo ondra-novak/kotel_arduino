@@ -205,21 +205,6 @@ void DisplayControl::run(TimeStampMs cur_time) {
                 "RU");
         return;
     }
-    auto rmn = _cntr.calc_tray_remain();
-    if (rmn <= 4 && rmn >= 0) {
-        if (phase_pos == 0) {
-            frame_buffer.draw_box(0,second_line,7,11,0);
-            return;
-        }
-        if (alternate) {
-            main_temp();
-            char buff[2];
-            buff[0] = rmn + '0';
-            buff[1] = 'P';
-            TR::render_text(frame_buffer, DotMatrix::font_5x3, 0, second_line, {buff,2});
-            return;
-        }
-    }
     main_temp();
     print_temp(second_line, _cntr.get_input_temp());
 }

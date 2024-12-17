@@ -20,9 +20,10 @@ html {
 #manualcontrolpanel {
     position: sticky;
     border: 1px solid;
-    bottom: 5px;
-    background-color: #000000;
-    margin: 0 auto;
+    bottom: 0;
+    background-color: #000000ad;
+    box-sizing: border-box;
+    margin: auto;
     width: 90vw;
     max-width: 500px;
     text-align: center;
@@ -127,7 +128,7 @@ button {
     right:0;
     margin: auto;
     top: 8em;
-    padding: 2em 1em 1em 1em;
+    padding: 1em 1vw 1em 1vw;
     background-color:black;
     box-shadow: 5px 5px 5px 0px #00000091;
 }
@@ -136,9 +137,14 @@ button {
 
 .zasobnik .label {
     position: absolute;
-    left: 0;
+    left: 0.7em;
     right: 0;
-    top: 0;
+    top: 1em;
+    font-size: 1.5em;
+    text-shadow: 0 0 9px black;
+}
+.zasobnik .label::after {
+    content:"%"
 }
 
 .zasobnik .fill {
@@ -204,7 +210,7 @@ div.zasobnik.open::after {
     content: "Zásobník otevřený";
     display:block;
     position:absolute;
-    top: 2em;
+    top: 0em;
     left: 0.5em;
     right: 0;
     text-align: center
@@ -501,14 +507,23 @@ body {
 
 .header {
     text-align: center;
-    background-color: #393c4fd4;
+    background-color: #393c4fcf;
     padding: 5px;
     border-bottom: 1px solid #585f8d;
     font-weight: bold;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    font-size: 1.1em;
+    pointer-events:none;
+    box-sizing: border-box;
 }
 
 div#devicetime {
     float: right;
+}
+div#devicedate {
+    float: left;
 }
 .header::after {
     content: "";
@@ -837,6 +852,7 @@ label[data-unit=ms]::after { content:"ms";}
 label[data-unit=oc]::after { content:"°C";}
 label[data-unit=pc]::after { content:"%";}
 label[data-unit=kw]::after { content:"kW";}
+label[data-unit=kg]::after { content:"kg";}
 label[data-unit=mjkg]::after { content:"kg"; font-size:0.8em; top: 1.4em;right: 0.65em}
 label[data-unit=mjkg]::before { content:"MJ"; font-size:0.8em; top: 0.4em;border-bottom:solid 1px }
 

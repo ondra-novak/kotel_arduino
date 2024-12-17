@@ -58,7 +58,6 @@ public:
     bool is_feeder_on() const {return _feeder.is_active();}
     bool is_pump_on() const {return _pump.is_active();}
     bool is_fan_on() const {return _fan.is_active();}
-    int calc_tray_remain() const;
     Storage &get_storage() {return _storage;}
     void set_wifi_used() {_wifi_used = true;}
     bool is_wifi_used() const {return _wifi_used;}
@@ -74,7 +73,7 @@ public:
 
 
 struct SetFuelParams {
-    int8_t bagcount = 0;
+    int16_t kgchg = 0;
     int8_t kalib = 0;
     int8_t absnow = 0;
     int8_t full = 0;
@@ -164,7 +163,8 @@ protected:
         enum_tasks = '#',
         generate_code = 'G',
         unpair_all ='U',
-        reset = '!'
+        reset = '!',
+        clear_stats = '0'
 
 
     };
@@ -181,7 +181,6 @@ protected:
     void handle_ws_request(MyHttpServer::Request &req);
     void send_file(MyHttpServer::Request &req, std::string_view content_type, std::string_view file_name);
 
-    bool set_fuel(std::string_view req, std::string_view &&error);
     bool set_fuel(const SetFuelParams &sfp);
     void status_out_ws(Stream &s);
     std::string_view get_task_name(const AbstractTimedTask *task);

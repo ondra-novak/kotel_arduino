@@ -4,7 +4,7 @@ const StatusOutWs = [
     ["uint32", "feeder_time"],
     ["uint32", "tray_open_time"],
     ["uint32", "tray_fill_time"],
-    ["int16", "bag_fill_count"],
+    ["int16", "tray_fill_kg"],
     ["int16", "bag_consumption"],
     ["int16", "temp_output_value"],
     ["int16", "temp_output_amp_value"],
@@ -31,10 +31,11 @@ const ManualControlWs = [
 ];
 
 const SetFuelWs = [
-    ["int8", "bagcount"],
+    ["int16", "kgchg"],
     ["int8", "kalib"],
     ["int8", "absnow"],
     ["int8", "full"],
+    ["int8", "reserved"],
 ];
 
 const StatsOutWs = [
@@ -65,8 +66,10 @@ const StatsOutWs = [
     ["uint32", "feeder_time"],
     ["uint32", "tray_open_time"],
     ["uint32", "tray_fill_time"],
-    ["uint16", "bag_consump_time"],
-    ["uint16", "bag_fill_count"],
+    ["uint16", "feeder_1kg_time"],
+    ["uint16", "tray_fill_kg"],
+    ["uint32", "consumed_kg"],
+    ["uint32", "consumed_kg_total"],
     ["uint32", "eeprom_errors"],
     ["uint32", "uptime"]
 

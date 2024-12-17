@@ -51,6 +51,8 @@ struct Config {
     uint8_t operation_mode = static_cast<uint8_t>(OperationMode::manual);
     uint8_t fan_pulse_count = 100;
     uint8_t serial_log_out = 0;     //if there is 1, serial output is used for logging
+    uint8_t bag_kg = 15;            //velikost pytle
+    uint8_t tray_kg = 15*15;        //velikost nasypky v kg
 };
 
 
@@ -58,27 +60,78 @@ struct Tray {
     uint32_t feeder_time = 0;       //cisty cas podavace (v sec)
     uint32_t tray_open_time = 0;    //cisty cas podavace, kdy doslo k otevreni zasobniku
     uint32_t tray_fill_time = 0;    //cisty cas podavace, kdy doslo k naplneni
-    uint16_t bag_consump_time = 3350;  //cisty cas podavace na spotrebu jednoho pytle (max 18h)
-    uint16_t bag_fill_count = 0;    //celkove nalozeni v pytlech
+    uint16_t feeder_1kg_time = 240; //pocet sekund podavace pro presun 1kg paliva
+    uint16_t tray_fill_kg = 0;      //celkove nalozeni v kg
+    uint32_t consumed_fuel_kg = 0;  //suma spotrebovaneho paliva (z predchoziho cyklu)
 
     constexpr uint32_t calc_tray_empty_time() const {
-        return tray_fill_time + bag_fill_count * bag_consump_time;
+        return tray_fill_time +tray_fill_kg * feeder_1kg_time;
     }
-    constexpr void alter_bag_count(uint32_t filltime, int increment)  {
-        if (bag_consump_time == 0) {
-            bag_fill_count = std::max<int>(bag_fill_count+increment, bag_fill_count);
+
+    constexpr uint32_t calc_this_cycle_consumed_fuel(uint32_t reftime) const {
+        if (feeder_1kg_time == 0) return 0;
+        return (reftime - tray_fill_time) / feeder_1kg_time;;
+    }
+
+    constexpr uint32_t calc_this_cycle_consumed_fuel() const {
+        return calc_this_cycle_consumed_fuel(feeder_time);
+    }
+
+    constexpr uint32_t calc_tray_fill() const {
+        if (feeder_1kg_time == 0) return tray_fill_kg;
+        uint32_t c = calc_this_cycle_consumed_fuel();
+        if (c > tray_fill_kg) return 0;
+        else return tray_fill_kg - c;
+    }
+
+    ///aktualne zpotrebovane palivo zapise do statistik a posune fill_time podle toho
+    constexpr void commit_consumed(uint32_t filltime) {
+        //pokud je fill time v minulosti tak nedelej nic
+        if (filltime <= tray_fill_time) return;
+        //spocitej kolik se spotrebovalo k filltime
+        auto c = calc_this_cycle_consumed_fuel(filltime);
+        //zapis do statistik
+        consumed_fuel_kg += c;
+        //uprav tray_fill_kg aby vysledek byl stejny
+        //za predpokladu, ze se nespotrebovalo vic nez kolik bylo v zasobniku
+        if (c > tray_fill_kg) tray_fill_kg = 0; else tray_fill_kg -= c;
+        //posun fill time
+        tray_fill_time += c * feeder_1kg_time;
+    }
+
+    ///aktualizuje nalozeni,
+    /**
+     * @param filltime cas podavace vuci kteremu se provadi aktualizace
+     * @param increment zmena
+     */
+    constexpr void update_tray_fill(uint32_t filltime, int increment)  {
+        if (feeder_1kg_time == 0) {
+            tray_fill_kg= std::max<uint16_t> (tray_fill_kg+increment, 0);
         } else {
-            auto consumed = (filltime-tray_fill_time) / bag_consump_time;
-            if (consumed > bag_fill_count) {
-                bag_fill_count = std::max(0,increment);
-            } else {
-                bag_fill_count = bag_fill_count - consumed;
-                if (increment < 0 && (-increment) > bag_fill_count) bag_fill_count = 0;
-                else bag_fill_count += increment;
-                tray_fill_time = tray_fill_time + static_cast<uint32_t>(bag_consump_time) * consumed;
+            //pokud se pridalo vyznamne vic paliva
+            auto c = calc_this_cycle_consumed_fuel(filltime);
+            if (static_cast<uint32_t>(increment) > (c >> 1)) {
+                //aktualni spotreba se zapocte do statistik
+                commit_consumed(filltime);
             }
+            //aktualizuj tray_fill_kg
+            int32_t r = static_cast<int32_t>(tray_fill_kg)+increment;
+            //ale aby nevysel zaporny
+            tray_fill_kg = static_cast<uint16_t>(std::max(r, r-r));
         }
     }
+
+    constexpr void set_max_fill(uint32_t filltime, uint32_t max_fill)  {
+        auto remain = calc_tray_fill();
+        if (remain > max_fill) return;
+        auto diff = max_fill - remain;
+        update_tray_fill(filltime, diff);
+    }
+
+    constexpr uint32_t calc_total_consumed_fuel() const {
+        return consumed_fuel_kg + calc_this_cycle_consumed_fuel();
+    }
+
 };
 
 

@@ -155,21 +155,22 @@ function update_fuel(id, value) {
     const el = document.getElementById(id);
     const pb = el.getElementsByClassName("fill")[0];
     const label = el.getElementsByClassName("label")[0];
+    const max_tray = Controller.config.traykg;
 
-    if (value > 15) value = 15;
+    if (value > max_tray) value = max_tray;
     const koef = 0.7;
-    const p = value / 15;
+    const p = value / max_tray;
     const f = Math.floor((Math.sqrt(koef * p) + p * (1 - Math.sqrt(koef))) * 100);
     const fstr = f + "%";
     pb.setAttribute("style", "height:" + fstr);
-    label.textContent = value.toFixed(1);
+    label.textContent = isFinite(p)?(p*100).toFixed(0):"---";
 }
 
 function calculate_fuel_remain() {
     const fill_time = parseFloat(Controller.stats["tray_fill_time"]);
     const cur_time = parseFloat(Controller.stats["feeder_time"]);
-    const consup = parseFloat(Controller.config["tray.bct"]);
-    const fillup = parseFloat(Controller.config["tray.bgfc"]);
+    const consup = parseFloat(Controller.config["tray.f1kgt"]);
+    const fillup = parseFloat(Controller.config["tray.tfkg"]);
 
     const ellapsed = cur_time - fill_time;
     const consumed = ellapsed / consup;
@@ -374,9 +375,9 @@ async function nastav_wifi() {
 }
 
 
-function power_to_params(vyhrevnost_el, bct_el, power_el, fueling_el, burnout_el) {
-    const spotreba = bct_el.valueAsNumber;
-    const ref_power = 70 * spotreba * vyhrevnost_el.valueAsNumber / (17.0 * 3350);
+function power_to_params(vyhrevnost_el, f1kgt_el, power_el, fueling_el, burnout_el) {
+    const spotreba = f1kgt_el.valueAsNumber;
+    const ref_power = 70 * spotreba * vyhrevnost_el.valueAsNumber / (17.0 * 224);
     const ref_power10 = Math.floor(ref_power * 10);
     const need_power10 = Math.floor(power_el.value * 10);
     let a = 1;
@@ -406,43 +407,34 @@ function power_to_params(vyhrevnost_el, bct_el, power_el, fueling_el, burnout_el
     burnout_el.value = burnout.toFixed(0);
 }
 
-function params_to_power(vyhrevnost_el, bct_el, power_el, fueling_el, burnout_el) {
-    const spotreba = bct_el.valueAsNumber;
-    const ref_power = 70 * spotreba * vyhrevnost_el.valueAsNumber / (17.0 * 3350);
+function params_to_power(vyhrevnost_el, f1kgt_el, power_el, fueling_el, burnout_el) {
+    const spotreba = f1kgt_el.valueAsNumber;
+    const ref_power = 70 * spotreba * vyhrevnost_el.valueAsNumber / (17.0 * 224);
     power_el.value = (fueling_el.valueAsNumber * ref_power / (fueling_el.valueAsNumber + burnout_el.valueAsNumber)).toFixed(1);
 }
 
 function power_conv_init(el) {
     const lst = el.getElementsByTagName("input");
-    const slc = el.getElementsByTagName("select");
     let controls = {};
     Array.prototype.forEach.call(lst, x => controls[x.name] = x);
     let hh = [];
     let heat_value = controls["hval"];
-    let bct = controls["tray.bct"];
+    let f1kgt = controls["tray.f1kgt"];
     ["full", "low"].forEach(pfx => {
         let power_value = controls[pfx + ".power_value"];
         let fueling = controls[pfx + ".fueling"];
         let burnout = controls[pfx + ".burnout"];
-        let p2w = params_to_power.bind(this, heat_value, bct, power_value, fueling, burnout);
-        let w2p = power_to_params.bind(this, heat_value, bct, power_value, fueling, burnout);        
+        let p2w = params_to_power.bind(this, heat_value, f1kgt, power_value, fueling, burnout);
+        let w2p = power_to_params.bind(this, heat_value, f1kgt, power_value, fueling, burnout);        
         [fueling, burnout].forEach(x => x.onchange = x.oninput = p2w); 
         power_value.onchange = w2p;
         power_value.oninput = w2p;
         hh.push(w2p);
         p2w();
     });
-    [heat_value, bct].forEach(x=>x.onchange = x.oninput = () => {
+    [heat_value, f1kgt].forEach(x=>x.onchange = x.oninput = () => {
         hh.forEach(x => x());
-        slc[0].value = heat_value.valueAsNumber;
     });
-    slc[0].value = heat_value.valueAsNumber;
-    slc[0].onchange = function() {
-        if (this.value) {
-            heat_value.value = this.value;
-            hh.forEach(x => x());
-        }
-    }
 }
 
 function dialog_nastaveni_zasobniku() {
@@ -455,6 +447,8 @@ function dialog_nastaveni_zasobniku() {
         x.checked = false;
         x.value = "0";
     });
+    inputs.hmotnost_pytle.value=Controller.config.bgkg;
+    inputs.kapacita_zas.value=Controller.config.traykg;
     let buttons = win.getElementsByTagName("button");
     function endisbut(y) {
         Array.prototype.forEach.call(buttons, x => x.disabled = y);
@@ -464,17 +458,30 @@ function dialog_nastaveni_zasobniku() {
         const kalib = inputs.kalib.checked;
         const absnow = inputs.absnow.checked;
         const bagcount = inputs.pytle.valueAsNumber;
+        const mb = inputs.hmotnost_pytle.valueAsNumber;
+        const kap = inputs.kapacita_zas.valueAsNumber;
+        const kgchg = bagcount * mb;
+        const limit = parseFloat(Controller.config.traykg); 
         if (!full) {
             hide_error(win);
-            if (isNaN(bagcount)) return show_error(win, "prazdne");
-            if (bagcount < -15) return show_error(win, "male");
-            if (bagcount > 15) return show_error(win, "velke");
+            if (isNaN(kgchg)) return show_error(win, "prazdne");
+            if (kgchg < -limit) return show_error(win, "male");
+            if (kgchg > limit) return show_error(win, "velke");
+        }
+        if (mb < 1 || mb > kap) {
+            return show_error(win, "neplatnahodnotahp");
+        }
+        if (kap < 1 || kap > 255) {
+            return show_error(win, "neplatnahodnotakap");
         }
         try {
             let req = { absnow: absnow ? 1 : 0, kalib: kalib ? 1 : 0 };
-            if (full) req["full"] = 1; else req["bagcount"] = bagcount;
+            if (full) req["full"] = 1; else req["kgchg"] = kgchg;
             endisbut(true);
-            let r = await connection.send_request("f", encodeBinaryFrame(SetFuelWs, req));
+            let p1 = connection.send_request("f", encodeBinaryFrame(SetFuelWs, req));;
+            let p2 = Controller.set_config({"bgkg":mb,"traykg":kap});
+            let rr = await Promise.all([p1,p2]);
+            let r = rr[0];
             let w = new Uint8Array(r);
             if (w.length == 0) {
                 win.hidden = true;
@@ -482,6 +489,7 @@ function dialog_nastaveni_zasobniku() {
             } else {
                 show_error(win, "kalibselhal");
             }
+            
         } catch (e) {
             show_error(win, "spojeni");
         }
@@ -506,6 +514,7 @@ function parseTextSector(buffer) {
 }
 
 function formatInterval(seconds) {
+    if (!isFinite(seconds)) return "-";
     const sInMinute = 60;
     const sInHour = 60 * sInMinute;
     const sInDay = 24 * sInHour;
@@ -634,6 +643,27 @@ async function  dialog_show_code() {
     
 }
 
+async function vynulovat_statistiky() {
+    async function doit() {
+        try {
+            await confirm_dlg("potvrd_vynulovat");
+            while (true) {
+                try {
+                    await connection.send_request('0');            
+                    Controller.update_stats_cycle();
+                    break;
+                } catch (e) {
+                    console.error(e);
+                }        
+            }
+        } catch (e) {}
+        
+    }
+    this.disabled = true;
+    await doit();
+    this.disabled = false;
+}
+
 async function main() {
     let ignore_man_change = 0;
 
@@ -665,7 +695,8 @@ async function main() {
         document.getElementById("manualcontrolpanel").hidden = st.mode != 1;
         document.getElementById("zasobnik").classList.toggle("open", st.tray_open != 0);
         document.getElementById("simul_temp").hidden = st["temp_sim"] == 0;
-        document.getElementById("devicetime").textContent = st["time"].toLocaleString();
+        document.getElementById("devicetime").textContent = st["time"].toLocaleTimeString();
+        document.getElementById("devicedate").textContent = st["time"].toLocaleDateString();
     };
     Controller.on_error = function(x, y) {
         document.getElementById("netstatus").classList.add("neterror");
@@ -732,24 +763,16 @@ async function main() {
     el.addEventListener("click", function(){
         document.getElementById("stats").hidden = false;
     });
+    
+    el = document.getElementById("stats");
+    el = el.querySelector("button")
+    el.addEventListener("click", vynulovat_statistiky);
 
 
     
-    connection.onconnect = async function() {
-        Controller.read_config();
-        let data = await connection.send_request(6, {});
-        document.getElementById("ssid").textContent = parseTextSector(data);
-        Controller.update_stats_cycle();
-    };
-
-    connection.ontokenreq = dialog_registrace;
     
-    Controller.update_status_cycle();
-
     const day_seconds = 24*60*60;
-    const hour_seconds = 60*60;
-    const minute_seconds = 60;
-
+    
         Controller.on_stats_update = (data) => {
         const stattbl = document.getElementById("stats");
         data["active_avg"] = data["active_time"]/data["start_count"];
@@ -764,8 +787,7 @@ async function main() {
         data["pump_avg"] = data["pump_time"]/data["pump_start_count"];
         data["fan_avg"] = data["fan_time"]/data["fan_start_count"];
         data["feeder_avg"] = data["feeder_time"]/data["feeder_start_count"];
-        data["fuel_consuption"] = data["feeder_time"]/data["bag_consump_time"];
-        data["fuel_consuption_avg"] = data["fuel_consuption"]/(data["active_time"]/day_seconds);
+        data["consumed_kg_avg"] = data["consumed_kg_total"]/(data["active_time"]/day_seconds);
         data["other_failure_count"] = data["stop_count"] - data["overheat_count"] - data["feeder_overheat_count"] -data["temp_read_failure_count"];
 
         Array.prototype.forEach.call(stattbl.getElementsByTagName("td"),(el)=>{
@@ -780,14 +802,28 @@ async function main() {
                 } else if (format == "count") {
                     el.textContent = val + "x";
                 } else if (format) {
-                    el.textContent = val.toFixed(1) + " "+format;
+                    el.textContent = val.toFixed(0) + " "+format;
                 } else {
-                    el.textContent = val.toFixed(1);
+                    el.textContent = val.toFixed(0);
                 }
              }
         });
 
     }
+
+    
+    connection.onconnect = async function() {
+        Controller.read_config();
+        let data = await connection.send_request(6, {});
+        document.getElementById("ssid").textContent = parseTextSector(data);
+        Controller.update_stats_cycle();
+        Controller.update_status_cycle();
+    };
+
+    connection.ontokenreq = dialog_registrace;
+
+    connection.connect();
+
 }
 
 

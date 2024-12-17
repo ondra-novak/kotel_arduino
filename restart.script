@@ -4,7 +4,7 @@
 0 config tsinaddr=01-FD-7D-45-38-FC-89-40&tsoutaddr=02-6D-38-D9-78-EF-00-1E
 0 temp_set 62 75 
 0 config tray.bgfc = 2
-0 config tray.bct = 3600
+0 config tray.f1kgt = 3600
 +800 temp_smooth 62 75
 +100 temp_smooth 62 80
 +200 temp_smooth 59 70

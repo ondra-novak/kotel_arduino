@@ -138,6 +138,8 @@ static constexpr std::pair<const char *, uint8_t Config::*> config_table[] ={
         {"fanpc", &Config::fan_pulse_count},
         {"tpump",&Config::pump_start_temp},
         {"srlog",&Config::serial_log_out},
+        {"bgkg",&Config::bag_kg},
+        {"traykg",&Config::tray_kg},
 };
 
 static constexpr std::pair<const char *, HeatValue Config::*> config_table_2[] ={
@@ -225,8 +227,8 @@ static constexpr std::pair<const char *, uint32_t Tray::*> tray_table[] ={
 };
 
 static constexpr std::pair<const char *, uint16_t Tray::*> tray_table_2[] ={
-        {"tray.bgfc", &Tray::bag_fill_count},
-        {"tray.bct", &Tray::bag_consump_time}
+        {"tray.tfkg", &Tray::tray_fill_kg},
+        {"tray.f1kgt", &Tray::feeder_1kg_time}
 };
 
 static constexpr std::pair<const char *, TextSector WiFi_SSID::*> wifi_ssid_table[] ={
@@ -247,10 +249,10 @@ static constexpr std::pair<const char *, IPAddr WiFi_NetSettings::*> wifi_netcfg
 };
 
 static constexpr std::pair<const char *, Tray Storage::*> tray_control_table[] ={
-        {"tray.bgfc", &Storage::tray},
+        {"tray.tfkg", &Storage::tray},
 };
 static constexpr std::pair<const char *, uint16_t Tray::*> tray_control_table_2[] ={
-        {"tray.bct", &Tray::bag_consump_time}
+        {"tray.f1kgt", &Tray::feeder_1kg_time}
 };
 
 
@@ -389,7 +391,7 @@ bool parse_to_field(TextSector &fld, std::string_view value) {
 }
 
 bool parse_to_field(Tray &fld, std::string_view value) {
-    if (!parse_to_field(fld.bag_fill_count, value)) return false;
+    if (!parse_to_field(fld.tray_fill_kg, value)) return false;
     fld.tray_fill_time = fld.tray_open_time;
     return true;
 }
@@ -537,16 +539,6 @@ void Controller::run_stop_mode() {
     _auto_mode = AutoMode::notset;
 }
 
-int Controller::calc_tray_remain() const {
-    if (_storage.tray.tray_fill_time > _storage.tray.feeder_time) return -1;
-    if (_storage.tray.bag_consump_time == 0) return -1;
-    auto total = static_cast<uint32_t>(_storage.tray.bag_fill_count)
-                      * static_cast<uint32_t>(_storage.tray.bag_consump_time);
-    auto end = _storage.tray.tray_fill_time + total;
-    if (_storage.tray.feeder_time > end) return 0;
-    auto rmn = end - _storage.tray.feeder_time;
-    return rmn / _storage.tray.bag_consump_time;
-}
 
 static IPAddress conv_ip(const IPAddr &x) {
     return IPAddress(x.ip[0], x.ip[1], x.ip[2], x.ip[3]);
@@ -783,48 +775,25 @@ TimeStampMs Controller::update_motorhours(TimeStampMs now) {
 }
 
 
-
-constexpr std::pair<const char *, int8_t Controller::SetFuelParams::*> set_fuel_params_table[] = {
-        {"full", &Controller::SetFuelParams::full},
-        {"bagcount", &Controller::SetFuelParams::bagcount},
-        {"kalib", &Controller::SetFuelParams::kalib},
-        {"absnow", &Controller::SetFuelParams::absnow},
-};
-
-bool Controller::set_fuel(std::string_view body, std::string_view &&error) {
-    SetFuelParams sfp;
-    do {
-        auto ln = split(body,"&");
-        if (!update_settings_kv(set_fuel_params_table, sfp, ln)) {
-            error = ln;
-            return false;
-        }
-    } while (!body.empty());
-    bool b = set_fuel(sfp);
-    if (!b) error = "kalib";
-    return b;
-}
-
 bool Controller::set_fuel(const SetFuelParams &sfp) {
 
     auto filltime  = sfp.absnow?_storage.tray.feeder_time:_storage.tray.tray_fill_time;
     if (sfp.kalib) {
-        if (_storage.tray.bag_fill_count == 0) {
+        if (_storage.tray.tray_fill_kg == 0) {
             return false;
         }
         auto total_time = filltime - _storage.tray.tray_fill_time;
-        auto consump = total_time / _storage.tray.bag_fill_count;
+        auto consump = total_time / _storage.tray.tray_fill_kg;
         if (consump > 0xFFFF || consump == 0) {
             return false;
         }
-        _storage.tray.bag_consump_time = consump;
-        _storage.tray.bag_fill_count = sfp.bagcount;
+        _storage.tray.feeder_1kg_time = consump;
+        _storage.tray.tray_fill_kg = sfp.kgchg;
     } else {
         if (sfp.full) {
-            _storage.tray.bag_fill_count = 15;
-            _storage.tray.tray_fill_time = filltime;
+            _storage.tray.set_max_fill(filltime, _storage.config.tray_kg);
         } else {
-            _storage.tray.alter_bag_count(filltime, sfp.bagcount);
+            _storage.tray.update_tray_fill(filltime, sfp.kgchg);
         }
 
     }
@@ -953,11 +922,13 @@ void Controller::handle_ws_request(MyHttpServer::Request &req)
     case WsReqCmd::get_stats: {
         uint32_t cntr = _storage.get_eeprom().get_crc_error_counter();
         uint32_t timestamp = get_current_timestamp()/1000;
+        uint32_t consumed_kg_total = _storage.tray.calc_total_consumed_fuel();
         static_buff.write(reinterpret_cast<const char *>(&_storage.runtm), sizeof(_storage.runtm));
         static_buff.write(reinterpret_cast<const char *>(&_storage.runtm2), sizeof(_storage.runtm2));
         static_buff.write(reinterpret_cast<const char *>(&_storage.cntr1), sizeof(_storage.cntr1));
         static_buff.write(reinterpret_cast<const char *>(&_storage.cntr2), sizeof(_storage.cntr2));
         static_buff.write(reinterpret_cast<const char *>(&_storage.tray), sizeof(_storage.tray));
+        static_buff.write(reinterpret_cast<const char *>(&consumed_kg_total), sizeof(consumed_kg_total));
         static_buff.write(reinterpret_cast<const char *>(&cntr), sizeof(cntr));
         static_buff.write(reinterpret_cast<const char *>(&timestamp), sizeof(timestamp));
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
@@ -1022,17 +993,28 @@ void Controller::handle_ws_request(MyHttpServer::Request &req)
         static_buff.write(_last_code.data(), _last_code.size());
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
         break;
-    case WsReqCmd::unpair_all:{
+    case WsReqCmd::unpair_all:
         generate_pair_secret();
         gen_and_print_token();
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
         break;
-    case WsReqCmd::reset:{
+    case WsReqCmd::reset:
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
         delay(10000);   //delay more than 5 sec invokes WDT
         break;
-    }
-    }break;
+    case WsReqCmd::clear_stats:
+        _storage.tray.commit_consumed(_storage.tray.feeder_time);
+        _storage.tray.feeder_time = _storage.tray.feeder_time - _storage.tray.tray_fill_time ;
+        _storage.tray.tray_open_time = 0;
+        _storage.tray.tray_fill_time = 0;
+        _storage.tray.consumed_fuel_kg = 0;
+        _storage.cntr1 = {};
+        _storage.cntr2 = {};
+        _storage.runtm = {};
+        _storage.runtm2 = {};
+        _storage.save();
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
+        break;
     default:
         break;
     }
@@ -1043,7 +1025,7 @@ struct StatusOutWs {
     uint32_t feeder_time;
     uint32_t tray_open_time;
     uint32_t tray_fill_time;
-    int16_t bag_fill_count;
+    int16_t tray_fill_kg;
     int16_t bag_consumption;
     int16_t temp_output_value;
     int16_t temp_output_amp_value;
@@ -1076,8 +1058,8 @@ void Controller::status_out_ws(Stream &s) {
         _storage.tray.feeder_time,
         _storage.tray.tray_open_time,
         _storage.tray.tray_fill_time,
-        static_cast<int16_t>(_storage.tray.bag_fill_count),
-        static_cast<int16_t>(_storage.tray.bag_consump_time),
+        static_cast<int16_t>(_storage.tray.tray_fill_kg),
+        static_cast<int16_t>(_storage.tray.feeder_1kg_time),
         encode_temp(_temp_sensors.get_output_temp()),
         encode_temp(_temp_sensors.get_output_ampl()),
         encode_temp(_temp_sensors.get_input_temp()),
