@@ -193,9 +193,7 @@ public:
                 ++asciiart;
             }
         }
-        if (*asciiart != 0) {
-            bitmap[height][2] = 1;
-        }
+        bitmap[*asciiart == 0?0:height][0] = bitmap[0][0];
     }
 
     decltype(auto) load() const {

@@ -3,7 +3,7 @@ set(emul_files emul.cpp
     api/Print.cpp
     api/Stream.cpp
     api/String.cpp
-    api/dtostrf.c    
+    api/dtostrf.c
     api/itoa.c
     api/IPAddress.cpp
     wifi/WiFiClient.cpp
@@ -14,7 +14,8 @@ set(emul_files emul.cpp
     DotMatrix.cpp
     serial_emul.cpp
     SoftwareATSE.cpp
-     
+    Matrix_MAX7219_emul.cpp
+
 )
 
 

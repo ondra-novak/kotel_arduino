@@ -7,11 +7,37 @@ namespace Matrix_MAX7219 {
 ///Base class for Matrix control
 /** To control matrix use Control class, this is just utility base class */
 class MatrixControlBase {
-protected:
+public:
 
     using byte = unsigned char;
-
     static constexpr unsigned int rows = 8;
+
+    ///initialize bus
+    void begin(byte data_pin, byte clk_pin, byte cs_pin);
+
+    ///start command transfer
+    /**
+     * @retval true started
+     * @retval false bus is shorted
+     */
+    bool start_packet();
+
+    ///send command
+    /**
+     * @tparam reverse_data - if true, sends data in reversed order
+     * @param op opcode
+     * @param data argument
+     *
+     * @note you need to initiate packet by caling start_packet() before sending
+     * command. To activate command, use commit_packet(). You need
+     * to send many commands as currently connected modules
+     */
+    template<bool reverse_data>
+    void send_command(byte op, byte data);
+
+    ///Commit all changes into modules
+    void commit_packet();
+
 
     static constexpr byte OP_NOOP=0;
     static constexpr byte OP_DIGIT0=1;
@@ -32,14 +58,16 @@ protected:
             OP_DIGIT0,OP_DIGIT1,OP_DIGIT2,OP_DIGIT3,OP_DIGIT4,OP_DIGIT5,OP_DIGIT6,OP_DIGIT7
     };
 
+    ///global intensity 0-255
+    byte _global_intensity = 255;
+
+private:
     ///pin number for data
     byte _data_pin = 2;
     ///pin number for clock
     byte _clk_pin = 3;
     ///pin number for load/cs
     byte _cs_pin = 4;
-    ///global intensity 0-255
-    byte _global_intensity = 255;
 
     ///enable pin - set it to active mode
     void enable_pin(byte pin);
@@ -59,33 +87,9 @@ protected:
      */
     bool check_pin(byte pin);
     ///transfer byte
-    void transfer(byte data);
-    ///transfer data reversed
-    void transfer_reversed(byte data);
+    template<bool reverse_data>
+    void transfer_byte(byte data);
 
-    ///start command transfer
-    /**
-     * @retval true started
-     * @retval false bus is shorted
-     */
-    bool start();
-
-    ///enqueue command
-    /**
-     * @param op opcode
-     * @param data argument
-     */
-    void enqueue(byte op, byte data);
-    ///enqueue command reversed data
-    /**
-     * @param op opcode
-     * @param data argument
-     */
-    void enqueue_reversed(byte op, byte data);
-    ///commit all enqueued commands
-    void commit();
-    ///initialize bus
-    void begin(byte data_pin, byte clk_pin, byte cs_pin);
 
 };
 
@@ -103,6 +107,10 @@ enum class BitOrder {
     ///the left pixel is least significant bit, the left pixel is most significant bit
     lsb_to_msb
 };
+
+template<unsigned int _modules, Orientation _orient, BitOrder _bit_order>
+class MatrixControl;
+
 
 
 ///Declaration of frame buffer
@@ -241,6 +249,21 @@ struct FrameBuffer {
         }
     }
 
+
+    ///Present the framebuffer at given matrix
+    /**
+     * @param matrix instance of matrix driver
+     * @param x_win x-offset of the visible window (in case that frame buffer is larger)
+     * @param y_win y-offset of the visible window (in case that frame buffer is larger)
+     * @retval true successfully done
+     * @retval false failed to apply update, electrical issue (bus is shorted)
+     */
+    template<unsigned int _modules, Orientation _orient>
+    bool present(MatrixControl<_modules, _orient, BitOrder::msb_to_lsb> &matrix,
+             unsigned int x_win = 0, unsigned int y_win = 0);
+
+
+
 };
 
 
@@ -318,7 +341,7 @@ public:
             while (j--) if (cur_row[j] != new_row[j]) break;
             if (j < _modules) {
                 j = _modules;
-                if (!start()) return false;
+                if (!start_packet()) return false;
                 byte op;
                 if constexpr(_orient == Orientation::right_to_left) {
                     op = row_to_op[i];
@@ -334,14 +357,10 @@ public:
                         idx = j;
                     }
 
-                    if constexpr(transfer_reversed) {
-                        enqueue_reversed(op, new_row[idx]);
-                    } else {
-                        enqueue(op, new_row[idx]);
-                    }
+                    send_command<transfer_reversed>(op, new_row[idx]);
                     cur_row[idx] = new_row[idx];
                 }
-                commit();
+                commit_packet();
             }
         }
         if (per_module_intensity) {
@@ -363,21 +382,16 @@ public:
         while (j--) if (intensity_per_module[j] != _intensity[j]) break;
         if (j < _modules) {
             j = _modules;
-            if (!start()) return false;
+            if (!start_packet()) return false;
             while (j--) {
                 _intensity[j] = intensity_per_module[j];
-                enqueue(OP_INTENSITY, calc_module_intensity(j));
+                send_command(OP_INTENSITY, calc_module_intensity(j));
             }
-            commit();
+            commit_packet();
         }
         return true;
     }
 
-    template<unsigned int _width, unsigned int _height>
-    bool present(const FrameBuffer<_width, _height> &fb, unsigned int x_win = 0, unsigned int y_win = 0) {
-        return update(fb.pixels+(x_win>>3)+y_win*(_width>>3), false, fb.width >> 3, x_win & 0x7);
-
-    }
 
     ///sets master's intensity
     /**
@@ -395,9 +409,9 @@ public:
     bool set_master_intensity(byte intensity) {
         if (intensity != _global_intensity) {
             unsigned int j = _modules;
-            if (!start()) return false;
+            if (!start_packet()) return false;
             while (j--) {
-                enqueue(OP_INTENSITY, calc_module_intensity(j));
+                send_command(OP_INTENSITY, calc_module_intensity(j));
             }
             _global_intensity = intensity;
         }
@@ -416,6 +430,16 @@ public:
         update_intensity(m);
     }
 
+    ///reset state.
+    /**
+     * It can be useful when display is reconnected, it needs to be reinitialized
+     *
+     * The function setups modules and disables shutdown. It doesn't clear
+     * content.
+     *
+     * @retval true success
+     * @retval false failure, bus is shorted
+     */
     bool reset() {
         for (unsigned int i = 0; i< rows; ++i) {
             if (!global_command(row_to_op[i], 0)) return false;
@@ -433,12 +457,12 @@ public:
 protected:
 
     bool global_command(byte op, byte data) {
-        if (!start()) return false;
+        if (!start_packet()) return false;
         unsigned int j = _modules;
         while (j--) {
-            enqueue(op, data);
+            send_command(op, data);
         }
-        commit();
+        commit_packet();
         return true;
     }
 
@@ -453,7 +477,17 @@ protected:
 
 
 
+
+
+
+template<unsigned int _width, unsigned int _height>
+template<unsigned int _modules, Orientation _orient>
+inline bool FrameBuffer<_width, _height>::present(
+        MatrixControl<_modules, _orient, BitOrder::msb_to_lsb> &matrix,
+        unsigned int x_win, unsigned int y_win) {
+    return matrix.update(pixels+(x_win>>3)+y_win*(_width>>3), false, _width >> 3, x_win & 0x7);
 }
 
+}
 #include "bitmap.h"
 #include "font_6p.h"

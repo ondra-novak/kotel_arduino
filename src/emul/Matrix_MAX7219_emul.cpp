@@ -1,8 +1,15 @@
-#include "Matrix_MAX7219.h"
-#include <api/Common.h>
+#include "../libraries/Matrix_MAX7219/Matrix_MAX7219.h"
+#include "api/Common.h"
+#include "simul_matrix.h"
+
+SimulMatrixMAX7219<4> _instance4;
 
 
 namespace Matrix_MAX7219 {
+
+
+
+
 
 void MatrixControlBase::begin(byte data_pin, byte clk_pin, byte cs_pin)
 {
@@ -10,10 +17,6 @@ void MatrixControlBase::begin(byte data_pin, byte clk_pin, byte cs_pin)
     _clk_pin = clk_pin;
     _cs_pin = cs_pin;
 
-
-    disable_pin(_data_pin);
-    disable_pin(_clk_pin);
-    disable_pin(_cs_pin);
 }
 
 void MatrixControlBase::enable_pin(byte pin) {
@@ -39,39 +42,21 @@ void MatrixControlBase::set_pin_low(byte pin) {
 
 bool MatrixControlBase::start_packet() {
 
-    if (!check_pin(_clk_pin) || !check_pin(_cs_pin) || !check_pin(_data_pin)) {
-        return false;
-    }
-
-    enable_pin(_data_pin);
-    enable_pin(_cs_pin);
-    set_pin_low(_cs_pin);
-    enable_pin(_clk_pin);
-    set_pin_low(_clk_pin);
     return true;
 }
 
 template<bool reverse_data>
 void MatrixControlBase::transfer_byte(byte data) {
     if constexpr(reverse_data) {
+        byte x = 0;
         for (byte i = 0x01 ; i ; i = i << 1) {
-            set_pin_low(_clk_pin);
-            set_pin_level(_data_pin, (data & i) != 0);
-            set_pin_high(_clk_pin);
+            x<<=1;
+            if ((data & i)) x |= 0x1;
         }
-    } else {
-        for (byte i = 0x80 ; i ; i = i >> 1) {
-            set_pin_low(_clk_pin);
-            set_pin_level(_data_pin, (data & i) != 0);
-            set_pin_high(_clk_pin);
-        }
+        data = x;
     }
+    _instance4.transfer(data);
 }
-/*
-template void MatrixControlBase::transfer<true>(byte);
-template void MatrixControlBase::transfer<false>(byte);
-*/
-
 
 template<bool reversed>
 void MatrixControlBase::send_command(byte op, byte data) {
@@ -84,12 +69,7 @@ template void MatrixControlBase::send_command<false>(byte, byte);
 
 
 void MatrixControlBase::commit_packet() {
-    disable_pin(_cs_pin);
-
-    disable_pin(_clk_pin);
-
-    disable_pin(_data_pin);
-
+    _instance4.activate();
 }
 
 void MatrixControlBase::set_pin_level(byte pin, bool level) {
