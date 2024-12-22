@@ -6,21 +6,46 @@ namespace Matrix_MAX7219 {
 
 ///Base class for Matrix control
 /** To control matrix use Control class, this is just utility base class */
-class MatrixControlBase {
+class Driver {
 public:
 
     using byte = unsigned char;
     static constexpr unsigned int rows = 8;
 
+    constexpr Driver() = default;
+    constexpr Driver(byte data_pin, byte cs_pin, byte clk_pin)
+                    :_data_pin(data_pin)
+                     ,_cs_pin(cs_pin)
+                     ,_clk_pin(clk_pin) {}
+
+    enum Operation: byte {
+        OP_NOOP=0,
+        OP_DIGIT0=1,
+        OP_DIGIT1=2,
+        OP_DIGIT2=3,
+        OP_DIGIT3=4,
+        OP_DIGIT4=5,
+        OP_DIGIT5=6,
+        OP_DIGIT6=7,
+        OP_DIGIT7=8,
+        OP_DECODEMODE=9,
+        OP_INTENSITY=10,
+        OP_SCANLIMIT=11,
+        OP_SHUTDOWN=12,
+        OP_DISPLAYTEST=15
+    };
+
     ///initialize bus
-    void begin(byte data_pin, byte clk_pin, byte cs_pin);
+    void begin(byte data_pin, byte cs_pin, byte clk_pin);
+
+    void begin() const;
 
     ///start command transfer
     /**
      * @retval true started
      * @retval false bus is shorted
      */
-    bool start_packet();
+    bool start_packet() const;
 
     ///send command
     /**
@@ -32,68 +57,61 @@ public:
      * command. To activate command, use commit_packet(). You need
      * to send many commands as currently connected modules
      */
-    template<bool reverse_data>
-    void send_command(byte op, byte data);
+    void send_command(Operation op, byte data) const;
 
     ///Commit all changes into modules
-    void commit_packet();
+    void commit_packet() const;
 
 
-    static constexpr byte OP_NOOP=0;
-    static constexpr byte OP_DIGIT0=1;
-    static constexpr byte OP_DIGIT1=2;
-    static constexpr byte OP_DIGIT2=3;
-    static constexpr byte OP_DIGIT3=4;
-    static constexpr byte OP_DIGIT4=5;
-    static constexpr byte OP_DIGIT5=6;
-    static constexpr byte OP_DIGIT6=7;
-    static constexpr byte OP_DIGIT7=8;
-    static constexpr byte OP_DECODEMODE=9;
-    static constexpr byte OP_INTENSITY=10;
-    static constexpr byte OP_SCANLIMIT=11;
-    static constexpr byte OP_SHUTDOWN=12;
-    static constexpr byte OP_DISPLAYTEST=15;
+    static constexpr Operation row2op(byte row) {
+        return static_cast<Operation>(static_cast<byte>(OP_DIGIT0)+row);
+    }
 
-    static constexpr byte row_to_op[rows] = {
-            OP_DIGIT0,OP_DIGIT1,OP_DIGIT2,OP_DIGIT3,OP_DIGIT4,OP_DIGIT5,OP_DIGIT6,OP_DIGIT7
-    };
 
-    ///global intensity 0-255
-    byte _global_intensity = 255;
 
 private:
     ///pin number for data
     byte _data_pin = 2;
-    ///pin number for clock
-    byte _clk_pin = 3;
     ///pin number for load/cs
-    byte _cs_pin = 4;
+    byte _cs_pin = 3;
+    ///pin number for clock
+    byte _clk_pin = 4;
 
     ///enable pin - set it to active mode
-    void enable_pin(byte pin);
+    void enable_pin(byte pin) const;
     ///disable pin - set it to input pullup
-    void disable_pin(byte pin);
+    void disable_pin(byte pin) const;
     ///set pin to high level
-    void set_pin_high(byte pin);
+    void set_pin_high(byte pin) const;
     ///set pin to low level
-    void set_pin_low(byte pin);
+    void set_pin_low(byte pin) const;
     ///set pin to specific level
-    void set_pin_level(byte pin, bool level);
+    void set_pin_level(byte pin, bool level) const;
     ///check pin correctly wired
     /**
      * @param pin pin to check
      * @retval true probably ok
      * @retval false bus is shorted
      */
-    bool check_pin(byte pin);
+    bool check_pin(byte pin) const;
     ///transfer byte
-    template<bool reverse_data>
-    void transfer_byte(byte data);
-
-
+    void transfer_byte(byte data) const;
 };
 
+enum class BitOrder {
+    ///the left pixel is most significant bit, the right pixel is least significant bit
+    msb_to_lsb,
+    ///the left pixel is least significant bit, the left pixel is most significant bit
+    lsb_to_msb
+};
 
+}
+
+#include "includes/bitmap.h"
+#include "includes/device.h"
+#include "includes/font.h"
+
+#if 0
 enum class Orientation {
     ///connector or the first module is at left side
     left_to_right,
@@ -120,9 +138,9 @@ class MatrixControl;
  *
  * @note zero pixel (0,0) is left top. X extends right, Y extends bottom
  */
-template<unsigned int _width, unsigned int _height>
-struct FrameBuffer {
-
+template<unsigned int _width, unsigned int _height, BitOrder _bit_order = BitOrder::msb_to_lsb >
+class FrameBuffer {
+public:
     static_assert((_width & 0x7) == 0, "Must be multiply of eight");
     ///width
     static constexpr unsigned int width = _width;
@@ -144,6 +162,14 @@ struct FrameBuffer {
     uint8_t pixels[count_bytes];
 
 
+    static constexpr uint8_t calc_bitshift(unsigned int bit) {
+        if constexpr (_bit_order == BitOrder::lsb_to_msb) {
+            return bit & 0x7;
+        } else {
+            return 7-(bit & 0x7);
+        }
+    }
+
     ///set value of pixel
     /**
      * @param x x coord
@@ -154,7 +180,7 @@ struct FrameBuffer {
         if (x < _width && y < _height) {
             unsigned int bit = (x + y * width);
             unsigned int byte = bit >> 3;
-            unsigned int shift = bit & 0x7;
+            auto shift = calc_bitshift(bit);
             auto new_val = (pixels[byte] ^ (value << shift)) & (1 << shift);
             pixels[byte] ^= new_val;
         }
@@ -170,7 +196,7 @@ struct FrameBuffer {
         if (x < _width && y < _height) {
             unsigned int bit = (x + y * width) ;
             unsigned int byte = bit >> 3;
-            unsigned int shift = bit & 0x7;
+            auto shift = calc_bitshift(bit);
             return (pixels[byte] >> shift) & 1;
         } else {
             return {};
@@ -259,8 +285,10 @@ struct FrameBuffer {
      * @retval false failed to apply update, electrical issue (bus is shorted)
      */
     template<unsigned int _modules, Orientation _orient>
-    bool present(MatrixControl<_modules, _orient, BitOrder::msb_to_lsb> &matrix,
-             unsigned int x_win = 0, unsigned int y_win = 0);
+    bool present(MatrixControl<_modules, _orient,  _bit_order> &matrix,
+             unsigned int x_win = 0, unsigned int y_win = 0) {
+        return matrix.update(pixels+(x_win>>3)+y_win*(_width>>3), false, _width >> 3, x_win & 0x7);
+    }
 
 
 
@@ -385,7 +413,7 @@ public:
             if (!start_packet()) return false;
             while (j--) {
                 _intensity[j] = intensity_per_module[j];
-                send_command(OP_INTENSITY, calc_module_intensity(j));
+                send_command<false>(OP_INTENSITY, calc_module_intensity(j));
             }
             commit_packet();
         }
@@ -411,7 +439,7 @@ public:
             unsigned int j = _modules;
             if (!start_packet()) return false;
             while (j--) {
-                send_command(OP_INTENSITY, calc_module_intensity(j));
+                send_command<false>(OP_INTENSITY, calc_module_intensity(j));
             }
             _global_intensity = intensity;
         }
@@ -460,7 +488,7 @@ protected:
         if (!start_packet()) return false;
         unsigned int j = _modules;
         while (j--) {
-            send_command(op, data);
+            send_command<false>(op, data);
         }
         commit_packet();
         return true;
@@ -478,16 +506,9 @@ protected:
 
 
 
-
-
-template<unsigned int _width, unsigned int _height>
-template<unsigned int _modules, Orientation _orient>
-inline bool FrameBuffer<_width, _height>::present(
-        MatrixControl<_modules, _orient, BitOrder::msb_to_lsb> &matrix,
-        unsigned int x_win, unsigned int y_win) {
-    return matrix.update(pixels+(x_win>>3)+y_win*(_width>>3), false, _width >> 3, x_win & 0x7);
 }
-
-}
-#include "bitmap.h"
+/*#include "bitmap.h"
 #include "font_6p.h"
+#include "font_5x3.h"*/
+
+#endif
