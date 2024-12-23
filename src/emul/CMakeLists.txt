@@ -11,7 +11,6 @@ set(emul_files emul.cpp
     wifi/WiFiS3.cpp
     wifi/UDPClient.cpp
     temp_sim.cpp
-    DotMatrix.cpp
     serial_emul.cpp
     SoftwareATSE.cpp
     Matrix_MAX7219_emul.cpp

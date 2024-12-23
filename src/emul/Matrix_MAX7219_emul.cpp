@@ -8,6 +8,7 @@
 namespace Matrix_MAX7219 {
 
 
+void Driver::begin() const {}
 
 void Driver::begin(byte data_pin, byte clk_pin, byte cs_pin)
 {

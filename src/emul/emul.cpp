@@ -1,7 +1,7 @@
 #include "../kotel/kotel.h"
 #include "../kotel/controller.h"
 #include "../kotel/http_server.h"
-#include "../libraries/DotMatrix/DotMatrix.h"
+#include "simul_matrix.h"
 #include "temp_sim.h"
 #include "serial_emul.h"
 
@@ -11,10 +11,6 @@
 #include <fstream>
 #include <iomanip>
 
-void DotMatrix::enable_auto_drive(DotMatrix::TimerFunction, unsigned int) {}
-void DotMatrix::DirectDrive::activate_row(int, bool) {}
-void DotMatrix::DirectDrive::deactivate_row(int) {}
-void DotMatrix::DirectDrive::clear_matrix() {}
 
 std::string www_path = {};
 
@@ -214,6 +210,8 @@ void smooth_temp(const Command &cmd, unsigned long time) {
 }
 
 int main(int argc, char **argv) {
+    SimulMatrixMAX7219<4> sim;
+    sim.current_instance = &sim;
 
     auto cur_dir = std::filesystem::current_path();
     std::filesystem::path bin_dir;
@@ -244,6 +242,7 @@ int main(int argc, char **argv) {
     kotel::setup();
     Command cmd;
     bool cont = fetch_command(cmd, f);
+    std::string ln;
     while (cont) {
         auto now = std::chrono::system_clock::now();
         auto time = millis();
@@ -253,9 +252,13 @@ int main(int argc, char **argv) {
             cont = fetch_command(cmd, f);
         }
         kotel::loop();
-        const auto &fb = kotel::controller.get_display().frame_buffer;
-        if (check_frame_changed(fb)) {
-            output_frame(fb);
+        if (sim.is_dirty()) {
+            sim.clear_dirty();
+            log_line("DISPLAY: --------------------------");
+            for(int i = 0; i<sim.parts(); ++i) {
+                sim.draw_part(i, ln);
+                log_line("DISPLAY: >", ln, "<");
+            }
         }
         ++current_cycle;
         auto str = uart_output();

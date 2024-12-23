@@ -2,7 +2,6 @@
 #include "controller.h"
 
 #include "http_utils.h"
-#include "icons.h"
 #include "web_page.h"
 
 

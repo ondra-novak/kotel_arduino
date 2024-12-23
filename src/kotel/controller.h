@@ -59,9 +59,11 @@ public:
     bool is_pump_on() const {return _pump.is_active();}
     bool is_fan_on() const {return _fan.is_active();}
     Storage &get_storage() {return _storage;}
+    const Storage &get_storage() const {return _storage;}
     void set_wifi_used() {_wifi_used = true;}
     bool is_wifi_used() const {return _wifi_used;}
     DriveMode get_drive_mode() const {return _cur_mode;}
+    AutoMode get_auto_mode() const {return _auto_mode;}
     const IPAddress &get_my_ip() const {return _my_ip;}
 
     struct ManualControlStruct {
