@@ -1,0 +1,13 @@
+0 config pair_secret=default_web
+0 config m=0
+0 config wifi.ssid=aaaa&wifi.password=xyz
+0 config tsinaddr=01-FD-7D-45-38-FC-89-40&tsoutaddr=02-6D-38-D9-78-EF-00-1E
+0 temp_set 20 20
++1 config traykg = 50
++1 config tray.f1kgt = 266
++1 config m=1
++10 motor_high_temp
++10 motor_norm_temp
++100 temp_smooth 80 90
+
++1000 tray_open
