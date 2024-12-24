@@ -58,6 +58,7 @@ public:
     bool is_feeder_on() const {return _feeder.is_active();}
     bool is_pump_on() const {return _pump.is_active();}
     bool is_fan_on() const {return _fan.is_active();}
+    bool is_feeder_overheat() const {return _sensors.feeder_overheat;}
     Storage &get_storage() {return _storage;}
     const Storage &get_storage() const {return _storage;}
     void set_wifi_used() {_wifi_used = true;}

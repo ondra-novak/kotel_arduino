@@ -61,6 +61,7 @@ void Controller::begin() {
     if (_storage.pair_secret_need_init) {
         generate_pair_secret();
     }
+    _display.display_version();
 }
 
 static inline bool defined_and_above(const std::optional<float> &val, float cmp) {

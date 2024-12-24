@@ -170,8 +170,8 @@ void process_command(const Command &cmd) {
         }break;
         case Command::tray_close:  state_tray_open = false; break;
         case Command::tray_open:  state_tray_open = true; break;
-        case Command::motor_high_temp_on:  state_motor_temp_ok = true; break;
-        case Command::motor_high_temp_off:  state_motor_temp_ok = false; break;
+        case Command::motor_high_temp_on:  state_motor_temp_ok = false; break;
+        case Command::motor_high_temp_off:  state_motor_temp_ok = true; break;
         case Command::temp_set:
         case Command::temp_smooth: {
             auto tt = parse_temp_pair(cmd.arg);

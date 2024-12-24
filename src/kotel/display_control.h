@@ -30,6 +30,7 @@ public:
     }
 
     void display_code(IScheduler &sch, std::array<char, 4> code);
+    void display_version();
 
     virtual TimeStampMs get_scheduled_time() const override {return _next_change;}
     virtual void run(TimeStampMs cur_time) override;
@@ -47,6 +48,10 @@ protected:
     void tray_icon();
     void drive_mode_anim(TimeStampMs cur_time);
     void temperatures_anim(TimeStampMs cur_time);
+    void draw_feeder_anim(TimeStampMs cur_time);
+    void draw_fan_anim(TimeStampMs cur_time);
+    void draw_pump_anim(TimeStampMs cur_time);
+    void draw_wifi_state(TimeStampMs cur_time);
 };
 
 
