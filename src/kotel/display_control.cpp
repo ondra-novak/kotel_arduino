@@ -6,32 +6,6 @@
 
 namespace kotel {
 
-constexpr Matrix_MAX7219::Bitmap<5,5> arrow_up_icon = {
-        "  @  "
-        " @@@ "
-        "@ @ @"
-        "  @  "
-        "  @  "
-
-};
-
-constexpr Matrix_MAX7219::Bitmap<5,5> arrow_right_icon = {
-        "  @  "
-        "   @ "
-        "@@@@@"
-        "   @ "
-        "  @  "
-
-};
-
-constexpr Matrix_MAX7219::Bitmap<5,5> arrow_bottom_icon = {
-        "  @  "
-        "  @  "
-        "@ @ @"
-        " @@@ "
-        "  @  "
-
-};
 
 constexpr Matrix_MAX7219::Bitmap<6,2> feeder_anim[] = {
         "@  @  "
@@ -44,9 +18,13 @@ constexpr Matrix_MAX7219::Bitmap<6,2> feeder_anim[] = {
 
 constexpr Matrix_MAX7219::Bitmap<2,2> fan_anim[] = {
         "@ "
-        " @",
+        "@ ",
+        "@@"
+        "  ",
         " @"
-        "@ "
+        " @",
+        "  "
+        "@@"
 };
 
 constexpr Matrix_MAX7219::Bitmap<5,2> wifi_icon = {
@@ -297,17 +275,6 @@ constexpr Matrix_MAX7219::Bitmap<5,5> motor_overheat_icon = {
 };
 
 
-constexpr Matrix_MAX7219::Bitmap<7,8> mode_init_icon = {
-        "@@@@@@@"
-        "@     @"
-        " @@@@@ "
-        "  @@@  "
-        " @   @ "
-        "@  @  @"
-        "@ @ @ @"
-        "@@@@@@@"
-
-};
 
 
 constexpr Matrix_MAX7219::Bitmap<4,8> celsius_icon={
@@ -335,6 +302,22 @@ void DisplayControl::run(TimeStampMs cur_time) {
     _next_change = cur_time+100;
 
     frame_buffer.clear();
+
+    if (cur_time < _scroll_end) {
+        draw_scroll(cur_time);
+        display.display(frame_buffer, 0, 0);
+        return ;
+    }
+
+    if (cur_time > _ipaddr_show_next) {
+        _ipaddr_show_next = max_timestamp;
+        if (!_cntr.is_wifi_used()) {
+            auto s = WiFi.localIP().toString();
+            scroll_text({s.c_str(), s.length()});
+            return ;
+        }
+    }
+
     tray_icon();
     drive_mode_anim(cur_time);
     draw_feeder_anim(cur_time);
@@ -452,7 +435,7 @@ void DisplayControl::draw_feeder_anim(TimeStampMs cur_time) {
 
 void DisplayControl::draw_fan_anim(TimeStampMs cur_time) {
     if (_cntr.is_fan_on()) {
-        auto frame = static_cast<int>((cur_time/100) % 2);
+        auto frame = static_cast<int>((cur_time/100) % 4);
         frame_buffer.put_image({16,6}, fan_anim[frame]);
     }
 }
@@ -463,18 +446,44 @@ void DisplayControl::draw_pump_anim(TimeStampMs) {
     }
 }
 
-void DisplayControl::draw_wifi_state(TimeStampMs ) {
+void DisplayControl::draw_wifi_state(TimeStampMs cur_time) {
+    bool topen = _cntr.is_tray_open();
     if (_cntr.is_wifi()) {
         frame_buffer.put_image({27,6}, wifi_icon);
+        if (_ipaddr_show_next == max_timestamp
+           && !_cntr.is_wifi_used()
+           && ((!topen && _tray_opened)
+                 || _cntr.get_drive_mode() != Controller::DriveMode::automatic)) {
+            _ipaddr_show_next = cur_time + from_seconds(5);
+        }
+
     }
+    _tray_opened = topen;
 }
 
 void DisplayControl::display_version() {
-    char c[9]="VER:";
-    snprintf(c+4,4,"%d",project_version);
-    TR::textout(frame_buffer, Matrix_MAX7219::font_5x3, {1,2}, c);
-    _next_change = get_current_timestamp()+from_seconds(10);
+    char c[9];
+    snprintf(c,9,"v1.%d",project_version);
+    TR::textout(frame_buffer, Matrix_MAX7219::font_6p, {0,1}, c);
+    _next_change = get_current_timestamp()+from_seconds(5);
     display.display(frame_buffer, 0, 0);
+}
+
+void DisplayControl::draw_scroll(TimeStampMs cur_time) {
+    int to_end = static_cast<int>((_scroll_end - cur_time)/50);
+    TR::textout(frame_buffer, Matrix_MAX7219::font_5x3p, {-31+to_end,1}, _scroll_text.begin(), _scroll_text.end());
+    _next_change = cur_time+50;
+}
+
+void DisplayControl::scroll_text(const std::string_view &text) {
+    unsigned int len = 0;
+    for (char c: text) {
+        len = len + Matrix_MAX7219::font_5x3p.get_face_width(c);
+    }
+    _scroll_text_len = len;
+    _scroll_text = text;
+    _scroll_end = get_current_timestamp()+(_scroll_text_len+40) * 50;
+
 }
 
 }

@@ -31,6 +31,7 @@ public:
 
     void display_code(IScheduler &sch, std::array<char, 4> code);
     void display_version();
+    void scroll_text(const std::string_view &text);
 
     virtual TimeStampMs get_scheduled_time() const override {return _next_change;}
     virtual void run(TimeStampMs cur_time) override;
@@ -44,6 +45,11 @@ protected:
 
     const Controller &_cntr;
     TimeStampMs _next_change = 0;
+    TimeStampMs _scroll_end = 0;
+    TimeStampMs _ipaddr_show_next = max_timestamp;
+    bool _tray_opened = true;
+    std::string _scroll_text = {};
+    unsigned int _scroll_text_len = 0;
 
     void tray_icon();
     void drive_mode_anim(TimeStampMs cur_time);
@@ -52,6 +58,10 @@ protected:
     void draw_fan_anim(TimeStampMs cur_time);
     void draw_pump_anim(TimeStampMs cur_time);
     void draw_wifi_state(TimeStampMs cur_time);
+    void draw_scroll(TimeStampMs cur_time);
+
+
+
 };
 
 
