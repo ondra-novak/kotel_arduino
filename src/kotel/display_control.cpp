@@ -463,7 +463,7 @@ void DisplayControl::draw_wifi_state(TimeStampMs cur_time) {
 
 void DisplayControl::display_version() {
     char c[9];
-    snprintf(c,9,"v1.%d",project_version);
+    snprintf(c,9,"v 1.%d",project_version);
     TR::textout(frame_buffer, Matrix_MAX7219::font_6p, {0,1}, c);
     _next_change = get_current_timestamp()+from_seconds(5);
     display.display(frame_buffer, 0, 0);
@@ -485,5 +485,11 @@ void DisplayControl::scroll_text(const std::string_view &text) {
     _scroll_end = get_current_timestamp()+(_scroll_text_len+40) * 50;
 
 }
+
+void DisplayControl::begin() {
+    display.begin();
+    display.set_intensity(_cntr.get_storage().config.display_intensity);
+}
+
 
 }

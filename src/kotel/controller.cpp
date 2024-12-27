@@ -62,6 +62,7 @@ void Controller::begin() {
         generate_pair_secret();
     }
     _display.display_version();
+
 }
 
 static inline bool defined_and_above(const std::optional<float> &val, float cmp) {
@@ -140,6 +141,7 @@ static constexpr std::pair<const char *, uint8_t Config::*> config_table[] ={
         {"srlog",&Config::serial_log_out},
         {"bgkg",&Config::bag_kg},
         {"traykg",&Config::tray_kg},
+        {"dspli",&Config::display_intensity},
 };
 
 static constexpr std::pair<const char *, HeatValue Config::*> config_table_2[] ={
@@ -453,6 +455,7 @@ bool Controller::config_update(std::string_view body, std::string_view &&failed_
     } while (!body.empty());
     _storage.save();
     _scheduler.reschedule();
+    _display.begin();
     return true;
 
 }
@@ -869,7 +872,8 @@ TimeStampMs Controller::auto_drive_cycle(TimeStampMs cur_time) {
 
     auto cycle_interval = from_seconds(p->burnout_sec)+from_seconds(p->fueling_sec);
     bool fan_active = _fan.is_active();
-    _fan.set_speed(p->fanpw);
+    if (prev_mode == _auto_mode || !fan_active)
+        _fan.set_speed(p->fanpw);
     _fan.keep_running(_scheduler,cur_time + cycle_interval+1000);
      auto t = from_seconds(p->fueling_sec);
 
@@ -1180,7 +1184,7 @@ void Controller::disable_temperature_simulation() {
 
 bool Controller::is_overheat() const {
     return defined_and_above(_temp_sensors.get_output_temp(),_storage.config.output_max_temp)
-            || defined_and_above(_temp_sensors.get_input_temp(),_storage.config.output_max_temp);
+         || defined_and_above(_temp_sensors.get_input_temp(),_storage.config.output_max_temp);
 }
 
 void Controller::generate_otp_code() {

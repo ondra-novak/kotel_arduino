@@ -53,6 +53,7 @@ struct Config {
     uint8_t serial_log_out = 0;     //if there is 1, serial output is used for logging
     uint8_t bag_kg = 15;            //velikost pytle
     uint8_t tray_kg = 15*15;        //velikost nasypky v kg
+    uint8_t display_intensity = 0;
 };
 
 

@@ -25,9 +25,7 @@ public:
 
     DisplayControl(const Controller &cntr):_cntr(cntr) {}
 
-    void begin() {
-        display.begin();
-    }
+    void begin();
 
     void display_code(IScheduler &sch, std::array<char, 4> code);
     void display_version();
@@ -35,7 +33,6 @@ public:
 
     virtual TimeStampMs get_scheduled_time() const override {return _next_change;}
     virtual void run(TimeStampMs cur_time) override;
-
 
 
 public:
