@@ -53,6 +53,7 @@ public:
 
     bool is_tray_open() const {return _sensors.tray_open;}
     bool is_wifi() const;
+    TimeStampMs get_last_net_activity() const {return _last_net_activity;}
     auto get_input_temp() const {return _temp_sensors.get_input_temp();}
     auto get_output_temp() const {return _temp_sensors.get_output_temp();}
     bool is_feeder_on() const {return _feeder.is_active();}
@@ -131,12 +132,12 @@ protected:
     Pump _pump;
     TempSensors _temp_sensors;
     DisplayControl _display;
-    TimedTaskMethod<Controller, &Controller::update_motorhours> _motoruntime;
-    TimedTaskMethod<Controller, &Controller::auto_drive_cycle> _auto_drive_cycle;
-    TimedTaskMethod<Controller, &Controller::wifi_mon> _wifi_mon;
-    TimedTaskMethod<Controller, &Controller::run_server> _run_server;
-    TimedTaskMethod<Controller, &Controller::read_serial> _read_serial;
-    TimedTaskMethod<Controller, &Controller::refresh_wdt> _refresh_wdt;
+    TaskMethod<Controller, &Controller::update_motorhours> _motoruntime;
+    TaskMethod<Controller, &Controller::auto_drive_cycle> _auto_drive_cycle;
+    TaskMethod<Controller, &Controller::wifi_mon> _wifi_mon;
+    TaskMethod<Controller, &Controller::run_server> _run_server;
+    TaskMethod<Controller, &Controller::read_serial> _read_serial;
+    TaskMethod<Controller, &Controller::refresh_wdt> _refresh_wdt;
     Scheduler<10> _scheduler;
     MyHttpServer _server;
     std::optional<TCPClient> _list_temp_async;
@@ -186,7 +187,7 @@ protected:
 
     bool set_fuel(const SetFuelParams &sfp);
     void status_out_ws(Stream &s);
-    std::string_view get_task_name(const AbstractTimedTask *task);
+    std::string_view get_task_name(const AbstractTask *task);
     bool is_overheat() const;
     void generate_otp_code();
     std::array<char, 20> generate_token_random_code();

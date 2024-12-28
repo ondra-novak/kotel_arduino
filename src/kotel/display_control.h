@@ -1,8 +1,8 @@
 #pragma once
 
-#include "timed_task.h"
 #include "nonv_storage.h"
 #include "sensors.h"
+#include "task.h"
 
 
 #include <Matrix_MAX7219.h>
@@ -14,7 +14,7 @@ namespace kotel {
 
 class Controller;
 
-class DisplayControl: public AbstractTimedTask {
+class DisplayControl: public AbstractTask {
 public:
 
     using FrameBuffer = Matrix_MAX7219::Bitmap<32,8>;
@@ -31,7 +31,6 @@ public:
     void display_version();
     void scroll_text(const std::string_view &text);
 
-    virtual TimeStampMs get_scheduled_time() const override {return _next_change;}
     virtual void run(TimeStampMs cur_time) override;
 
 
@@ -41,7 +40,6 @@ public:
 protected:
 
     const Controller &_cntr;
-    TimeStampMs _next_change = 0;
     TimeStampMs _scroll_end = 0;
     TimeStampMs _ipaddr_show_next = max_timestamp;
     bool _tray_opened = true;

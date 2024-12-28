@@ -1,15 +1,10 @@
 
 #include "controller.h"
-
 #include "http_utils.h"
 #include "web_page.h"
-
-
 #include "stringstream.h"
-
 #include "serial.h"
 #include <SoftwareATSE.h>
-
 
 #include "sha1.h"
 #ifdef EMULATOR
@@ -987,7 +982,7 @@ void Controller::handle_ws_request(MyHttpServer::Request &req)
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
     break;
     case WsReqCmd::enum_tasks:
-        _scheduler.enum_tasks([&](const AbstractTimedTask *t){
+        _scheduler.enum_tasks([&](const AbstractTask *t){
             print(static_buff,get_task_name(t)," ",t->_run_time," ",t->get_scheduled_time(),"\r\n");
         });
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
@@ -1148,7 +1143,7 @@ TimeStampMs Controller::read_serial(TimeStampMs) {
 }
 
 
-std::string_view Controller::get_task_name(const AbstractTimedTask *task) {
+std::string_view Controller::get_task_name(const AbstractTask *task) {
     if (task == &_feeder) return "feeder";
     if (task == &_fan) return "fan";
     if (task == &_temp_sensors) return "temp_sensors";

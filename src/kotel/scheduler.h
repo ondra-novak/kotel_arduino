@@ -1,7 +1,7 @@
 #pragma once
 
 #include "heap.h"
-#include "timed_task.h"
+#include "task.h"
 
 #include <algorithm>
 namespace kotel {
@@ -11,7 +11,7 @@ template<unsigned int N>
 class Scheduler: public IScheduler {
 public:
 
-    Scheduler(AbstractTimedTask * const (&arr)[N]) {
+    Scheduler(AbstractTask * const (&arr)[N]) {
         int pos = 0;
         for (auto x: arr) {
             _items[pos]._tp = x->get_scheduled_time();
@@ -34,16 +34,8 @@ public:
                 heap_pop(_items, ln, compare);
                 --ln;
                 auto &x = _items[ln];
-                auto start = millis();
                 s = true;
-                x._task->run(tp);
-                auto util = millis() - start;;
-                auto rt = x._task->_run_time;
-                if (util > rt) {
-                    x._task->_run_time = util;
-                } else if (util < rt) {
-                    x._task->_run_time -= (rt - util)/10;
-                }
+                x._task->resume(tp);
                 x._tp = x._task->get_scheduled_time();
             } else {
                 break;
@@ -67,7 +59,7 @@ protected:
 
     struct Item { // @suppress("Miss copy constructor or assignment operator")
         TimeStampMs _tp;
-        AbstractTimedTask *_task;
+        AbstractTask *_task;
     };
 
 

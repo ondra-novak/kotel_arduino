@@ -1,10 +1,9 @@
 #pragma once
-#include "timed_task.h"
-
 #include "nonv_storage.h"
+#include "task.h"
 namespace kotel {
 
-class Fan: public AbstractTimedTask {
+class Fan: public AbstractTask {
 public:
 
 
@@ -20,8 +19,7 @@ public:
         _stop_time = until;
         if (!_running) {
             _running = true;
-            _next_call = 0;
-            sch.reschedule();
+            resume_at(sch, 0);
             ++_stor.cntr1.fan_start_count;
         }
     }
@@ -49,12 +47,11 @@ public:
         return _running;
     }
 
-    virtual TimeStampMs get_scheduled_time() const override {return _next_call;}
     virtual void run(TimeStampMs cur_time) override {
         if (_stop_time <= cur_time || !_running) {
             set_active(false);
             _running = false;
-            _next_call = max_timestamp;
+            AbstractTask::stop();
             return;
         }
         auto pln = static_cast<unsigned int>(_stor.config.fan_pulse_count);
@@ -64,14 +61,14 @@ public:
             auto total = pln * 100 / spd;
             auto rest = total - pln;
             if (rest > 0)  {
-                _next_call = cur_time+rest;
+                resume_at(cur_time + rest);
                 set_active(!_pulse);
             } else {
-                _next_call = cur_time+pln;
+                resume_at(cur_time+pln);
             }
         } else {
             set_active(!_pulse);
-            _next_call = cur_time+pln;
+            resume_at(cur_time+pln);
         }
     }
 
@@ -82,7 +79,7 @@ protected:
     bool _running = false;
     uint8_t _speed = 100;
     TimeStampMs _stop_time = 0;
-    TimeStampMs _next_call = 0;
+
 
 
     void set_active(bool p) {

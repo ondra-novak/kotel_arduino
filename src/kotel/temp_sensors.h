@@ -10,7 +10,7 @@
 
 namespace kotel {
 
-class TempSensors: public AbstractTimedTask {
+class TempSensors: public AbstractTask {
 public:
 
     static constexpr unsigned int measure_interval = 10000;
@@ -35,41 +35,38 @@ public:
 
     }
 
-    virtual TimeStampMs get_scheduled_time() const override {
-        return _next_read_time;
-    }
 
     virtual void run(TimeStampMs cur_time) override {
         if (_simulated) {
             _input.set_value(_input._value, SimpleDallasTemp::Status::ok);
             _output.set_value(_output._value, SimpleDallasTemp::Status::ok);
-            _next_read_time = cur_time + measure_interval;
+            resume_at(cur_time + measure_interval);
             return;
         }
 
         switch (_state) {
             case State::start:
                 _next_measure_time = cur_time + measure_interval;
-                _next_read_time = cur_time+1;
                 _state = State::write_request;
+                resume_at(cur_time+1);
                 break;
             case State::write_request:
                 _temp_reader.async_request_temp(_temp_async_state);
                 _state = State::write_request_timeout;
-                _next_read_time = cur_time + measure_interval/4;
+                resume_at(cur_time + measure_interval/4);
                 break;
             case State::read_temp1:
                 _temp_reader.async_read_temp(_temp_async_state, _stor.temp.input_temp);
                 _state = State::read_temp1_timeout;
-                _next_read_time = cur_time + measure_interval/4;
+                resume_at(cur_time + measure_interval/4);
                 break;
             case State::read_temp2:
                 _temp_reader.async_read_temp(_temp_async_state, _stor.temp.output_temp);
                 _state = State::read_temp2_timeout;
-                _next_read_time = cur_time + measure_interval/4;
+                resume_at(cur_time + measure_interval/4);
                 break;
             default:
-                _next_read_time = _next_measure_time;
+                resume_at(_next_measure_time);
                 _next_measure_time += measure_interval;
                 _state = State::write_request;
 
@@ -121,15 +118,15 @@ public:
                 case State::read_temp1_timeout:
                     _input.read(_temp_async_state);
                     _state = State::read_temp2;
-                    _next_read_time = cur_time + 1;
+                    resume_at(cur_time + 1);
                     break;
                 case State::read_temp2_timeout:
                     _output.read(_temp_async_state);
                     _state = State::wait;
-                    _next_read_time = cur_time + 1;
+                    resume_at(cur_time + 1);
                     break;
                 case State::write_request_timeout:
-                    _next_read_time = cur_time + 200;
+                    resume_at(cur_time + 200);
                     _state = State::read_temp1;
                     break;
                 default:
@@ -217,7 +214,6 @@ protected:
     SimpleDallasTemp::AsyncState _temp_async_state;
     TempDeviceState _input;
     TempDeviceState _output;
-    TimeStampMs _next_read_time = 0;
     TimeStampMs _next_measure_time = 0;
     bool _simulated = false;
 

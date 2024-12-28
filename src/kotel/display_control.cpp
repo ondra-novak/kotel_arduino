@@ -299,7 +299,7 @@ void DisplayControl::tray_icon() {
 }
 
 void DisplayControl::run(TimeStampMs cur_time) {
-    _next_change = cur_time+100;
+    resume_at( cur_time+100);
 
     frame_buffer.clear();
 
@@ -342,8 +342,7 @@ void DisplayControl::display_code(IScheduler &sch, std::array<char, 4> code) {
         ++pos;
     }
     display.display(frame_buffer, 0, 0);
-    _next_change = get_current_timestamp()+ from_minutes(1);
-    sch.reschedule();
+    resume_at(sch, get_current_timestamp()+ from_minutes(1));
 }
 
 template<typename T, int n>
@@ -456,7 +455,8 @@ void DisplayControl::draw_wifi_state(TimeStampMs cur_time) {
                  || _cntr.get_drive_mode() != Controller::DriveMode::automatic)) {
             _ipaddr_show_next = cur_time + from_seconds(5);
         }
-
+        bool client = _cntr.get_last_net_activity() + 10000 > cur_time;
+        frame_buffer.set_pixel(25,7,client);
     }
     _tray_opened = topen;
 }
@@ -465,14 +465,14 @@ void DisplayControl::display_version() {
     char c[9];
     snprintf(c,9,"v 1.%d",project_version);
     TR::textout(frame_buffer, Matrix_MAX7219::font_6p, {0,1}, c);
-    _next_change = get_current_timestamp()+from_seconds(5);
+    resume_at(get_current_timestamp()+from_seconds(5));
     display.display(frame_buffer, 0, 0);
 }
 
 void DisplayControl::draw_scroll(TimeStampMs cur_time) {
     int to_end = static_cast<int>((_scroll_end - cur_time)/50);
     TR::textout(frame_buffer, Matrix_MAX7219::font_5x3p, {-31+to_end,1}, _scroll_text.begin(), _scroll_text.end());
-    _next_change = cur_time+50;
+    resume_at(cur_time+50);
 }
 
 void DisplayControl::scroll_text(const std::string_view &text) {
