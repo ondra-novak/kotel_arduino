@@ -331,7 +331,7 @@ void DisplayControl::run(TimeStampMs cur_time) {
 
 }
 
-void DisplayControl::display_code(IScheduler &sch, std::array<char, 4> code) {
+void DisplayControl::display_code(std::array<char, 4> code) {
     frame_buffer.clear();
     int pos = 0;
     for (const auto &x: code) {
@@ -342,7 +342,7 @@ void DisplayControl::display_code(IScheduler &sch, std::array<char, 4> code) {
         ++pos;
     }
     display.display(frame_buffer, 0, 0);
-    resume_at(sch, get_current_timestamp()+ from_minutes(1));
+    resume_at(get_current_timestamp()+ from_minutes(1));
 }
 
 template<typename T, int n>

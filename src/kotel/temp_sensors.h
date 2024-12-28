@@ -18,11 +18,11 @@ public:
     enum class State {
         start,
         write_request,
-        write_request_timeout,
+        write_request_done,
         read_temp1,
-        read_temp1_timeout,
+        read_temp1_done,
         read_temp2,
-        read_temp2_timeout,
+        read_temp2_done,
         wait
     };
 
@@ -44,6 +44,7 @@ public:
             return;
         }
 
+
         switch (_state) {
             case State::start:
                 _next_measure_time = cur_time + measure_interval;
@@ -52,18 +53,44 @@ public:
                 break;
             case State::write_request:
                 _temp_reader.async_request_temp(_temp_async_state);
-                _state = State::write_request_timeout;
-                resume_at(cur_time + measure_interval/4);
+                _state = State::write_request_done;
+                resume_at(0);
+                break;
+            case State::write_request_done:
+                if (_temp_reader.async_cycle(_temp_async_state)) {
+                    resume_at(cur_time + 200);
+                    _state = State::read_temp1;
+                } else {
+                    resume_at(0);
+                }
                 break;
             case State::read_temp1:
                 _temp_reader.async_read_temp(_temp_async_state, _stor.temp.input_temp);
-                _state = State::read_temp1_timeout;
-                resume_at(cur_time + measure_interval/4);
+                _state = State::read_temp1_done;
+                resume_at(0);
+                break;
+            case State::read_temp1_done:
+                if (_temp_reader.async_cycle(_temp_async_state)) {
+                    _input.read(_temp_async_state);
+                    _state = State::read_temp2;
+                    resume_at(cur_time + 1);
+                } else {
+                    resume_at(0);
+                }
                 break;
             case State::read_temp2:
                 _temp_reader.async_read_temp(_temp_async_state, _stor.temp.output_temp);
-                _state = State::read_temp2_timeout;
-                resume_at(cur_time + measure_interval/4);
+                _state = State::read_temp2_done;
+                resume_at(0);
+                break;
+            case State::read_temp2_done:
+                if (_temp_reader.async_cycle(_temp_async_state)) {
+                    _output.read(_temp_async_state);
+                    _state = State::wait;
+                    resume_at(cur_time + 1);
+                } else {
+                    resume_at(0);
+                }
                 break;
             default:
                 resume_at(_next_measure_time);
@@ -111,30 +138,6 @@ public:
     }
 
 
-    void async_cycle(IScheduler &sch) {
-        if (_temp_reader.async_cycle(_temp_async_state)) {
-            auto cur_time = get_current_timestamp();
-            switch (_state) {
-                case State::read_temp1_timeout:
-                    _input.read(_temp_async_state);
-                    _state = State::read_temp2;
-                    resume_at(cur_time + 1);
-                    break;
-                case State::read_temp2_timeout:
-                    _output.read(_temp_async_state);
-                    _state = State::wait;
-                    resume_at(cur_time + 1);
-                    break;
-                case State::write_request_timeout:
-                    resume_at(cur_time + 200);
-                    _state = State::read_temp1;
-                    break;
-                default:
-                    return;
-            }
-            sch.reschedule();
-        }
-    }
 
     void simulate_temperature(float input, float output) {
         _simulated = true;

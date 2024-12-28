@@ -15,11 +15,11 @@ public:
         set_active(false);
     }
 
-    void keep_running(IScheduler &sch, TimeStampMs until) {
+    void keep_running(TimeStampMs until) {
         _stop_time = until;
         if (!_running) {
             _running = true;
-            resume_at(sch, 0);
+            resume_at(0);
             ++_stor.cntr1.fan_start_count;
         }
     }

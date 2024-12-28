@@ -8,7 +8,7 @@ namespace kotel {
 
 
 template<unsigned int N>
-class Scheduler: public IScheduler {
+class Scheduler {
 public:
 
     Scheduler(AbstractTask * const (&arr)[N]) {
@@ -20,13 +20,12 @@ public:
         }
     }
 
-    virtual void reschedule() override {
-        _flag_reschedule = true;
-    }
 
     bool run() {
         bool s = false;
-        if (_flag_reschedule) do_reschedule();
+        if (_reschedule_flag != AbstractTask::_reschedule_flag) {
+            do_reschedule();
+        }
         auto ln = N;
         while (ln > 0) {
             auto tp = get_current_timestamp();
@@ -62,6 +61,7 @@ protected:
         AbstractTask *_task;
     };
 
+    uint8_t _reschedule_flag = 0;
 
     static bool compare(const Item &a, const Item &b) {
         auto aa = a._tp;
@@ -72,14 +72,13 @@ protected:
     }
 
     Item _items[N];
-    bool _flag_reschedule = false;
 
     void do_reschedule() {
         for (unsigned int i = 0; i < N; ++i) {
             _items[i]._tp = _items[i]._task->get_scheduled_time();
             heap_push(_items, i+1, compare);
         }
-        _flag_reschedule = false;
+        _reschedule_flag = AbstractTask::_reschedule_flag;
     }
 
 

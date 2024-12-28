@@ -21,9 +21,9 @@ public:
         set_active(false);
     }
 
-    void keep_running(IScheduler &sch, TimeStampMs until) {
+    void keep_running(TimeStampMs until) {
         set_active(true);
-        resume_at(sch, until);
+        resume_at(until);
     }
 
     bool is_active() const {return _active;}

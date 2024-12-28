@@ -49,7 +49,6 @@ void Controller::begin() {
     _pump.begin();
     _temp_sensors.begin();
     _display.begin();
-    _scheduler.reschedule();
     init_wifi();
     _server.begin();
     _storage.cntr1.restart_count++;
@@ -66,7 +65,6 @@ static inline bool defined_and_above(const std::optional<float> &val, float cmp)
 
 void Controller::run() {
     _sensors.read_sensors();
-    _temp_sensors.async_cycle(_scheduler);
     auto prev_mode = _cur_mode;
     bool start_mode = _start_mode_until > get_current_timestamp();
     control_pump();
@@ -449,7 +447,6 @@ bool Controller::config_update(std::string_view body, std::string_view &&failed_
 
     } while (!body.empty());
     _storage.save();
-    _scheduler.reschedule();
     _display.begin();
     return true;
 
@@ -511,7 +508,7 @@ void Controller::run_auto_mode() {
 
     if (_cur_mode != DriveMode::automatic)  {
         _cur_mode = DriveMode::automatic;
-        _auto_drive_cycle.wake_up(_scheduler);
+        _auto_drive_cycle.wake_up();
     }
 }
 
@@ -637,7 +634,7 @@ void Controller::handle_server(MyHttpServer::Request &req) {
     } else if (req.request_line.path == "/api/code" && req.request_line.method == HttpMethod::POST) {
         if (req.body.empty()) {
             generate_otp_code();
-            _display.display_code(_scheduler, _last_code);
+            _display.display_code( _last_code);
             _server.error_response(req, 202, {});
         } else if (std::string_view(_last_code.data(), _last_code.size()) == req.body) {
             static_buff.clear();
@@ -708,7 +705,7 @@ bool Controller::manual_control(const ManualControlStruct &cntr) {
     }
     if (cntr._fan_time != 0xFF) {
         if (cntr._fan_time != 0) {
-           _fan.keep_running(_scheduler, get_current_timestamp()+from_seconds(cntr._fan_time));
+           _fan.keep_running(get_current_timestamp()+from_seconds(cntr._fan_time));
         } else {
             _fan.stop();
         }
@@ -716,7 +713,7 @@ bool Controller::manual_control(const ManualControlStruct &cntr) {
 
     if (cntr._feeder_time != 0xFF) {
         if (cntr._feeder_time != 0) {
-            _feeder.keep_running(_scheduler, get_current_timestamp()+from_seconds(cntr._feeder_time));
+            _feeder.keep_running( get_current_timestamp()+from_seconds(cntr._feeder_time));
         } else {
             _feeder.stop();
         }
@@ -869,14 +866,14 @@ TimeStampMs Controller::auto_drive_cycle(TimeStampMs cur_time) {
     bool fan_active = _fan.is_active();
     if (prev_mode == _auto_mode || !fan_active)
         _fan.set_speed(p->fanpw);
-    _fan.keep_running(_scheduler,cur_time + cycle_interval+1000);
+    _fan.keep_running(cur_time + cycle_interval+1000);
      auto t = from_seconds(p->fueling_sec);
 
 
 
 
     if (fan_active) {
-        _feeder.keep_running(_scheduler, cur_time+t);
+        _feeder.keep_running( cur_time+t);
         return cycle_interval;
     } else {
         return cycle_interval/2;

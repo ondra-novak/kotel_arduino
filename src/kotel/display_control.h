@@ -27,7 +27,7 @@ public:
 
     void begin();
 
-    void display_code(IScheduler &sch, std::array<char, 4> code);
+    void display_code(std::array<char, 4> code);
     void display_version();
     void scroll_text(const std::string_view &text);
 
