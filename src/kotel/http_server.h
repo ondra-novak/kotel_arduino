@@ -7,6 +7,7 @@
 #include "static_vector.h"
 #include "websocket.h"
 
+#include <algorithm>
 namespace kotel {
 
 

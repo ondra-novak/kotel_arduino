@@ -29,6 +29,7 @@ public:
 
     void display_code(std::array<char, 4> code);
     void display_version();
+    void display_init_pattern();
     void scroll_text(const std::string_view &text);
 
     virtual void run(TimeStampMs cur_time) override;
@@ -43,15 +44,17 @@ protected:
     TimeStampMs _scroll_end = 0;
     TimeStampMs _ipaddr_show_next = max_timestamp;
     bool _tray_opened = true;
+    uint8_t _pause_display_sec = 0;
     std::string _scroll_text = {};
-    unsigned int _scroll_text_len = 0;
+    //unsigned int _scroll_text_len = 0;
+    unsigned int frame = 0;
 
     void tray_icon();
-    void drive_mode_anim(TimeStampMs cur_time);
-    void temperatures_anim(TimeStampMs cur_time);
-    void draw_feeder_anim(TimeStampMs cur_time);
-    void draw_fan_anim(TimeStampMs cur_time);
-    void draw_pump_anim(TimeStampMs cur_time);
+    void drive_mode_anim(unsigned int frame);
+    void temperatures_anim(unsigned int frame);
+    void draw_feeder_anim(unsigned int frame);
+    void draw_fan_anim(unsigned int frame);
+    void draw_pump_anim(unsigned int frame);
     void draw_wifi_state(TimeStampMs cur_time);
     void draw_scroll(TimeStampMs cur_time);
 

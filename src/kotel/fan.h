@@ -72,6 +72,10 @@ public:
         }
     }
 
+    bool is_pulse() const {
+        return _pulse;
+    }
+
 protected:
 
     Storage &_stor;

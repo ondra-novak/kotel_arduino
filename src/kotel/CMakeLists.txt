@@ -31,6 +31,7 @@ set(COMMON_FILES
     websocket.cpp
     serial.cpp
     timestamp.cpp
+    network_control.cpp
 )
 
 add_library(kotel ${COMMON_FILES} )

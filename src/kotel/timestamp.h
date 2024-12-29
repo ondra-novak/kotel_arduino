@@ -1,6 +1,6 @@
 #pragma once
 
-#include "api/Common.h"
+#include "Arduino.h"
 
 ///Local timestamp - time from start in milliseconds no overflow
 

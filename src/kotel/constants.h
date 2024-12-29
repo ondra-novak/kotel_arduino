@@ -1,6 +1,6 @@
 #pragma once
 
-#include <api/Common.h>
+#include "Arduino.h"
 
 namespace kotel {
 

@@ -26,14 +26,12 @@ Controller::Controller()
         ,_display(*this)
         ,_motoruntime(this)
         ,_auto_drive_cycle(this)
-        ,_wifi_mon(this)
-        ,_run_server(this)
         ,_read_serial(this)
         ,_refresh_wdt(this)
+        ,_network(*this)
         ,_scheduler({&_feeder, &_fan, &_temp_sensors,  &_display,
-            &_motoruntime, &_auto_drive_cycle, &_wifi_mon, &_run_server,
+            &_motoruntime, &_auto_drive_cycle, &_network,
             &_read_serial, &_refresh_wdt})
-        ,_server(80)
 {
 
 }
@@ -41,21 +39,22 @@ Controller::Controller()
 void Controller::begin() {
     _storage.begin();
     init_serial_log();
-#if ENABLE_VDT
-    WDT.begin(5000);
-#endif
+    _display.begin();
+    _display.display_init_pattern();
+    _display.display_version();
     _fan.begin();
     _feeder.begin();
     _pump.begin();
     _temp_sensors.begin();
-    _display.begin();
-    init_wifi();
-    _server.begin();
+    _network.begin();
     _storage.cntr1.restart_count++;
     if (_storage.pair_secret_need_init) {
         generate_pair_secret();
     }
-    _display.display_version();
+#if ENABLE_VDT
+    Serial.print("Init WDT: ");
+    Serial.println(WDT.begin(5589));
+#endif
 
 }
 
@@ -107,7 +106,7 @@ void Controller::run() {
         _feeder.stop();
         _fan.stop();
     }
-    if (_list_temp_async && !_temp_sensors.is_reading()) {
+    if (_list_temp_async && !_temp_sensors.is_reading() && is_safe_for_blocking()) {
         list_onewire_sensors(*_list_temp_async);
         _list_temp_async->stop();
         _list_temp_async.reset();
@@ -535,42 +534,17 @@ void Controller::run_stop_mode() {
 }
 
 
-static IPAddress conv_ip(const IPAddr &x) {
-    return IPAddress(x.ip[0], x.ip[1], x.ip[2], x.ip[3]);
-}
 
-
-void Controller::init_wifi() {
-    WiFi.setTimeout(0);
-    if (_storage.wifi_config.ipaddr != IPAddr{}) {
-        WiFi.config(conv_ip(_storage.wifi_config.ipaddr),
-                conv_ip(_storage.wifi_config.dns),
-                conv_ip(_storage.wifi_config.gateway),
-                conv_ip(_storage.wifi_config.netmask)
-        );
-    }
-
-
-    char ssid[sizeof(WiFi_SSID)+1];
-    char pwd[sizeof(WiFi_Password)+1];
-    auto x = _storage.wifi_ssid.ssid.get();
-    *std::copy(x.begin(), x.end(), ssid) = 0;
-    x = _storage.wifi_password.password.get();
-    *std::copy(x.begin(), x.end(), pwd) = 0;
-    if (pwd[0] && ssid[0]) {
-        WiFi.begin(ssid, pwd);
-    } else if (ssid[0]) {
-        WiFi.begin(ssid);
-    }
-    _last_net_activity = max_timestamp;
-    _wifi_connected = false;
-
-}
 
 bool Controller::is_wifi() const {
-    return _wifi_connected;
+    return _network.is_connected();
 }
-
+bool Controller::is_wifi_ap() const {
+    return _network.is_ap_mode();
+}
+IPAddress Controller::get_local_ip() const {
+    return _network.get_local_ip();
+}
 
 constexpr std::pair<const char *, uint8_t Controller::ManualControlStruct::*> manual_control_table[] ={
         {"feed.tr",&Controller::ManualControlStruct::_feeder_time},
@@ -589,9 +563,9 @@ void Controller::send_file(MyHttpServer::Request &req, std::string_view content_
     path.append(file_name);
     std::ifstream f(path);
     if (!f) {
-            _server.error_response(req, 404, {}, {}, path);
+            _network.get_server().error_response(req, 404, {}, {}, path);
     } else {
-        _server.send_simple_header(req, content_type, -1);
+        _network.get_server().send_simple_header(req, content_type, -1);
         int i = f.get();
         while (i != EOF) {
             req.client->print(static_cast<char>(i));
@@ -617,6 +591,8 @@ constexpr std::pair<const char *, float SimulInfo::*> simulate_temp_table[] = {
 void Controller::handle_server(MyHttpServer::Request &req) {
 
     using Ctx = MyHttpServer::ContentType;
+
+    auto &_server = _network.get_server();
 
     set_wifi_used();
     _last_net_activity = get_current_timestamp();
@@ -886,6 +862,8 @@ void Controller::handle_ws_request(MyHttpServer::Request &req)
 {
     static_buff.clear();
 
+    auto &_server = _network.get_server();
+
     auto msg = req.body;
     if (msg.empty()) return;
     WsReqCmd cmd = static_cast<WsReqCmd>(msg[0]);
@@ -1060,7 +1038,7 @@ void Controller::status_out_ws(Stream &s) {
         encode_temp(_temp_sensors.get_output_ampl()),
         encode_temp(_temp_sensors.get_input_temp()),
         encode_temp(_temp_sensors.get_input_ampl()),
-        static_cast<int16_t>(_wifi_rssi),
+        static_cast<int16_t>(_network.get_rssi()),
         static_cast<uint8_t>(_temp_sensors.is_simulated()?1:0),
         static_cast<uint8_t>(_temp_sensors.get_output_status()),
         static_cast<uint8_t>(_temp_sensors.get_input_status()),
@@ -1075,64 +1053,6 @@ void Controller::status_out_ws(Stream &s) {
     s.write(reinterpret_cast<const char *>(&st), sizeof(st));
 }
 
-TimeStampMs Controller::wifi_mon(TimeStampMs cur_time) {
-    if (cur_time > 30000 && cur_time - 30000 > _last_net_activity) {
-        _server.end();
-        _ntp.cancel();
-        _sdns.cancel();
-        WiFiUtils::reset();
-        init_wifi();
-        _server.begin();
-    } else {
-        bool conn = WiFiUtils::status() == WL_CONNECTED;
-        if (conn) {
-            if (WiFiUtils::localIP(_my_ip)) {
-                _wifi_connected = true;
-            }
-        }
-        if (_wifi_connected) {
-            _wifi_rssi = WiFi.RSSI();
-
-            if (_time_resync < cur_time) {
-                if (_ntp_addr == IPAddress{}) {
-                    _sdns.cancel();
-                    _sdns.request("pool.ntp.org");
-                    _time_resync = cur_time + 5000;
-                } else {
-                    _ntp.cancel();
-                    _time_resync = cur_time + 5000;
-                    _ntp.request(_ntp_addr, 123);
-                }
-            }
-            if (_sdns.is_ready()) {
-                _ntp_addr = _sdns.get_result();
-                _time_resync = cur_time + 1;
-            }
-            if (_ntp.is_ready()) {
-                set_current_time(static_cast<uint32_t>(_ntp.get_result()));
-                _time_resync = cur_time + 24*60*60*1000;
-                _ntp_addr = IPAddress{};
-            }
-
-
-        } else {
-            _ntp.cancel();
-            _time_resync = 0;
-        }
-
-    }
-    return 1023;
-}
-
-TimeStampMs Controller::run_server(TimeStampMs ) {
-    if (_wifi_connected) {
-        auto req = _server.get_request();
-        if (req.client) {
-            handle_server(req);
-        }
-    }
-    return 20;
-}
 
 TimeStampMs Controller::read_serial(TimeStampMs) {
     while (handle_serial(*this));
@@ -1147,8 +1067,7 @@ std::string_view Controller::get_task_name(const AbstractTask *task) {
     if (task == &_display) return "display";
     if (task == &_motoruntime) return "motoruntime";
     if (task == &_auto_drive_cycle) return "auto_drive_cycle";
-    if (task == &_wifi_mon) return "wifi_mon";
-    if (task == &_run_server) return "run_server";
+    if (task == &_network) return "network";
     if (task == &_read_serial) return "read_serial";
     if (task == &_refresh_wdt) return "wdt";
     return "unknown";
@@ -1244,9 +1163,14 @@ void Controller::run_init_mode() {
     }
 }
 
+bool Controller::is_safe_for_blocking() const {
+    return !_fan.is_pulse();
+}
+
 void Controller::init_serial_log() {
     if (_storage.config.serial_log_out) {
 #ifdef _MODEM_WIFIS3_H_
+        delay(5000);    //wait for connect serial line
         modem.debug(Serial, 100);
 #endif
         Serial.println("Debug mode on");

@@ -13,6 +13,7 @@
 #include "ntp.h"
 #include "simple_dns.h"
 
+#include "network_control.h"
 namespace kotel {
 
 //controller
@@ -37,7 +38,7 @@ public:
     };
 
 
-    using MyHttpServer = HttpServer<4096,32>;
+    using MyHttpServer = NetworkControl::MyHttpServer;
 
     Controller();
     void begin();
@@ -51,8 +52,10 @@ public:
 
     const DisplayControl &get_display() const {return _display;}
 
+    bool is_safe_for_blocking() const;
     bool is_tray_open() const {return _sensors.tray_open;}
     bool is_wifi() const;
+    bool is_wifi_ap() const;
     TimeStampMs get_last_net_activity() const {return _last_net_activity;}
     auto get_input_temp() const {return _temp_sensors.get_input_temp();}
     auto get_output_temp() const {return _temp_sensors.get_output_temp();}
@@ -64,6 +67,7 @@ public:
     const Storage &get_storage() const {return _storage;}
     void set_wifi_used() {_wifi_used = true;}
     bool is_wifi_used() const {return _wifi_used;}
+    IPAddress get_local_ip() const;
     DriveMode get_drive_mode() const {return _cur_mode;}
     AutoMode get_auto_mode() const {return _auto_mode;}
     const IPAddress &get_my_ip() const {return _my_ip;}
@@ -74,6 +78,8 @@ public:
         uint8_t _fan_speed = 0;
         uint8_t _force_pump = 0xFF;
     };
+
+    void handle_server(MyHttpServer::Request &req);
 
 
 struct SetFuelParams {
@@ -99,8 +105,6 @@ struct SetFuelParams {
 protected:
 
     TimeStampMs auto_drive_cycle(TimeStampMs cur_time);
-    TimeStampMs wifi_mon(TimeStampMs  cur_time);
-    TimeStampMs run_server(TimeStampMs cur_time);
     TimeStampMs read_serial(TimeStampMs cur_time);
     TimeStampMs refresh_wdt(TimeStampMs cur_time);
 protected:
@@ -109,10 +113,8 @@ protected:
     Sensors _sensors;
 
     bool _wifi_used = false;
-    bool _wifi_connected = false;
     bool _force_pump = false;
     bool _was_tray_open = false;
-    int16_t _wifi_rssi = -100;
 
     DriveMode _cur_mode = DriveMode::init;
     AutoMode _auto_mode = AutoMode::fullpower;
@@ -120,9 +122,6 @@ protected:
     TimeStampMs _time_resync = 0;
     TimeStampMs _last_net_activity = max_timestamp;
     TimeStampMs _start_mode_until = 0;
-    NTPClient _ntp;
-    IPAddress _ntp_addr;
-    SimpleDNS _sdns;
 
 
 
@@ -134,12 +133,10 @@ protected:
     DisplayControl _display;
     TaskMethod<Controller, &Controller::update_motorhours> _motoruntime;
     TaskMethod<Controller, &Controller::auto_drive_cycle> _auto_drive_cycle;
-    TaskMethod<Controller, &Controller::wifi_mon> _wifi_mon;
-    TaskMethod<Controller, &Controller::run_server> _run_server;
     TaskMethod<Controller, &Controller::read_serial> _read_serial;
     TaskMethod<Controller, &Controller::refresh_wdt> _refresh_wdt;
-    Scheduler<10> _scheduler;
-    MyHttpServer _server;
+    NetworkControl _network;
+    Scheduler<9> _scheduler;
     std::optional<TCPClient> _list_temp_async;
     StringStream<1024> static_buff;
     std::array<char, 4> _last_code;
@@ -179,9 +176,7 @@ protected:
     void run_other_mode();
     void run_stop_mode();
     void run_init_mode();
-    void init_wifi();
 
-    void handle_server(MyHttpServer::Request &req);
     void handle_ws_request(MyHttpServer::Request &req);
     void send_file(MyHttpServer::Request &req, std::string_view content_type, std::string_view file_name);
 

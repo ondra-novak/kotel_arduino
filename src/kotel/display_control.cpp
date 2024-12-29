@@ -2,6 +2,7 @@
 #include "controller.h"
 #include <fonts/font_6p.h>
 #include <fonts/font_5x3.h>
+#include <WifiTCP.h>
 #include "version.h"
 
 namespace kotel {
@@ -30,6 +31,11 @@ constexpr Matrix_MAX7219::Bitmap<2,2> fan_anim[] = {
 constexpr Matrix_MAX7219::Bitmap<5,2> wifi_icon = {
         "@ @ @"
         " @ @ ",
+};
+
+constexpr Matrix_MAX7219::Bitmap<5,2> wifi_ap_icon = {
+        "   @ "
+        "  @@@",
 };
 
 
@@ -293,14 +299,18 @@ void DisplayControl::tray_icon() {
     const Storage &storage = _cntr.get_storage();
     uint32_t fill = storage.tray.calc_tray_fill();
     uint32_t fill_max = storage.config.tray_kg;
-    uint32_t fill_pct = (fill * 10 + (fill_max >> 1)) / fill_max;
+    uint32_t fill_pct = fill_max?(fill * 10 + (fill_max >> 1)) / fill_max:0;
     const auto &bmp = tray_fill_icon[fill_pct];
     frame_buffer.put_image( { 0, 0 }, bmp);
 }
 
 void DisplayControl::run(TimeStampMs cur_time) {
+    if (_pause_display_sec) {
+        resume_at(cur_time + from_seconds(_pause_display_sec));
+        _pause_display_sec = 0;
+        return;
+    }
     resume_at( cur_time+100);
-
     frame_buffer.clear();
 
     if (cur_time < _scroll_end) {
@@ -309,22 +319,25 @@ void DisplayControl::run(TimeStampMs cur_time) {
         return ;
     }
 
+    ++frame;
+
     if (cur_time > _ipaddr_show_next) {
         _ipaddr_show_next = max_timestamp;
         if (!_cntr.is_wifi_used()) {
-            auto s = WiFi.localIP().toString();
+            auto s = _cntr.get_local_ip().toString();
             scroll_text({s.c_str(), s.length()});
             return ;
         }
     }
 
     tray_icon();
-    drive_mode_anim(cur_time);
-    draw_feeder_anim(cur_time);
-    temperatures_anim(cur_time);
-    draw_fan_anim(cur_time);
-    draw_pump_anim(cur_time);
+    drive_mode_anim(frame);
+    draw_feeder_anim(frame);
+    temperatures_anim(frame);
+    draw_fan_anim(frame);
+    draw_pump_anim(frame);
     draw_wifi_state(cur_time);
+    if (!(frame & 0x63)) begin();
     display.display(frame_buffer, 0, 0);
 
 
@@ -342,7 +355,7 @@ void DisplayControl::display_code(std::array<char, 4> code) {
         ++pos;
     }
     display.display(frame_buffer, 0, 0);
-    resume_at(get_current_timestamp()+ from_minutes(1));
+    _pause_display_sec = 30;
 }
 
 template<typename T, int n>
@@ -350,8 +363,7 @@ constexpr int countof(const T (&)[n]) {
     return n;
 }
 
-void DisplayControl::drive_mode_anim(TimeStampMs cur_time) {
-    int anim_pos = static_cast<int>(cur_time/100);
+void DisplayControl::drive_mode_anim(unsigned int anim_pos) {
     if (_cntr.is_tray_open()) {
         frame_buffer.put_image({8,0}, tray_open_anim_frames[tray_open_anim[anim_pos % countof(tray_open_anim)]]);
     } else {
@@ -387,7 +399,7 @@ void DisplayControl::drive_mode_anim(TimeStampMs cur_time) {
     }
 }
 
-void DisplayControl::temperatures_anim(TimeStampMs ) {
+void DisplayControl::temperatures_anim(unsigned int ) {
     auto input = _cntr.get_input_temp();
     auto output = _cntr.get_output_temp();
     char input_temp_str[2];
@@ -425,30 +437,30 @@ void DisplayControl::temperatures_anim(TimeStampMs ) {
     TR::textout(frame_buffer, Matrix_MAX7219::font_5x3, {25,0}, input_temp_str, input_temp_str+2);
 }
 
-void DisplayControl::draw_feeder_anim(TimeStampMs cur_time) {
+void DisplayControl::draw_feeder_anim(unsigned int gframe) {
     if (_cntr.is_feeder_on()) {
-        auto frame = static_cast<int>((cur_time/100) % 3);
+        auto frame = gframe % 3;
         frame_buffer.put_image({8,6}, feeder_anim[frame]);
     }
 }
 
-void DisplayControl::draw_fan_anim(TimeStampMs cur_time) {
+void DisplayControl::draw_fan_anim(unsigned int gframe) {
     if (_cntr.is_fan_on()) {
-        auto frame = static_cast<int>((cur_time/100) % 4);
+        auto frame = gframe % 4;
         frame_buffer.put_image({16,6}, fan_anim[frame]);
     }
 }
 
-void DisplayControl::draw_pump_anim(TimeStampMs) {
+void DisplayControl::draw_pump_anim(unsigned int) {
     if (_cntr.is_pump_on()) {
         frame_buffer.draw_box(21, 6, 22, 7,true);
     }
 }
 
-void DisplayControl::draw_wifi_state(TimeStampMs cur_time) {
+void DisplayControl::draw_wifi_state( TimeStampMs cur_time) {
     bool topen = _cntr.is_tray_open();
     if (_cntr.is_wifi()) {
-        frame_buffer.put_image({27,6}, wifi_icon);
+        frame_buffer.put_image({27,6}, _cntr.is_wifi_ap()?wifi_ap_icon:wifi_icon);
         if (_ipaddr_show_next == max_timestamp
            && !_cntr.is_wifi_used()
            && ((!topen && _tray_opened)
@@ -464,9 +476,10 @@ void DisplayControl::draw_wifi_state(TimeStampMs cur_time) {
 void DisplayControl::display_version() {
     char c[9];
     snprintf(c,9,"v 1.%d",project_version);
+    frame_buffer.clear();
     TR::textout(frame_buffer, Matrix_MAX7219::font_6p, {0,1}, c);
-    resume_at(get_current_timestamp()+from_seconds(5));
     display.display(frame_buffer, 0, 0);
+    _pause_display_sec = 5;
 }
 
 void DisplayControl::draw_scroll(TimeStampMs cur_time) {
@@ -480,15 +493,22 @@ void DisplayControl::scroll_text(const std::string_view &text) {
     for (char c: text) {
         len = len + Matrix_MAX7219::font_5x3p.get_face_width(c);
     }
-    _scroll_text_len = len;
     _scroll_text = text;
-    _scroll_end = get_current_timestamp()+(_scroll_text_len+40) * 50;
+    _scroll_end = get_current_timestamp()+(len+40) * 50;
 
 }
 
 void DisplayControl::begin() {
     display.begin();
     display.set_intensity(_cntr.get_storage().config.display_intensity);
+}
+
+void DisplayControl::display_init_pattern() {
+    for (int j = 0; j < 2; j++) {
+        for (int i = j; i < 8; i+=3) frame_buffer.draw_line(0, i, 31, i, true);
+        display.display(frame_buffer);
+        delay(200);
+    }
 }
 
 

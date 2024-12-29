@@ -3,6 +3,8 @@
 #include "wifi/TCPServer.h"
 #include "WiFiS3.h"
 
+#include <vector>
+
 
 struct WiFiUtils {
 
@@ -16,4 +18,19 @@ struct WiFiUtils {
     }
     static void reset() {
     }
+
+    struct Scanner {
+        void begin() {}
+        bool is_ready() {return true;}
+        std::vector<CAccessPoint> get_result() {
+            std::vector<CAccessPoint> ret;
+            int i = WiFi.scanNetworks();
+            for (int j = 0; j < i; j++) {
+                ret.push_back({WiFi.SSID(j), {}, {}, {}, {}, {}});
+            }
+            return ret;
+        }
+
+
+    };
 };
