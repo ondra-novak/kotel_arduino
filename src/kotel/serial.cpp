@@ -63,6 +63,7 @@ bool handle_serial(Controller &controller) {
     int c = Serial.read();
     if (c == '\n') {
         if (buffer_use == sizeof(buffer)) {
+            buffer_use = 0;
             Serial.println("?Serial buffer overflow, command ignored");
             return true;
         } else {
