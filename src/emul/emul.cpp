@@ -21,9 +21,11 @@ void log_line(Args ... text) {
     (std::cout << ... <<  text) << std::endl;
 }
 
+int kbd_code = 0;
 
 
 std::size_t dmx_framebuffer_hash = 0;
+
 
 template<typename T>
 bool check_frame_changed(const T &fb) {
@@ -78,6 +80,7 @@ struct Command {
         wifi,
         reset,
         clear_error,
+        keyboard,
         unknown
     };
     unsigned long timestamp = 0;
@@ -94,6 +97,7 @@ constexpr std::pair<Command::Type, std::string_view> command_str_map[] = {
         {Command::serial,"serial"},
         {Command::wifi,"wifi"},
         {Command::reset,"reset"},
+        {Command::keyboard,"keyboard"},
         {Command::clear_error, "clear_error"},
         {Command::motor_high_temp_on,"motor_high_temp"},
         {Command::motor_high_temp_off,"motor_norm_temp"},
@@ -172,6 +176,7 @@ void process_command(const Command &cmd) {
         case Command::tray_open:  state_tray_open = true; break;
         case Command::motor_high_temp_on:  state_motor_temp_ok = false; break;
         case Command::motor_high_temp_off:  state_motor_temp_ok = true; break;
+        case Command::keyboard: kbd_code = strtoul(cmd.arg.c_str(),nullptr,10);break;
         case Command::temp_set:
         case Command::temp_smooth: {
             auto tt = parse_temp_pair(cmd.arg);
@@ -289,6 +294,10 @@ void digitalWrite(int pin, int level) {
 }
 
 void pinMode(int pin, int mode) {
+    if (pin >= 20) {
+        log_line("Analog pin: A", pin-100, " mode ", mode);
+        return;
+    }
     char &c = pins[pin];
     char prev = c;
     switch (mode) {
@@ -309,6 +318,10 @@ int digitalRead(int pin) {
     }
 }
 
+
 int analogRead(int pin) {
+    if (pin == 105) {
+        return kbd_code;
+    }
     return pin+100;
 }

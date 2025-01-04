@@ -18,7 +18,8 @@ public:
     void resume_at(TimeStampMs at) {
         if (at != _scheduled_time) {
            _scheduled_time = at;
-           reschedule();
+           if (_cur_task != this)
+               _reschedule_flag++;
         }
     }
     void stop() {
@@ -41,10 +42,6 @@ public:
         _cur_task = nullptr;
     }
 
-    void reschedule() {
-        if (_cur_task != this)
-            _reschedule_flag++;
-    }
 
 protected:
     TimeStampMs _scheduled_time = 0;

@@ -14,12 +14,23 @@
 #include "simple_dns.h"
 
 #include "network_control.h"
+
+#include "keyboard.h"
 namespace kotel {
+
+
+
 
 //controller
 
 class Controller {
 public:
+
+    static constexpr int stop_btn_start_interval_ms = 2000;
+    static constexpr int default_btn_release_interval_ms = 300;
+    static constexpr int manual_run_interval_ms = 120000;
+    static constexpr int feeder_min_press_interval_ms = 1000;
+    static constexpr int fan_speed_change_step = 20;
 
     enum class DriveMode {
         unknown,
@@ -102,6 +113,8 @@ struct SetFuelParams {
     void disable_temperature_simulation();
 
     void factory_reset();
+
+
 protected:
 
     TimeStampMs auto_drive_cycle(TimeStampMs cur_time);
@@ -115,6 +128,8 @@ protected:
     bool _wifi_used = false;
     bool _force_pump = false;
     bool _was_tray_open = false;
+    bool _keyboard_connected = false;
+    bool _fan_step_down = false;
 
     DriveMode _cur_mode = DriveMode::init;
     AutoMode _auto_mode = AutoMode::fullpower;
@@ -141,6 +156,7 @@ protected:
     StringStream<1024> static_buff;
     std::array<char, 4> _last_code;
     IPAddress _my_ip;
+    MyState _kbdstate;
 
     enum class WsReqCmd {
         file_config = 0,
@@ -191,6 +207,7 @@ protected:
     void gen_and_print_token();
     //void update_time();
     void init_serial_log();
+    void run_keyboard();
 
 };
 

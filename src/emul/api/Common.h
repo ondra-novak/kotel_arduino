@@ -16,6 +16,9 @@ unsigned long millis();
 #define A0 100
 #define A1 101
 #define A2 102
+#define A3 103
+#define A4 104
+#define A5 105
 
 
 void digitalWrite(int pin, int mode);

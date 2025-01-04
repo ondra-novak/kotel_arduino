@@ -20,8 +20,7 @@ public:
     using FrameBuffer = Matrix_MAX7219::Bitmap<32,8>;
     using Driver = Matrix_MAX7219::MatrixDriver<4,1,Matrix_MAX7219::ModuleOrder::right_to_left,Matrix_MAX7219::Transform::none>;
     using TR = Matrix_MAX7219::TextOutputDef<>;
-    static constexpr Driver display = {A2,A1,A0};
-
+    static constexpr Driver display = {display_data_pin,display_sel_pin,display_clk_pin};
 
     DisplayControl(const Controller &cntr):_cntr(cntr) {}
 

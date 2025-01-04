@@ -41,6 +41,12 @@ constexpr int inactive_fan = INPUT_PULLUP;
 constexpr int tray_open_level = LOW;
 constexpr int motor_overheat_level = HIGH;
 
+constexpr int display_data_pin = A2;
+constexpr int display_sel_pin = A1;
+constexpr int display_clk_pin = A0;
+
+constexpr int keyboard_pin = A5;
+
 }
 
 

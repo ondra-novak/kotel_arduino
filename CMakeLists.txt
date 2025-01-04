@@ -26,6 +26,7 @@ include_directories(AFTER ${CMAKE_CURRENT_LIST_DIR}/src/libraries/r4eeprom)
 include_directories(AFTER ${CMAKE_CURRENT_LIST_DIR}/src/libraries/SimpleDallasTemp)
 include_directories(AFTER ${CMAKE_CURRENT_LIST_DIR}/src/libraries/DotMatrix)
 include_directories(AFTER ${CMAKE_CURRENT_LIST_DIR}/src/libraries/Matrix_MAX7219)
+include_directories(AFTER ${CMAKE_CURRENT_LIST_DIR}/src/libraries/Keyboard1W)
 
 add_subdirectory("src/build_web")
 add_subdirectory("src/www")

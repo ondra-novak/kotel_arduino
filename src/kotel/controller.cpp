@@ -47,6 +47,8 @@ void Controller::begin() {
     _pump.begin();
     _temp_sensors.begin();
     _network.begin();
+    kbdcntr.begin();
+    _keyboard_connected = kbdcntr.read(_kbdstate) < 2;
     _storage.cntr1.restart_count++;
     if (_storage.pair_secret_need_init) {
         generate_pair_secret();
@@ -110,6 +112,9 @@ void Controller::run() {
         list_onewire_sensors(*_list_temp_async);
         _list_temp_async->stop();
         _list_temp_async.reset();
+    }
+    if (_keyboard_connected) {
+        run_keyboard();
     }
     _scheduler.run();
     _storage.commit();
@@ -1174,6 +1179,69 @@ void Controller::init_serial_log() {
         modem.debug(Serial, 100);
 #endif
         Serial.println("Debug mode on");
+    }
+}
+
+void Controller::run_keyboard() {
+    kbdcntr.read(_kbdstate);
+    if (_sensors.tray_open) {
+        //TODO tray open control
+    } else {
+        auto &stop_btn = _kbdstate.get_state(key_code_stop);
+        if (stop_btn.pressed()) {
+            if (stop_btn.stabilize(stop_btn_start_interval_ms)) {
+                _storage.config.operation_mode = 1;
+                _kbdstate.set_utility_flag(stop_btn);
+                _storage.save();
+            }
+        } else {
+            if (stop_btn.stabilize(default_btn_release_interval_ms)) {
+                if (!_kbdstate.test_and_reset_utility_flag(stop_btn)) {
+                    _storage.config.operation_mode = 0;
+                    _feeder.stop();
+                    _fan.stop();
+                    _storage.save();
+                }
+            }
+        }
+
+        if (_cur_mode == DriveMode::manual) {
+            auto &feeder_btn = _kbdstate.get_state(key_code_up);
+            if (feeder_btn.pressed()) {
+                _feeder.keep_running(150);
+                if (feeder_btn.stabilize(feeder_min_press_interval_ms)) {
+                    _kbdstate.set_utility_flag(feeder_btn);
+                }
+            } else {
+                if (feeder_btn.stabilize(default_btn_release_interval_ms)) {
+                    if (!_kbdstate.test_and_reset_utility_flag(feeder_btn)) {
+                        _feeder.keep_running(manual_run_interval_ms);
+                    }
+                }
+            }
+
+            auto &fan_btn = _kbdstate.get_state(key_code_up);
+            if (fan_btn.pressed()) {
+                _kbdstate.set_utility_flag(fan_btn);
+            } else if (fan_btn.stabilize(default_btn_release_interval_ms)) {
+                if (_fan.is_active()) {
+                    int spd = _fan.get_speed();
+                    if (spd >= 100) _fan_step_down = true;
+                    if (spd <= fan_speed_change_step) _fan_step_down = false;
+                    if (_fan_step_down) {
+                        spd += fan_speed_change_step;
+                        if (spd > 100) spd = 100;
+                    } else {
+                        spd -= fan_speed_change_step;
+                        if (spd < fan_speed_change_step) spd = fan_speed_change_step;
+                    }
+                    _fan.set_speed(spd);
+                }
+                _fan.keep_running(manual_run_interval_ms);
+            }
+
+        }
+
     }
 }
 
