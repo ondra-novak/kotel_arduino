@@ -28,10 +28,11 @@ Controller::Controller()
         ,_auto_drive_cycle(this)
         ,_read_serial(this)
         ,_refresh_wdt(this)
+        ,_keyboard_scanner(this)
         ,_network(*this)
         ,_scheduler({&_feeder, &_fan, &_temp_sensors,  &_display,
             &_motoruntime, &_auto_drive_cycle, &_network,
-            &_read_serial, &_refresh_wdt})
+            &_read_serial, &_refresh_wdt, &_keyboard_scanner})
 {
 
 }
@@ -112,9 +113,6 @@ void Controller::run() {
         list_onewire_sensors(*_list_temp_async);
         _list_temp_async->stop();
         _list_temp_async.reset();
-    }
-    if (_keyboard_connected) {
-        run_keyboard();
     }
     _scheduler.run();
     _storage.commit();
@@ -1169,7 +1167,7 @@ void Controller::run_init_mode() {
 }
 
 bool Controller::is_safe_for_blocking() const {
-    return !_fan.is_pulse();
+    return _fan.get_current_speed() > 90 || !_fan.is_pulse();
 }
 
 void Controller::init_serial_log() {
@@ -1182,7 +1180,8 @@ void Controller::init_serial_log() {
     }
 }
 
-void Controller::run_keyboard() {
+TimeStampMs Controller::run_keyboard(TimeStampMs cur_time) {
+    if (!_keyboard_connected) return 1000;
     kbdcntr.read(_kbdstate);
     if (_sensors.tray_open) {
         //TODO tray open control
@@ -1191,12 +1190,12 @@ void Controller::run_keyboard() {
         if (stop_btn.pressed()) {
             if (stop_btn.stabilize(stop_btn_start_interval_ms)) {
                 _storage.config.operation_mode = 1;
-                _kbdstate.set_utility_flag(stop_btn);
+                stop_btn.set_user_state();
                 _storage.save();
             }
         } else {
             if (stop_btn.stabilize(default_btn_release_interval_ms)) {
-                if (!_kbdstate.test_and_reset_utility_flag(stop_btn)) {
+                if (!stop_btn.test_and_reset_user_state()) {
                     _storage.config.operation_mode = 0;
                     _feeder.stop();
                     _fan.stop();
@@ -1208,41 +1207,40 @@ void Controller::run_keyboard() {
         if (_cur_mode == DriveMode::manual) {
             auto &feeder_btn = _kbdstate.get_state(key_code_up);
             if (feeder_btn.pressed()) {
-                _feeder.keep_running(150);
+                _feeder.keep_running(cur_time+150);
                 if (feeder_btn.stabilize(feeder_min_press_interval_ms)) {
-                    _kbdstate.set_utility_flag(feeder_btn);
+                    feeder_btn.set_user_state();
                 }
             } else {
                 if (feeder_btn.stabilize(default_btn_release_interval_ms)) {
-                    if (!_kbdstate.test_and_reset_utility_flag(feeder_btn)) {
-                        _feeder.keep_running(manual_run_interval_ms);
+                    if (!feeder_btn.test_and_reset_user_state()) {
+                       _feeder.keep_running(cur_time+1000);
                     }
                 }
             }
 
-            auto &fan_btn = _kbdstate.get_state(key_code_up);
-            if (fan_btn.pressed()) {
-                _kbdstate.set_utility_flag(fan_btn);
-            } else if (fan_btn.stabilize(default_btn_release_interval_ms)) {
+            auto &fan_btn = _kbdstate.get_state(key_code_down);
+            if (fan_btn.pressed() && fan_btn.stabilize(default_btn_release_interval_ms)) {
                 if (_fan.is_active()) {
                     int spd = _fan.get_speed();
                     if (spd >= 100) _fan_step_down = true;
                     if (spd <= fan_speed_change_step) _fan_step_down = false;
                     if (_fan_step_down) {
-                        spd += fan_speed_change_step;
-                        if (spd > 100) spd = 100;
-                    } else {
                         spd -= fan_speed_change_step;
                         if (spd < fan_speed_change_step) spd = fan_speed_change_step;
+                    } else {
+                        spd += fan_speed_change_step;
+                        if (spd > 100) spd = 100;
                     }
                     _fan.set_speed(spd);
                 }
-                _fan.keep_running(manual_run_interval_ms);
+                _fan.keep_running(cur_time+manual_run_interval_ms);
             }
 
         }
 
     }
+    return 2;
 }
 
 }

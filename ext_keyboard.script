@@ -1,0 +1,7 @@
+0 config m=1
+0 config wifi.ssid=test
+0 config pair_secret=default_web
+0 serial tsinaddr=01-FD-7D-45-38-FC-89-40&tsoutaddr=02-6D-38-D9-78-EF-00-1E
+0 temp_set 35 45
+0 extkeyboard /dev/ttyACM0 
++100000 tray_open

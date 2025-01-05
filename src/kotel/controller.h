@@ -27,7 +27,7 @@ class Controller {
 public:
 
     static constexpr int stop_btn_start_interval_ms = 2000;
-    static constexpr int default_btn_release_interval_ms = 300;
+    static constexpr int default_btn_release_interval_ms = 100;
     static constexpr int manual_run_interval_ms = 120000;
     static constexpr int feeder_min_press_interval_ms = 1000;
     static constexpr int fan_speed_change_step = 20;
@@ -106,7 +106,9 @@ struct SetFuelParams {
 
 
 
-    TimeStampMs update_motorhours(TimeStampMs  now);
+    TimeStampMs update_motorhours(TimeStampMs now);
+    TimeStampMs run_keyboard(TimeStampMs now);
+
 
     //simulation
     bool enable_temperature_simulation(std::string_view command);
@@ -150,13 +152,14 @@ protected:
     TaskMethod<Controller, &Controller::auto_drive_cycle> _auto_drive_cycle;
     TaskMethod<Controller, &Controller::read_serial> _read_serial;
     TaskMethod<Controller, &Controller::refresh_wdt> _refresh_wdt;
+    TaskMethod<Controller, &Controller::run_keyboard> _keyboard_scanner;
     NetworkControl _network;
-    Scheduler<9> _scheduler;
+    Scheduler<10> _scheduler;
     std::optional<TCPClient> _list_temp_async;
     StringStream<1024> static_buff;
     std::array<char, 4> _last_code;
     IPAddress _my_ip;
-    MyState _kbdstate;
+    MyKeyboard::State _kbdstate;
 
     enum class WsReqCmd {
         file_config = 0,
@@ -207,7 +210,6 @@ protected:
     void gen_and_print_token();
     //void update_time();
     void init_serial_log();
-    void run_keyboard();
 
 };
 

@@ -15,7 +15,7 @@ public:
   ///definition of signal level
   struct LevelDef {
     ///signal level value (analogRead value)
-    int level;
+    uint16_t level;
     ///combination of keys for this level
     bool keys[_nkeys];
   };
@@ -28,8 +28,10 @@ public:
     uint16_t _changed:1;
     ///is set to 1, if state is unstable (change recently)
     uint16_t _unstable:1;
-    ///contains timestamp (/16, modulo 8192) when last change has been detected
-    uint16_t _tp:13;
+    ///user state flag
+    uint16_t _user_state:1;
+    ///contains timestamp (/16, modulo 4096) when last change has been detected
+    uint16_t _tp:12;
 
 
     ///determine pressed state
@@ -74,12 +76,43 @@ public:
         }
         return false;
     }
+
+    ///Sets user state
+    /** user state is user controlled state flag, which can be set to 1 or 0
+     *
+     * This flag can be used, for example, to indicate a long press.
+     * If the user holds down the key, then it's a good idea to set this flag.
+     * When the key is released, this flag can be used to determine whether
+     * a long press occurred. If this flag is not set, then it was
+     * a short press. However, the meaning of this flag is not tied
+     * to this functionality and can be used for any purpose.
+     *
+     * */
+    void set_user_state() {
+        _user_state = true;
+    }
+
+    ///Tests the user state and resets its
+    /**
+     * @return value of user state
+     *
+     * @note function also resets the state, so next call returns false until the
+     * flag is set by set_user_state()
+     */
+    bool test_and_reset_user_state() {
+        if (_user_state) {
+            _user_state = false;
+            return true;
+        }
+        return false;
+    }
   };
 
 
   ///Contains keyboard state
   struct State {
     KeyState _states[_nkeys] = {};
+    uint16_t last_level;
     KeyState &get_state(int key) {return _states[key];}
     const KeyState &get_state(int key) const {return _states[key];}
   };
@@ -131,23 +164,32 @@ public:
 
     for (int i = 0; i < _nstates; ++i) {
       const LevelDef *def = defs+i;
-      int d = abs(def->level - v);
+      int d = abs(static_cast<int>(def->level) - v);
       if (d < bdff) {
         bdff = d;
         sel = def;
       }
     }
 
-    for (int i = 0; i < _nkeys; ++i) {
-      KeyState &st = state._states[i];
-      uint8_t cur = st._pressed;
-      uint8_t nst = sel->keys[i]?1:0;
-      st._changed = cur != nst?1:0;
-      st._pressed = nst;
-      if (st._changed) {
-        st._unstable = 1;
-        st._tp = get_tp(millis());
-      }
+    if (sel->level == state.last_level) {
+
+        for (int i = 0; i < _nkeys; ++i) {
+          KeyState &st = state._states[i];
+          auto cur = st._pressed != 0;
+          auto nst = sel->keys[i];
+          st._changed = cur != nst?1:0;
+          st._pressed = nst?1:0;
+          if (st._changed) {
+            st._unstable = 1;
+            st._tp = get_tp(millis());
+          }
+        }
+    } else {
+        for (int i = 0; i < _nkeys; ++i) {
+            KeyState &st = state._states[i];
+            st._changed = 0;
+        }
+        state.last_level = sel->level;
     }
     return v;
   }
