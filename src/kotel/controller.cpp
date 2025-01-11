@@ -71,14 +71,20 @@ void Controller::run() {
     bool start_mode = _start_mode_until > get_current_timestamp();
     control_pump();
     if (_sensors.tray_open) {
+        _storage.tray.tray_open_time = _storage.tray.feeder_time;
         _was_tray_open = true;
         _feeder.stop();
         _fan.stop();
     } else {
         if (_was_tray_open) {
             _was_tray_open = false;
-            _storage.tray.tray_open_time = _storage.tray.feeder_time;
             _storage.cntr1.tray_open_count++;
+            if (_cur_tray_change._full) {
+                _storage.tray.set_max_fill(_storage.tray.feeder_time, _storage.config.tray_kg);
+            } else if (_cur_tray_change._change) {
+                _storage.tray.update_tray_fill(_storage.tray.feeder_time, _cur_tray_change._change*_storage.config.bag_kg);
+            }
+            _cur_tray_change = {};
             _storage.save();
         }
         if (_sensors.feeder_overheat || is_overheat()) {
@@ -1184,7 +1190,26 @@ TimeStampMs Controller::run_keyboard(TimeStampMs cur_time) {
     if (!_keyboard_connected) return 1000;
     kbdcntr.read(_kbdstate);
     if (_sensors.tray_open) {
-        //TODO tray open control
+        auto &up = _kbdstate.get_state(key_code_up);
+        auto &down = _kbdstate.get_state(key_code_down);
+        auto &full = _kbdstate.get_state(key_code_full);
+        bool at_zero = !_cur_tray_change._full && _cur_tray_change._change == 0;
+        int maxbg = 255/_storage.config.bag_kg;
+        if (up.stabilize(default_btn_press_interval_ms) && up.pressed()) {
+            if (_cur_tray_change._full) {
+                _cur_tray_change._full = false;
+            } else {
+                _cur_tray_change._change = std::min<int>(maxbg, _cur_tray_change._change+1);
+            }
+        } else if (down.stabilize(at_zero?negative_tray_btn_press_interval_ms:default_btn_press_interval_ms) && down.pressed()) {
+            if (_cur_tray_change._full) {
+                _cur_tray_change._full = false;
+            } else {
+                _cur_tray_change._change = std::max<int>(-maxbg, _cur_tray_change._change-1);
+            }
+        } else if (full.stabilize(default_btn_press_interval_ms) && full.pressed()) {
+            _cur_tray_change._full = !_cur_tray_change._full;
+        }
     } else {
         auto &stop_btn = _kbdstate.get_state(key_code_stop);
         if (stop_btn.pressed()) {
@@ -1205,22 +1230,21 @@ TimeStampMs Controller::run_keyboard(TimeStampMs cur_time) {
         }
 
         if (_cur_mode == DriveMode::manual) {
-            auto &feeder_btn = _kbdstate.get_state(key_code_up);
+            auto &feeder_btn = _kbdstate.get_state(key_code_feeder);
             if (feeder_btn.pressed()) {
-                _feeder.keep_running(cur_time+150);
-                if (feeder_btn.stabilize(feeder_min_press_interval_ms)) {
-                    feeder_btn.set_user_state();
-                }
-            } else {
-                if (feeder_btn.stabilize(default_btn_release_interval_ms)) {
-                    if (!feeder_btn.test_and_reset_user_state()) {
-                       _feeder.keep_running(cur_time+1000);
+                if (feeder_btn.stable()) {
+                    auto sch = cur_time+150;
+                    if (_feeder.get_scheduled_time() < sch) {
+                        _feeder.keep_running(sch);
                     }
                 }
+                if (feeder_btn.stabilize(feeder_min_press_interval_ms)) {
+                    _feeder.keep_running(cur_time+1000);
+                    feeder_btn.set_user_state();
+                }
             }
-
-            auto &fan_btn = _kbdstate.get_state(key_code_down);
-            if (fan_btn.pressed() && fan_btn.stabilize(default_btn_release_interval_ms)) {
+            auto &fan_btn = _kbdstate.get_state(key_code_fan);
+            if (fan_btn.stabilize(default_btn_release_interval_ms) && fan_btn.pressed()) {
                 if (_fan.is_active()) {
                     int spd = _fan.get_speed();
                     if (spd >= 100) _fan_step_down = true;

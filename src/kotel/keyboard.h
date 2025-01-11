@@ -69,17 +69,21 @@ using MyKeyboard = Keyboard1W<3, 7>;
 
 constexpr auto kbdcntr = MyKeyboard(keyboard_pin, {
         {0,{false,false,false}},
-        {614,{true,false,false}},
+        {614,{false,false,true}},
         {382,{false,true,false}},
-        {202,{false,false,true}},
-        {558,{true,true,false}},
-        {277,{false,true,true}},
+        {202,{true,false,false}},
+        {558,{false,true,true}},
+        {277,{true,true,false}},
         {437,{true,false,true}},
 });
 
 
 constexpr int key_code_up = 0;
+constexpr int key_code_feeder = 0;
 constexpr int key_code_stop = 1;
+constexpr int key_code_full = 1;
 constexpr int key_code_down = 2;
+constexpr int key_code_fan = 2;
 
 }
+

@@ -28,8 +28,10 @@ public:
 
     static constexpr int stop_btn_start_interval_ms = 2000;
     static constexpr int default_btn_release_interval_ms = 100;
+    static constexpr int default_btn_press_interval_ms = 100;
+    static constexpr int negative_tray_btn_press_interval_ms = 1000;
     static constexpr int manual_run_interval_ms = 120000;
-    static constexpr int feeder_min_press_interval_ms = 1000;
+    static constexpr int feeder_min_press_interval_ms = 150;
     static constexpr int fan_speed_change_step = 20;
 
     enum class DriveMode {
@@ -48,6 +50,10 @@ public:
         notset
     };
 
+    struct TrayChange {
+        bool _full;
+        int _change;
+    };
 
     using MyHttpServer = NetworkControl::MyHttpServer;
 
@@ -82,6 +88,7 @@ public:
     DriveMode get_drive_mode() const {return _cur_mode;}
     AutoMode get_auto_mode() const {return _auto_mode;}
     const IPAddress &get_my_ip() const {return _my_ip;}
+    TrayChange get_cur_tray_change() const {return _cur_tray_change;}
 
     struct ManualControlStruct {
         uint8_t _feeder_time = 0;
@@ -160,6 +167,7 @@ protected:
     std::array<char, 4> _last_code;
     IPAddress _my_ip;
     MyKeyboard::State _kbdstate;
+    TrayChange _cur_tray_change;
 
     enum class WsReqCmd {
         file_config = 0,

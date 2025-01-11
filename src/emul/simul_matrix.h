@@ -79,6 +79,7 @@ public:
 
                     out.append(blocks[c]);
                 }
+//                out.push_back('|');
             }
         }
     }

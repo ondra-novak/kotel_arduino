@@ -57,6 +57,7 @@ protected:
     void draw_wifi_state(TimeStampMs cur_time);
     void draw_scroll(TimeStampMs cur_time);
 
+    void show_tray_state();
 
 
 };

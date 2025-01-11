@@ -2,9 +2,11 @@
 #include "controller.h"
 #include <fonts/font_6p.h>
 #include <fonts/font_5x3.h>
+#include <api/itoa.h>
 #include <WifiTCP.h>
 #include "version.h"
 
+#include <cstring>
 namespace kotel {
 
 
@@ -206,9 +208,7 @@ constexpr Matrix_MAX7219::Bitmap<5,5> low_power_anim_frames[] = {
 
 constexpr int low_power_anim[] = {0,1,2,3,4,5};
 
-constexpr Matrix_MAX7219::Bitmap<7,8> tray_open_anim_frames[] =  {
-        "       "
-        "       "
+constexpr Matrix_MAX7219::Bitmap<7,6> tray_open_anim_frames[] =  {
         "       "
         "       "
         "       "
@@ -217,16 +217,12 @@ constexpr Matrix_MAX7219::Bitmap<7,8> tray_open_anim_frames[] =  {
         " xxxxx ",
 
         "       "
-        "       "
-        "       "
         " xx    "
         "   xx  "
         "     xx"
         "xxxxxx "
         " xxxxx ",
 
-        "       "
-        "       "
         "   x   "
         "    x  "
         "     x "
@@ -235,7 +231,7 @@ constexpr Matrix_MAX7219::Bitmap<7,8> tray_open_anim_frames[] =  {
         " xxxxx ",
 };
 
-constexpr int tray_open_anim[] = {0,1,2,2,2,2,2,1};
+constexpr int tray_open_anim[] = {0,0,1,1,2,2,2,2,2,1,1,0,0};
 
 constexpr Matrix_MAX7219::Bitmap<5,5> atten_anim_frames[] = {
         " @   "
@@ -330,15 +326,20 @@ void DisplayControl::run(TimeStampMs cur_time) {
         }
     }
 
-    tray_icon();
-    drive_mode_anim(frame);
-    draw_feeder_anim(frame);
-    temperatures_anim(frame);
-    draw_fan_anim(frame);
-    draw_pump_anim(frame);
+    if (_cntr.is_tray_open()) {
+        show_tray_state();
+    } else {
+        tray_icon();
+        drive_mode_anim(frame);
+        draw_feeder_anim(frame);
+        temperatures_anim(frame);
+        draw_fan_anim(frame);
+        draw_pump_anim(frame);
+    }
     draw_wifi_state(cur_time);
     if (!(frame & 0x63)) begin();
     display.display(frame_buffer, 0, 0);
+
 
 
 
@@ -419,20 +420,6 @@ void DisplayControl::temperatures_anim(unsigned int ) {
 
     temp_to_str(input, input_temp_str);
     temp_to_str(output, output_temp_str);
-/*    int ofs = static_cast<int>((cur_time/100) & 0x3F);
-    int y = ofs & 0x1F;
-    if (y > 6) y = 6;
-    if (ofs > 0x1F) {
-        y = 6-y;
-    }
-    int r1 =  Matrix_MAX7219::font_6p.get_face_width(output_temp_str[1]);
-    int r2 =  Matrix_MAX7219::font_6p.get_face_width(input_temp_str[1]);
-    TR::textout(frame_buffer, Matrix_MAX7219::font_6p, {20,-y}, output_temp_str+0, output_temp_str+1);
-    TR::textout(frame_buffer, Matrix_MAX7219::font_6p, {29-r1,-y}, output_temp_str+1, output_temp_str+2);
-    TR::textout(frame_buffer, Matrix_MAX7219::font_6p, {20,8-y}, input_temp_str+0, input_temp_str+1);
-    TR::textout(frame_buffer, Matrix_MAX7219::font_6p, {29-r2,8-y}, input_temp_str+1, input_temp_str+2);
-    frame_buffer.put_image({28,-y}, celsius_icon);
-    frame_buffer.put_image({28,8-y}, celsius_icon);*/
     TR::textout(frame_buffer, Matrix_MAX7219::font_5x3, {16,0}, output_temp_str, output_temp_str+2);
     TR::textout(frame_buffer, Matrix_MAX7219::font_5x3, {25,0}, input_temp_str, input_temp_str+2);
 }
@@ -511,5 +498,29 @@ void DisplayControl::display_init_pattern() {
     }
 }
 
+void DisplayControl::show_tray_state() {
+    frame_buffer.put_image({0,1}, tray_open_anim_frames[tray_open_anim[frame % countof(tray_open_anim)]]);
+    if ((frame & 0x3) == 0) return;
+    auto ct = _cntr.get_cur_tray_change();
+    char buff[10];
+    int x;
+    if (ct._full) {
+        x = 8;
+        std::strcpy(buff, "MAX");
+    }
+    else {
+        x = 12;
+        int z = ct._change;
+        if (z < 0) {
+            buff[0] = '-';
+            z = -z;
+        } else {
+            buff[0] = '+';
+        }
+        buff[0] = ct._change < 0?'-':'+';
+        itoa(z, buff+1, 10);
+    }
+    TR::textout(frame_buffer, Matrix_MAX7219::font_6p, {x,1}, buff, buff+strlen(buff));
+}
 
 }
