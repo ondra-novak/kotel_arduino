@@ -120,6 +120,11 @@ button {
     padding: 0.5em;
 }
 
+span > button {
+    padding:  0.2em;
+    margin: 0 0.2em;
+}
+
 .okno.section {
     position:absolute;
     border: 1px solid gray;
@@ -757,6 +762,12 @@ input[type=number]{
     width: 4em;
 }
 
+input[disabled] {
+    border: 1px solid #212121;
+    color: #ffffff99;
+    font-style: italic;
+}
+
 input.valerror {
     background-color: #800;
     color: #FF0;
@@ -844,7 +855,7 @@ label[data-unit]::after, label[data-unit]::before {
     top: 1em;
     font-size: 0.9em;
     pointer-events: none;
-    color: wheat;    
+    color: wheat;
 }
 label[data-unit=s]::after { content:"s";}
 label[data-unit=m]::after { content:"m";}
@@ -855,4 +866,6 @@ label[data-unit=kw]::after { content:"kW";}
 label[data-unit=kg]::after { content:"kg";}
 label[data-unit=mjkg]::after { content:"kg"; font-size:0.8em; top: 1.4em;right: 0.65em}
 label[data-unit=mjkg]::before { content:"MJ"; font-size:0.8em; top: 0.4em;border-bottom:solid 1px }
+label[data-unit=skg]::after {content:"kg";font-size:0.8em;top: 1.4em;right: 0.65em;}
+label[data-unit=skg]::before {content:"s";font-size:0.8em;top: 0.4em;width:  1em;border-bottom: 1px solid;text-align: center;right: 0.7em;}
 

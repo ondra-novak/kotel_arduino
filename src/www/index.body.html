@@ -170,7 +170,9 @@
 </div>
 <div class="okno section" id="nastav_topeni" hidden="hidden">
     <div class="sectionname black">Ovládání hoření</div>
-    <label data-unit=mjkg><span>Výhřevnost</span><input type="number" min="5" max="25.5" step="0.1" name="hval""></label>
+    <label data-unit="mjkg"><span>Výhřevnost</span><input type="number" min="5" max="25.5" step="0.1" name="hval""></label>
+    <label data-unit="skg"><span>Rychlost podavače <button name="measure_speed">změřit</button></span><input type="number" min="1" max="65535" step="1"
+            name="tray.f1kgt"></label>
     <div class=" subsection">
         <div class="sectionname">Plný výkon</div>
         <label  data-unit=kw><span>Výkon</span><input type="number" min="1" max="25" step="0.5" name="full.power_value"
@@ -181,14 +183,14 @@
     <div class="sectionname">Snížený výkon</div>
     <label data-unit=kw><span>Výkon</span><input type="number" min="0.5" max="25" step="0.5" name="low.power_value"
             data-local="1"></label>
-    <label  data-unit=pc><span>Výkon ventilátoru</span><input type="number" min="1" max="100" step="1" name="low.fanpw"></label>
+    <label  data-unit=pc><span>Ventilátoru</span><input type="number" min="1" max="100" step="1" name="low.fanpw"></label>
 </div>
 <div class="subsection">
     <div class="sectionname">Čerpadlo</div>
     <label data-unit=oc><span>Spínací výstupní teplota</span><input type="number" min="30" max="90" step="1" name="tpump"></label>
     <div class="sub_section unhide">
         <div class="sectionname" onclick="unhide_section.call(this);">Pokročilé volby</div>
-        <label data-unit=ms><span>Ventilátor freq.dělič</span><input type="number" min="1" max="255" step="1" name="fanpc"></label>
+        <label data-unit=ms><span>Ventilátor perioda PWM</span><input type="number" min="20" max="255" step="1" name="fanpc"></label>
         <label data-unit=s><span>Plný výkon - přikládání</span><input type="number" min="1" max="255" step="1"
                  name="full.fueling"></label>
         <label data-unit=s><span>Plný výkon - prohořívání</span><input type="number" min="1" max="255" step="1"
@@ -197,13 +199,11 @@
                  name="low.fueling"></label>
         <label data-unit=s><span>Snížený výkon - prohořívání</span><input type="number" min="1" max="255" step="1"
                  name="low.burnout"></label>
-        <label data-unit=s><span>Doba podání 1 pytle podavačem</span><input type="number" min="1" max="65535" step="1"
-                name="tray.f1kgt"></label>
                 
     </div>
 </div>
 <div class="chyba fail">Některé hodnoty jsou chybně zadané nebo jsou mimo rozsah</div>
-<div class="buttonpanel"><button>OK</button> <button onclick="close_window.call(this)">Storno</button></div>
+<div class="buttonpanel"><button name="ok">OK</button> <button onclick="close_window.call(this)">Storno</button></div>
 </div>
 <div class="okno section" id="stats" hidden="hidden">
     <div class="sectionname">Přehledy</div>
@@ -372,4 +372,12 @@
     <div class="sectionname black">Potvrzení</div>
     <p>Opravdu si přeješ vynulovat statistiky</p>
     <div class="buttonpanel"><button>OK</button> <button>Storno</button></div>
+</div>
+<div class="okno section" id="mereni_okno" hidden="hidden">
+    <div class="sectionname black">Měření rychlosti podavače</div>
+    <label data-unit="s"><span>Aktuální čas podavače</span><span><button name="clear" id="resetmeasurefeeder">Vynulovat</button><input type="number" disabled="disabled" id="measurefeedertime"></span></label>
+    <label data-unit="kg"><span>Počáteční naložení</span><input type="number" id="measurefillup"></span></label>
+    <hr>
+    <label data-unit="skg"><span>Rychlost podavače</span><input type="number" disabled="disabled" id="measurefeederspeed"></label>
+    <div class="buttonpanel"><button id="usemeasuredvalue">Použít</button> <button onclick="close_window.call(this)">Storno</button></div>
 </div>

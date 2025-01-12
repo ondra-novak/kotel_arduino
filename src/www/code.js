@@ -1,9 +1,14 @@
 //@require utils.js
 //@require websocketclient.js
 //@require binary_formats.js
-
+//@require computing.js
 
 let connection = new WebSocketExchange();
+
+let ids = Array.prototype.reduce.call(document.querySelectorAll("[id]"), (a,x)=>{
+   a[x.id] = x;
+   return a;
+},{});
 
 let Controller = {
     man: {
@@ -206,7 +211,7 @@ function unhide_section() {
 }
 
 async function nastav_teplomer(field) {
-    let win = document.getElementById("nastav_hw_teplomer");
+    let win = ids["nastav_hw_teplomer"];
     let btn = win.getElementsByTagName("button");
     win.hidden = false;
     btn[0].onclick = () => {
@@ -246,7 +251,7 @@ async function nastav_teplomer(field) {
 }
 
 function dialog_nastaveni_teploty(field, hw_field, trend_field) {
-    let el = document.getElementById("nastav_teplotu");
+    let el = ids["nastav_teplotu"];
     hide_error(el);
     el.hidden = false;
     el.dataset.field = field;
@@ -286,16 +291,16 @@ function dialog_nastaveni_teploty(field, hw_field, trend_field) {
     btm[1].disabled = false;
 }
 
-async function nastav_parametry(id) {
+function nastav_parametry(id) {
     let win = document.getElementById(id);
     hide_error(win);
     win.hidden = false;
     let inputs = win.getElementsByTagName("input");
-    let buttons = win.getElementsByTagName("button");
+    let button = document.querySelector("button[name=ok]");
     Array.prototype.forEach.call(inputs, x => {
         x.value = Controller.config[x.name];
     });
-    buttons[0].onclick = async () => {
+    button.onclick = async () => {
         let cfg = {};
         let err = false;
         Array.prototype.forEach.call(inputs, x => {
@@ -316,16 +321,24 @@ async function nastav_parametry(id) {
         if (err) {
             show_error(win, "fail");
         } else {
-            buttons[0].disabled = true;
+            button.disabled = true;
             await Controller.set_config(cfg);
-            buttons[0].disabled = false;
+            button.disabled = false;
             win.hidden = true;
         }
     }
+    return win;
+}
+
+
+
+function nastav_horeni() {
+    let win = nastav_parametry("nastav_topeni");
+    power_conv_init(win);
 }
 
 async function nastav_wifi() {
-    let win = document.getElementById("nastav_wifi");
+    let win = ids["nastav_wifi"];
     hide_error(win);
     win.hidden = false;
     let inputs = win.getElementsByTagName("input");
@@ -376,41 +389,31 @@ async function nastav_wifi() {
 
 
 function power_to_params(vyhrevnost_el, f1kgt_el, power_el, fueling_el, burnout_el) {
-    const spotreba = f1kgt_el.valueAsNumber;
-    const ref_power = 70 * spotreba * vyhrevnost_el.valueAsNumber / (17.0 * 224);
-    const ref_power10 = Math.floor(ref_power * 10);
-    const need_power10 = Math.floor(power_el.value * 10);
-    let a = 1;
-    let b = 20;
-    while (b < 60) {
-        a = b / (ref_power10 / need_power10);
-        if (a > 4 && b - a >= 20 && a == Math.round(a)) break;
-        b = b + 1;
+    const MJ_kg = vyhrevnost_el.valueAsNumber;
+    const skg = f1kgt_el.valueAsNumber;
+    const pw = power_el.valueAsNumber;
+    const cycle_f = calculate_fuel_transport_time(MJ_kg, skg, pw ,1);
+    let df = calculateCycleParams(MJ_kg, skg, pw, cycle_f);
+    if (df[0] < 5) {
+        df[1] = Math.round(5 / cycle_f);
+        df[0] = 5;
     }
-    if (b < 60) {
-        fueling_el.value = a;
-        burnout_el.value = b - a;
-        return;
+    if (df[1] > 256) {
+        df[0] = Math.round(256 * cycle_f);
+        df[1] = 256;
     }
-    let mval = 5;
-    let fueling;
-    let cycle;
-    let burnout;
-    while (mval > 0) {
-        fueling = Math.max(mval, Math.floor(power_el.valueAsNumber * (30 + power_el.valueAsNumber) / ref_power));
-        cycle = Math.round(fueling * ref_power / power_el.valueAsNumber);
-        burnout = cycle - fueling;
-        if (burnout <=250) break;
-        --mval
-    }    
+    const fueling = df[0];
+    const burnout = df[1]-df[0];
     fueling_el.value = fueling.toFixed(0);
     burnout_el.value = burnout.toFixed(0);
 }
 
 function params_to_power(vyhrevnost_el, f1kgt_el, power_el, fueling_el, burnout_el) {
-    const spotreba = f1kgt_el.valueAsNumber;
-    const ref_power = 70 * spotreba * vyhrevnost_el.valueAsNumber / (17.0 * 224);
-    power_el.value = (fueling_el.valueAsNumber * ref_power / (fueling_el.valueAsNumber + burnout_el.valueAsNumber)).toFixed(1);
+    let ct = (fueling_el.valueAsNumber + burnout_el.valueAsNumber)
+    let pw = calculate_power(vyhrevnost_el.valueAsNumber,
+                    f1kgt_el.valueAsNumber, ct, fueling_el.valueAsNumber); 
+    console.log(pw);
+   power_el.value = (Math.round(pw*2)/2).toFixed(1);
 }
 
 function power_conv_init(el) {
@@ -432,13 +435,24 @@ function power_conv_init(el) {
         hh.push(w2p);
         p2w();
     });
+    
     [heat_value, f1kgt].forEach(x=>x.onchange = x.oninput = () => {
         hh.forEach(x => x());
     });
+    el.querySelector("[name=measure_speed]").onclick=function() {
+        let win = ids["mereni_okno"];
+        win.hidden = false;        
+    };
+    ids["usemeasuredvalue"].onclick = function(){
+        f1kgt.valueAsNumber = ids["measurefeederspeed"].valueAsNumber;
+        let win2 = ids["mereni_okno"];
+        win2.hidden = true;
+        hh.forEach(x => x());
+    }
 }
 
 function dialog_nastaveni_zasobniku() {
-    let win = document.getElementById("nastav_zasobnik");
+    let win = ids["nastav_zasobnik"];
     hide_error(win);
     win.hidden = false;
     let inputs = {};
@@ -542,7 +556,7 @@ function dialog_registrace() {
             "2":"Z","3":"E",
             "5":"S","8":"B"
         };
-        let win = document.getElementById("login");
+        let win = ids["login"];
         let inputs =win.getElementsByTagName("input");
         let buttons = win.getElementsByTagName("button");
         Array.prototype.forEach.call(inputs ,(x,idx) =>{
@@ -617,7 +631,7 @@ async function confirm_dlg(id) {
 }
 
 async function  dialog_show_code() {
-    let win = document.getElementById("showcode");
+    let win = ids["showcode"];
     win.hidden = false;
     let tds = win.getElementsByTagName("td");
     Array.prototype.forEach.call(tds,x=>x.textContent = "•");
@@ -664,45 +678,52 @@ async function vynulovat_statistiky() {
     this.disabled = false;
 }
 
+function updateFeederMeasure() {
+    const a = ids["measurefeedertime"].valueAsNumber;
+    const b = ids["measurefillup"].valueAsNumber;
+    localStorage["measure_feeder_fillup"] = b;
+    ids["measurefeederspeed"].valueAsNumber = Math.round(calc_feeder_speed(a,b));
+}
+
 async function main() {
     let ignore_man_change = 0;
 
     Controller.on_status_update = function(st) {
         if (!ignore_man_change) {
             if (st.fan == 0) delete Controller.man.fan;
-            else document.getElementById("man_fan_speed").value = st.fan;
+            else ids["man_fan_speed"].value = st.fan;
             if (st.feeder == 0) delete Controller.man.feeder;
             if (st.mode == 1) Controller.config.m = 0;
             if (st.mode == 2) Controller.config.m = 1;
-            document.getElementById("man_feeder").classList.toggle("active", st.feeder != 0);
-            document.getElementById("man_fan").classList.toggle("active", st.fan != 0);
+            ids["man_feeder"].classList.toggle("active", st.feeder != 0);
+            ids["man_fan"].classList.toggle("active", st.fan != 0);
         } else {
             --ignore_man_change;
         }
-        let stav = document.getElementById("stav");
+        let stav = ids["stav"];
         stav.className = "mode" + st.mode + " " + "automode" + st.automode + " " + "op" + Controller.config.m;
         update_temperature("vystupni_teplota", st["temp_output_value"],
             Controller.config["tout"], st["temp_output_amp_value"]);
         update_temperature("vstupni_teplota", st["temp_input_value"],
             Controller.config["tin"], st["temp_input_amp_value"]);
         update_fuel("zasobnik", calculate_fuel_remain());
-        document.getElementById("ovladac_feeder").classList.toggle("on", st.feeder != 0);
-        document.getElementById("ovladac_fan").classList.toggle("on", st.fan != 0);
-        document.getElementById("ovladac_pump").classList.toggle("on", st.pump != 0);
-        document.getElementById("rssi").textContent = st["rssi"];
-        document.getElementById("netstatus").classList.remove("neterror");
-        document.getElementById("mototempmax").hidden = st["feeder_overheat"] == 0;
-        document.getElementById("manualcontrolpanel").hidden = st.mode != 1;
-        document.getElementById("zasobnik").classList.toggle("open", st.tray_open != 0);
-        document.getElementById("simul_temp").hidden = st["temp_sim"] == 0;
-        document.getElementById("devicetime").textContent = st["time"].toLocaleTimeString();
-        document.getElementById("devicedate").textContent = st["time"].toLocaleDateString();
+        ids["ovladac_feeder"].classList.toggle("on", st.feeder != 0);
+        ids["ovladac_fan"].classList.toggle("on", st.fan != 0);
+        ids["ovladac_pump"].classList.toggle("on", st.pump != 0);
+        ids["rssi"].textContent = st["rssi"];
+        ids["netstatus"].classList.remove("neterror");
+        ids["mototempmax"].hidden = st["feeder_overheat"] == 0;
+        ids["manualcontrolpanel"].hidden = st.mode != 1;
+        ids["zasobnik"].classList.toggle("open", st.tray_open != 0);
+        ids["simul_temp"].hidden = st["temp_sim"] == 0;
+        ids["devicetime"].textContent = st["time"].toLocaleTimeString();
+        ids["devicedate"].textContent = st["time"].toLocaleDateString();
     };
     Controller.on_error = function(x, y) {
-        document.getElementById("netstatus").classList.add("neterror");
+        ids["netstatus"].classList.add("neterror");
         console.error(x, y);
     };
-    document.getElementById("prepnout_rezim").addEventListener("click", async function() {
+    ids["prepnout_rezim"].addEventListener("click", async function() {
         const new_mode = 1 - parseInt(Controller.config.m);
         ignore_man_change = true;
         this.disabled = true;
@@ -712,69 +733,62 @@ async function main() {
         Controller.update_status_cycle();
     });
 
-    let el = document.getElementById("zasobnik").parentNode;
-    el.addEventListener("click", function() {
-        let el = document.getElementById("nastav_zasobnik");
+    ids["zasobnik"].parentNode.addEventListener("click", function() {
+        let el = ids["nastav_zasobnik"];
         dialog_nastaveni_zasobniku();
     });
-    el = document.getElementById("vystupni_teplota").parentNode;
-    el.addEventListener("click", function() {
+    ids["vystupni_teplota"].parentNode.addEventListener("click", function() {
         dialog_nastaveni_teploty("tout", "tsoutaddr", "touts");
     });
-    el = document.getElementById("vstupni_teplota").parentNode;
-    el.addEventListener("click", function() {
+    ids["vstupni_teplota"].parentNode.addEventListener("click", function() {
         dialog_nastaveni_teploty("tin", "tsinaddr", "tins");
     });
-    el = document.getElementById("horeni");
-    el.addEventListener("click", function() {
-        nastav_parametry("nastav_topeni");
-        power_conv_init(document.getElementById("nastav_topeni"));
+    ids["horeni"].addEventListener("click", function() {
+        nastav_horeni();
     });
-    el = document.getElementById("wifi");
-    el.addEventListener("click", function() {
+    ids["wifi"].addEventListener("click", function() {
         nastav_wifi();
     });
-    el = document.getElementById("man_feeder");
-    el.addEventListener("click", function() {
+    ids["man_feeder"].addEventListener("click", function() {
         ignore_man_change = 3;
         Controller.man.feeder = Controller.status.feeder == 0;
         this.classList.toggle("active");
 
     });
-    el = document.getElementById("man_fan");
-    el.addEventListener("click", function() {
+    ids["man_fan"].addEventListener("click", function() {
         ignore_man_change = 3;
         Controller.man.fan = Controller.status.fan == 0;
         this.classList.toggle("active");
     });
-    el = document.getElementById("man_fan_speed");
+    let el = ids["man_fan_speed"];
     el.addEventListener("change", function() {
         ignore_man_change = 3;
         Controller.man.fan_speed = this.value;
     });
     el.value = 100;
-    el = document.getElementById("pump_active_forever");
-    el.addEventListener("change", function() {
+    ids["pump_active_forever"].addEventListener("change", function() {
         Controller.man.force_pump = this.checked;
 
     });
-
-    el = document.getElementById("stats_win");
-    el.addEventListener("click", function(){
-        document.getElementById("stats").hidden = false;
+    ids["stats_win"].addEventListener("click", function(){
+        ids["stats"].hidden = false;
+    });    
+    ids["stats"].querySelector("button")
+        .addEventListener("click", vynulovat_statistiky);
+    el = ids["measurefillup"];
+    el.addEventListener("input", updateFeederMeasure.bind(this));
+    el.value = localStorage["measure_feeder_fillup"]; 
+    ids["resetmeasurefeeder"].addEventListener("click", ()=>{
+        localStorage["measure_feeder_start"] = Controller.stats["feeder_time"];
+        ids["measurefeedertime"].valueAsNumber = 0;
+        updateFeederMeasure();
     });
-    
-    el = document.getElementById("stats");
-    el = el.querySelector("button")
-    el.addEventListener("click", vynulovat_statistiky);
-
-
     
     
     const day_seconds = 24*60*60;
     
         Controller.on_stats_update = (data) => {
-        const stattbl = document.getElementById("stats");
+        const stattbl = ids["stats"];
         data["active_avg"] = data["active_time"]/data["start_count"];
         data["auto_time"] = data["full_power_time"]+data["low_power_time"]+data["cooling_time"];
         data["switch_mode_count"] = data["full_power_count"]+data["low_power_count"]+data["cool_count"];
@@ -788,7 +802,7 @@ async function main() {
         data["fan_avg"] = data["fan_time"]/data["fan_start_count"];
         data["feeder_avg"] = data["feeder_time"]/data["feeder_start_count"];
         data["consumed_kg_avg"] = data["consumed_kg_total"]/(data["active_time"]/day_seconds);
-        data["other_failure_count"] = data["stop_count"] - data["overheat_count"] - data["feeder_overheat_count"] -data["temp_read_failure_count"];
+        data["other_failure_count"] = data["stop_count"] - data["overheat_count"] - data["feeder_overheat_count"] -data["temp_read_failure_count"];        
 
         Array.prototype.forEach.call(stattbl.getElementsByTagName("td"),(el)=>{
              if (el.dataset.name) {
@@ -809,13 +823,17 @@ async function main() {
              }
         });
 
+        let zero_timer = localStorage["measure_feeder_start"];
+        zero_timer = zero_timer?parseInt(zero_timer):0;
+        ids["measurefeedertime"].valueAsNumber = data["feeder_time"] - zero_timer;
+        updateFeederMeasure();                
     }
 
     
     connection.onconnect = async function() {
         Controller.read_config();
         let data = await connection.send_request(6, {});
-        document.getElementById("ssid").textContent = parseTextSector(data);
+        ids["ssid"].textContent = parseTextSector(data);
         Controller.update_stats_cycle();
         Controller.update_status_cycle();
     };
