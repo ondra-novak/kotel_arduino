@@ -122,7 +122,7 @@ bool handle_serial(Controller &controller) {
                         case 'x': controller.disable_temperature_simulation();
                             print_ok();
                             break;
-                        case 'k': Serial.println(analogRead(A1));
+                        case 'k': Serial.println(analogRead(A5));
                             break;
                         default:
                             print_error("unknown command");

@@ -49,7 +49,13 @@ void Controller::begin() {
     _temp_sensors.begin();
     _network.begin();
     kbdcntr.begin();
-    _keyboard_connected = kbdcntr.read(_kbdstate) < 2;
+    _keyboard_connected = true;
+    for (int i = 0; i < 100 && _keyboard_connected; ++i) {
+        kbdcntr.read(_kbdstate);
+        if (_kbdstate.last_level != 0) _keyboard_connected = false;
+        delay(1);
+    }
+    print(Serial, "Keyboard: ", _keyboard_connected?"connected":"not detected","\r\n");
     _storage.cntr1.restart_count++;
     if (_storage.pair_secret_need_init) {
         generate_pair_secret();
