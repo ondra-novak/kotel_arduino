@@ -32,16 +32,16 @@ void NetworkControl::run(TimeStampMs cur_time) {
             if (cur_time > _wifi_check_at) {
                 _wifi_check_at = cur_time + 1000;
                 _action = Action::get_status;
-            } else if (cur_time > _wifi_reset_at && !any_active_client()) {
+            } else if (cur_time > _wifi_reset_at ) {
                 stop_wifi();
-                init_wifi_ap();
+                init_wifi_client();
                 _wifi_reset_at = cur_time+from_minutes(2);
                 return;
             }
             break;
         case WifiMode::ap:
             if (cur_time > _wifi_reset_at) {
-                if (WiFi.status() != WL_AP_CONNECTED) {
+                if (!any_active_client()) {
                     init_wifi();
                     return;
                 }

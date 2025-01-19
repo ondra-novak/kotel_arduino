@@ -388,12 +388,21 @@ async function nastav_wifi() {
 }
 
 
-function power_to_params(vyhrevnost_el, f1kgt_el, power_el, fueling_el, burnout_el) {
+function power_to_params(vyhrevnost_el, f1kgt_el, power_el, fueling_el, burnout_el, low_power) {
     const MJ_kg = vyhrevnost_el.valueAsNumber;
     const skg = f1kgt_el.valueAsNumber;
     const pw = power_el.valueAsNumber;
     const cycle_f = calculate_fuel_transport_time(MJ_kg, skg, pw ,1);
-    let df = calculateCycleParams(MJ_kg, skg, pw, cycle_f);
+    let df;
+    if (low_power) {
+        df = [Math.floor(120*cycle_f), 120];;
+    } else {
+        let at = pw;
+        let ct = Math.ceil(at/cycle_f);
+        at = Math.round(ct * cycle_f);
+        
+        df = [at, ct];
+    }
     if (df[0] < 5) {
         df[1] = Math.round(5 / cycle_f);
         df[0] = 5;
@@ -401,7 +410,7 @@ function power_to_params(vyhrevnost_el, f1kgt_el, power_el, fueling_el, burnout_
     if (df[1] > 256) {
         df[0] = Math.round(256 * cycle_f);
         df[1] = 256;
-    }
+    }    
     const fueling = df[0];
     const burnout = df[1]-df[0];
     fueling_el.value = fueling.toFixed(0);
@@ -413,7 +422,7 @@ function params_to_power(vyhrevnost_el, f1kgt_el, power_el, fueling_el, burnout_
     let pw = calculate_power(vyhrevnost_el.valueAsNumber,
                     f1kgt_el.valueAsNumber, ct, fueling_el.valueAsNumber); 
     console.log(pw);
-   power_el.value = (Math.round(pw*2)/2).toFixed(1);
+   power_el.value = Math.round(pw).toFixed(0);
 }
 
 function power_conv_init(el) {
@@ -428,7 +437,7 @@ function power_conv_init(el) {
         let fueling = controls[pfx + ".fueling"];
         let burnout = controls[pfx + ".burnout"];
         let p2w = params_to_power.bind(this, heat_value, f1kgt, power_value, fueling, burnout);
-        let w2p = power_to_params.bind(this, heat_value, f1kgt, power_value, fueling, burnout);        
+        let w2p = power_to_params.bind(this, heat_value, f1kgt, power_value, fueling, burnout, pfx == "low");        
         [fueling, burnout].forEach(x => x.onchange = x.oninput = p2w); 
         power_value.onchange = w2p;
         power_value.oninput = w2p;

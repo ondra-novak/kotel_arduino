@@ -445,19 +445,20 @@ void DisplayControl::draw_pump_anim(unsigned int) {
 }
 
 void DisplayControl::draw_wifi_state( TimeStampMs cur_time) {
-    bool topen = _cntr.is_tray_open();
     if (_cntr.is_wifi()) {
+        bool topen = _cntr.is_tray_open();
         frame_buffer.put_image({27,6}, _cntr.is_wifi_ap()?wifi_ap_icon:wifi_icon);
         if (_ipaddr_show_next == max_timestamp
            && !_cntr.is_wifi_used()
-           && ((!topen && _tray_opened)
-                 || _cntr.get_drive_mode() != Controller::DriveMode::automatic)) {
+           && (!topen && _tray_opened)) {
             _ipaddr_show_next = cur_time + from_seconds(5);
         }
         bool client = _cntr.get_last_net_activity() + 10000 > cur_time;
         frame_buffer.set_pixel(25,7,client);
+        _tray_opened = topen;
+    } else {
+        _tray_opened = true;
     }
-    _tray_opened = topen;
 }
 
 void DisplayControl::display_version() {

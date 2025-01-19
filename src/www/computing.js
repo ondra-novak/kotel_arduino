@@ -36,27 +36,4 @@ function calculateCycleParams(MJ_kg, s_kg, pw, f) {
     at = sel;
     console.log(berr);
     return [at,ct];
-
-}
-function decimalToFraction(decimal, precision) {
-    // Určení přesnosti na 10^n
-    let numerator = Math.round(decimal * precision);
-    let denominator = precision;
-    
-    // Najdeme největšího společného dělitele (GCD)
-    function gcd(a, b) {
-        while (b !== 0 && isFinite(b)) {
-            let temp = b;
-            b = a % b;
-            a = temp;
-        }
-        return a;
-    }
-
-    // Zjednodušení zlomku dělením GCD
-    let commonDivisor = gcd(numerator, denominator);
-    numerator /= commonDivisor;
-    denominator /= commonDivisor;
-
-    return [numerator,denominator];
 }
