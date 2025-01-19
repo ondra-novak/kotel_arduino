@@ -143,6 +143,10 @@ public:
 
     void send_ws_message(Request &req, const ws::Message &msg);
 
+    uint8_t get_activity_counter() const {
+        return _activity_counter;
+    }
+
 protected:
 
 
@@ -158,6 +162,7 @@ protected:
     bool _body_trunc = false;
     bool _ws_mode = false;
     bool _deactivate_client = false;
+    uint8_t _activity_counter = 0;
     std::pair<std::string_view, std::string_view>  _header_lines[max_header_lines];
     ws::Parser<HttpServer> _ws;
 
@@ -224,6 +229,7 @@ inline typename  HttpServer<max_request_size, max_header_lines>::Request
     Request ret {};
 
     if (!_sending_buffer.empty()) {
+        ++_activity_counter;
         auto c = _sending_buffer.substr(0, HttpServerBase::send_cluster);
         _sending_buffer = _sending_buffer.substr(c.size());
         if (_sending_client.write(c.data(),c.size()) != c.size() || _sending_buffer.empty()) {
@@ -245,6 +251,9 @@ inline typename  HttpServer<max_request_size, max_header_lines>::Request
         read_timeout_tp = curtm+5000;    //total timeout
     }
     int b = _active_client.read();
+    if (b != -1) {
+        ++_activity_counter;
+    }
     while (b != -1) {
         _deactivate_client = false;
         if ((_write_pos == 0 && (b & 0x7F)<16) || _ws_mode) {  //0x00-0x0F || 0x80-0x8F = websocket frame

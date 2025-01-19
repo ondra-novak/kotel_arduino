@@ -44,6 +44,7 @@ protected:
     TimeStampMs _ipaddr_show_next = max_timestamp;
     bool _tray_opened = true;
     uint8_t _pause_display_sec = 0;
+    uint8_t _last_net_activity = 0;
     std::string _scroll_text = {};
     //unsigned int _scroll_text_len = 0;
     unsigned int frame = 0;

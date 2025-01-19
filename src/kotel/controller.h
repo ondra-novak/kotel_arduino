@@ -73,6 +73,7 @@ public:
     bool is_tray_open() const {return _sensors.tray_open;}
     bool is_wifi() const;
     bool is_wifi_ap() const;
+    auto get_net_activity_counter() const {return _network.get_server().get_activity_counter();}
     TimeStampMs get_last_net_activity() const {return _last_net_activity;}
     auto get_input_temp() const {return _temp_sensors.get_input_temp();}
     auto get_output_temp() const {return _temp_sensors.get_output_temp();}

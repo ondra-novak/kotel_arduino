@@ -454,6 +454,14 @@ void DisplayControl::draw_wifi_state( TimeStampMs cur_time) {
             _ipaddr_show_next = cur_time + from_seconds(5);
         }
         bool client = _cntr.get_last_net_activity() + 10000 > cur_time;
+        if (client && (frame & 0x1)) {
+            auto a = _cntr.get_net_activity_counter();
+            if (a != _last_net_activity) {
+                _last_net_activity = a;
+                client = false;
+            }
+        }
+
         frame_buffer.set_pixel(25,7,client);
         _tray_opened = topen;
     } else {

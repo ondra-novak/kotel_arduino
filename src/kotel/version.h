@@ -1,1 +1,1 @@
-constexpr unsigned int project_version = 31;
+constexpr unsigned int project_version = 32;

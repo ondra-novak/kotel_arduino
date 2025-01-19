@@ -27,6 +27,7 @@ public:
     bool is_connected() const {return _connected;}
     int8_t get_rssi() const {return _rssi;}
     MyHttpServer &get_server() {return _server;}
+    const MyHttpServer &get_server() const {return _server;}
     const IPAddress get_local_ip() const {return _local_ip;}
 
 protected:
