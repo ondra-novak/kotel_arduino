@@ -812,15 +812,13 @@ TimeStampMs Controller::auto_drive_cycle(TimeStampMs cur_time) {
     AutoMode prev_mode = _auto_mode;
 
     if (t_input < _storage.config.input_min_temp) {
-        if (t_output < _storage.config.output_max_temp) {
-            _auto_mode = AutoMode::fullpower;
-        } else {
-            _auto_mode = AutoMode::off;
-        }
+        _auto_mode = AutoMode::fullpower;
+    } else if (t_input >= _storage.config.input_min_temp + 5) {
+        _auto_mode = AutoMode::off;  
     } else {
         if (t_output< _storage.config.input_min_temp) {
             _auto_mode = AutoMode::fullpower;
-        } else if (t_output< _storage.config.output_max_temp) {
+        } else if (t_output< _storage.config.output_max_temp ) {
             _auto_mode = AutoMode::lowpower;
         } else {
             _auto_mode = AutoMode::off;

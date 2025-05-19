@@ -23,7 +23,7 @@ void Driver::begin() const {
 }
 
 void Driver::enable_pin(byte pin)  const {
-    pinMode(pin, INPUT_PULLUP);
+    pinMode(pin, OUTPUT);
 }
 void Driver::disable_pin(byte pin)  const{
     pinMode(pin, INPUT_PULLUP);
@@ -34,11 +34,10 @@ bool Driver::check_pin(byte pin)  const{
 }
 
 void Driver::set_pin_high(byte pin)  const{
-    pinMode(pin, INPUT_PULLUP);
+    digitalWrite(pin, HIGH);
 }
 
 void Driver::set_pin_low(byte pin)  const{
-    pinMode(pin, OUTPUT);
     digitalWrite(pin, LOW);
 }
 
