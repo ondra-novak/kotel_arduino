@@ -208,7 +208,6 @@ protected:
     void handle_ws_request(MyHttpServer::Request &req);
     void send_file(MyHttpServer::Request &req, std::string_view content_type, std::string_view file_name);
 
-    bool set_fuel(const SetFuelParams &sfp);
     void status_out_ws(Stream &s);
     std::string_view get_task_name(const AbstractTask *task);
     bool is_overheat() const;

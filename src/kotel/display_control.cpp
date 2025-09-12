@@ -293,10 +293,8 @@ constexpr Matrix_MAX7219::Bitmap<4,8> celsius_icon={
 
 void DisplayControl::tray_icon() {
     const Storage &storage = _cntr.get_storage();
-    uint32_t fill = storage.tray.calc_tray_fill();
-    uint32_t fill_max = storage.config.tray_kg;
-    uint32_t fill_pct = fill_max?(fill * 10 + (fill_max >> 1)) / fill_max:0;
-    const auto &bmp = tray_fill_icon[fill_pct];
+    unsigned int fill = storage.calc_remaining_fuel_pct();
+    const auto &bmp = tray_fill_icon[fill/10];
     frame_buffer.put_image( { 0, 0 }, bmp);
 }
 

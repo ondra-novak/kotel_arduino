@@ -36,7 +36,7 @@ protected:
     bool set_active(bool a) {
         if (_active != a) {
             if (a) {
-                ++_storage.cntr1.feeder_start_count;
+                ++_storage.cntr.feeder_start_count;
             }
             pinMode(pin_out_feeder_on, a?active_feeder:inactive_feeder);
             _active = a;

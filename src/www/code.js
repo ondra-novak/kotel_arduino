@@ -843,7 +843,7 @@ async function main() {
         Controller.read_config();
         let data = await connection.send_request(6, {});
         ids["ssid"].textContent = parseTextSector(data);
-        Controller.update_stats_cycle();
+        //Controller.update_stats_cycle();
         Controller.update_status_cycle();
     };
 

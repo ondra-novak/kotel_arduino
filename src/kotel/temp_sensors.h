@@ -130,11 +130,11 @@ public:
     }
 
     float get_input_ampl() const {
-        return _input.extrapolate(static_cast<int>(_stor.config.input_min_temp_samples));
+        return _input.extrapolate(static_cast<int>(_stor.config.input_temp_samples));
     }
 
     float get_output_ampl() const {
-        return _output.extrapolate(static_cast<int>(_stor.config.output_max_temp_samples));
+        return _output.extrapolate(static_cast<int>(_stor.config.output_temp_samples));
     }
 
 

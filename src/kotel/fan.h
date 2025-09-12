@@ -1,12 +1,13 @@
 #pragma once
 #include "nonv_storage.h"
 #include "task.h"
+#include <cmath>
 namespace kotel {
 
 class Fan: public AbstractTask {
 public:
 
-
+// (\ln(1/(-e^{t}\cdot x+e^{t}+x))+t)/t
 
     Fan(Storage &stor):_stor(stor) {}
 
@@ -20,7 +21,7 @@ public:
         if (!_running) {
             _running = true;
             resume_at(0);
-            ++_stor.cntr1.fan_start_count;
+            ++_stor.cntr.fan_start_count;
         }
     }
 
@@ -31,6 +32,10 @@ public:
 
     void set_speed(uint8_t speed) {
         _speed = speed;
+        float s = speed * 0.01;
+        float t = _stor.config.fan_nonlinear_correction.value *0.1f;
+        // (ln(1/(e^t * (1-s) + s)) + t)/t
+        _adj_speed = (std::log(1.0f/(std::exp(t)*(1-s))+s)+t)/t;
     }
 
 
@@ -54,12 +59,13 @@ public:
             AbstractTask::stop();
             return;
         }
-        auto pln = static_cast<unsigned int>(_stor.config.fan_pulse_count);
-        auto spd = std::max<int>(std::min<int>(_speed, 100),1);
-        pln = std::max<unsigned int>(11, pln * spd / 100);
+        unsigned int interval = _stor.config.fan_pulse_interval;
+        auto pln = std::clamp(
+                static_cast<unsigned int>(interval * _adj_speed),
+                        11U, interval);
+
         if (_pulse) {
-            auto total = pln * 100 / spd;
-            auto rest = total - pln;
+            unsigned int  rest = interval - pln;
             if (rest > 0)  {
                 resume_at(cur_time + rest);
                 set_active(!_pulse);
@@ -82,6 +88,7 @@ protected:
     bool _pulse = true;
     bool _running = false;
     uint8_t _speed = 100;
+    float _adj_speed = 1000;
     TimeStampMs _stop_time = 0;
 
 
