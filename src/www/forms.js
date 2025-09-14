@@ -3,18 +3,48 @@
 
 class FormViewControl {
     #el;
-    #events = {};
+    static eventMap = new WeakMap;
     constructor(e) {this.#el = e;}
     on(event, fn) {
-        if (this.#events[event]) this.#el.removeEventListener(event, this.#events[event]);
-        this.#events[event] = fn;
-        this.#el.addEventListener(event, this.#events[event]);
+        let s = FormViewControl.eventMap.get(this.#el);
+        if (!s) {
+            s = {};
+            FormViewControl.eventMap.set(this.#el, s);
+        }
+        if (s[event]) this.#el.removeEventListener(event, s[event]);
+        if (fn == null) {
+            delete s[event]
+        } else {
+            s[event] = fn;
+            this.#el.addEventListener(event, s[event]);
+        }
     }
     get() {return null;}
     set(v) {this.#el.textContent = v;}
     element() {return this.#el};
     hide(h) {
         this.#el.hidden = h;
+    }
+    is_hidden() {
+        return this.#el.hidden;
+    }
+    disable(h) {
+        this.#el.disabled = h;
+    }
+    is_disable() {
+        return this.#el.disabled;
+    }
+    set_attrib(a, v) {
+        this.#el.setAttribute(a, v);
+    }
+    get_attrib(a) {
+        this.#el.getAttribute(a);
+    }
+    set_classlist(a, v) {
+        this.#el.classList.toggle(a,v);
+    }
+    get_classlist(a) {
+        this.#el.classList.contains(a);
     }
 };
 
@@ -43,92 +73,144 @@ class FormView {
         return FormView.fromTemplate(t);
     }
 
-    static AttribControl = class extends FormViewControl {
-        #attrib;
-        constructor(el, attrib) {
-            super(el);
-            this.#attrib = attrib;
+    #add_control(n,c) {
+        if (!c.combine) {
+            c.combine =  (a,b) => {
+                if (typeof a =="object" && typeof b == "object") {
+                    return Object.assign(a,b);
+                } else {
+                    return a || b;
+                }
+            }            
         }
-        set(v) {
-            this.element().setAttribute(this.#attrib, v);
-        }
-        get() {
-            return this.element().getAttribute(this.#attrib);
-        }
-    };
-
+        if (!this.#controls[n]) this.#controls[n] = [c];
+        else this.#controls[n].push(c);
+        
+    }
+    #split_kv(s) {
+        return s.split(',').map(s=>s.split('=',2));
+    }
 
     constructor(el) {
-        this.#root = el;
+        this.#root = el;        
         const lists = el.querySelectorAll("[data-key]");
         for (const e of lists) { 
             if (e.dataset.name) {
-                const n = e.dataset.name;
-                if (!this.#controls[n])  this.#controls[n] = [];    
-                this.#controls[n].push(new FormView.controls["TEMPLATE"](e));
+                this.#add_control(e.dataset.name,new FormView.controls["TEMPLATE"](e));
             }
         }
-        let named = el.querySelectorAll("[data-name]");
-        if (el.dataset.name) {
-            named = [el, ...named];
-        }
-        for (const e of named) {
-            let c;
-            const n = e.dataset.name;
+
+        let elms = el.querySelectorAll("[data-name],[data-attr],[data-classList],[data-hide],[data-disable]");        
+        elms = [el, ...elms];        
+        for (const e of elms) {
             const type = FormView.controls[e.tagName];
+            let c;
             if (!type) c = new FormViewControl(e);
             else c = new type(e);
-            if (!this.#controls[n])  this.#controls[n] = [];
-            this.#controls[n].push(c);
-        }
-        let attrmap = el.querySelectorAll("[data-attr]");
-        if (el.dataset.attr) {
-            attrmap = [el, ...attrmap];
-        }
-        for (const e of attrmap) {
-            let c;
-            const n = e.dataset.attr;
-            n.split(",").forEach(x=>{
-                const [attr, name] = x.split('=',2);
-                if (!this.#controls[name])  this.#controls[name] = [];    
-                this.#controls[name].push(new FormView.AttribControl(e, attr));
-            });
-        }
 
+            if (e.dataset.name) {
+                this.#add_control(e.dataset.name, c);
+            }
+            if (e.dataset.attr) {
+                this.#split_kv(e.dataset.attr).forEach(kv=>{
+                    this.#add_control(kv[1],{
+                        set: (v)=>c.set_attrib(kv[0],v),
+                        get: ()=>c.get_attrib(kv[0])
+                    })
+                });
+            }
+            if (e.dataset.classList) {
+                this.#split_kv(e.dataset.classList).forEach(kv=>{
+                    this.#add_control(kv[1],{
+                        set: (v)=>c.set_classlist(kv[0],v),
+                        get: ()=>c.get_classlist(kv[0])
+                    })
+                });
+            }
+            if (e.dataset.hide) {
+                this.#add_control(e.dataset.hide, {
+                    set:(v)=>c.hide(c),
+                    get:()=>c.is_hidden
+                });
+            }
+            if (e.dataset.disable) {
+                this.#add_control(e.dataset.disable, {
+                    set:(v)=>c.disable(v),
+                    get:()=>c.is_disable()
+                });
+            }
+        }
     }
 
 
-    mount(parent = document.body, after = null) {
-        if (after) {
-            const n = after.nextElementSibling;
-            parent.insertBefore(this.#root, n);
-        } else {
-            parent.appendChild(this.#root);
-        }
+    mount(parent = document.body, before = null) {
+        parent.insertBefore(this.#root, before);
     }
     
 
     unmount() {
         if (this.#root.parentNode) this.#root.parentNode.removeChild(this.#root);
     }
+    on(field,event,fn) {
+        this.get_controls(field).forEach(x=>x.on(event, fn));
+    }
+
+    get_fields() {
+        return new Proxy(
+            this.#controls,
+            {
+                get(target, prop) {
+                    if (target[prop]) {
+                        return target[prop].reduce((prev, cur)=>cur.combine(prev,cur.get()), null);
+                    } else {
+                        return undefined;
+                    }
+                },
+                set(target, prop, value) {
+                    const c = target[prop];
+                    if (c) {
+                        if (value instanceof Promise) {
+                            value.then(r=>c.forEach(x=>x.set(r)));
+                        } else  {
+                            c.forEach(x=>x.set(value));
+                        }
+                    }
+                },
+                has(target, prop) {
+                    return !!target[prop];
+                },
+                ownKeys(target) {
+                    return Object.keys(target);
+                },
+                getOwnPropertyDescriptor(target, prop) {
+                    const c = target[prop];
+                    if (c) {
+                        return {
+                            enumerable: true,
+                            configurable: true
+                        };
+                    }
+                    return undefined;
+                }
+            }
+        );
+    }
+
 
     get_controls(field) {
         return this.#controls[field] || [];
     }
     get(fields) {        
         if (Array.isArray(fields)) {
-            return Object.fromEntries(fields.map(n=>[n,
-                FormView.combine(this.get_controls(n)
-                    .map(e=>e.get()))]));     
+            return Object.fromEntries(fields.map(f=>[f,this.get(f)]));
         } else {
-            return FormView.combine(this.get_controls(fields)
-                    .map(e=>e.get()));     
+            return this.get_controls(fields).reduce((prev,cur)=>cur.combine(prev, cur.get()),null);
         }
     }
     get_all() {
         const out = {};
         for (const [n,el] of Object.entries(this.#controls)) {
-            out[n] = FormView.combine(el.map(e=>e.get()));
+            out[n] = el.reduce((p,c)=>c.combine(p,c.get()),null);
         }
         return out;
     }
@@ -144,27 +226,14 @@ class FormView {
             const els = this.get_controls(n);
             if (v instanceof Promise) {
                 v.then(resolved => {
-                    els.forEach(e=>e.set(resolved, fvobj));        
+                    els.forEach(e=>e.set(resolved));        
                 });
             } else {
-                els.forEach(e=>e.set(v, fvobj));
+                els.forEach(e=>e.set(v));
             }
         }
     }
 
-    static combine(values) {
-        if (Array.isArray(values)) {
-            const first = values[0];
-            if (typeof first == "object" && first !== null && !Array.isArray(first)) {
-                return Object.assign({}, ...values);
-            } else {
-                for (const v of values) {
-                    if (v !== null && v !== undefined) return v;
-                }
-                return null;
-            }
-        } 
-    }
 
 
 }
@@ -174,6 +243,8 @@ FormView.controls = {
             get() {
                 const e = this.element();
                 if (e.type === "checkbox") {
+                    if (e.dataset.mask) {
+                        return e.checked?parseInt(e.dataset.mask):0;                }
                     if (e.value) return Object.fromEntries([e.value, e.checked]);
                     return e.checked;
                 } else if (e.type === "radio") {
@@ -183,12 +254,16 @@ FormView.controls = {
                     return e.valueAsNumber;
                 } else if (e.type === "date") {
                     return e.valueAsDate;
+                } else {
+                    return e.value;
                 }
             }
-            set(v, obj) {
+            set(v) {
                 const e = this.element();
                 if (e.type === "checkbox") {
-                    if (e.value) e.checked = v[e.value];
+                    if (e.dataset.mask) {
+                        e.checked = !!(v & parseInt(e.dataset.mask));
+                    } else  if (e.value) e.checked = v[e.value];                    
                     else e.checked = v;
                 } else if (e.type === "radio" ) {
                     if (e.dataset.value && obj[e.dataset.value]) {
@@ -199,7 +274,14 @@ FormView.controls = {
                 } else {
                     e.value = v;
                 } 
-            }               
+            }       
+            combine(a,b) {
+                if (this.element().dataset.mask && typeof a == "number" && typeof b == "number")  {
+                    return a | b;
+                } else {
+                    return a || b;
+                }
+            }
         },
         TEXTAREA: class extends FormViewControl {
             get() {return this.element().value;}
@@ -224,8 +306,9 @@ FormView.controls = {
 
             constructor(el) {
                 super(el);
-                this.#last = el;
+                this.#last = document.createComment("TEMPLATE");                
                 this.#parent = el.parentNode;
+                this.#parent.insertBefore(this.#last, el);
                 this.#parent.removeChild(el);
             }
 
@@ -240,14 +323,17 @@ FormView.controls = {
             get() {
                 const kf = this.key_field();
                 const model = this.model_field();
+                if (model) {
+                    const allflds = this.#list.map(x=>x.get_controls(model)).flat();
+                    return allflds.reduce((p,c)=>c.combine(p,c.get()), null);                    
+                }
                 let out = [];
                 this.#list.forEach((v,k)=>{
                     const r = v.get_all();
                     r[kf] = k;
                     out.push(r);
                 });
-                if (model) return FormView.combine(out.map(x=>x[model]));
-                else return {data: out};
+                return {data: out};
             }
 
             set(v) {
@@ -294,9 +380,9 @@ FormView.controls = {
                         }
                         f.mount(this.#parent,this.#last);
                         if (this.#events.mount) {
-                            this.#events.mount(f);
+                            const ev = this.#events.mount;
+                            queueMicrotask(()=>ev(f));
                         }
-                        this.#last = f.get_root();                        
                         this.#list.set(k, f);
                     }
                     f.set(v);
@@ -307,13 +393,11 @@ FormView.controls = {
                     const f = this.#list.get(k);
                     if (f) {
                         if (this.#events.unmount) {
-                            this.#events.unmount(f);
+                            const ev = this.#events.unmount;
+                            queueMicrotask(()=>ev(f));
                         }
                         f.unmount();
                         this.#list.delete(k);
-                        if (f.get_root() == this.#last) {
-                            this.#last = f.get_root().previousElementSibling;
-                        }
                     }
                 }
             }

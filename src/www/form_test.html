@@ -12,6 +12,13 @@
             <template data-name="rd" data-key="k" data-model="pos">
                 <div><input type="radio" name="unique" data-attr="value=k" data-name="pos"><span data-name="label"></span></div>
             </template>
+            <div><input type="text" data-name="text"><button data-disable="btdis" disabled>Send</button></div>
+            <div><input type="checkbox" data-name="m" data-mask="1"> 0x1 </div>
+            <div><input type="checkbox" data-name="m" data-mask="2"> 0x2 </div>
+            <div><input type="checkbox" data-name="m" data-mask="4"> 0x4 </div>
+            <div><input type="checkbox" data-name="m" data-mask="8"> 0x8 </div>
+            <div><input type="checkbox" data-name="m" data-mask="0x10"> 0x10 </div>
+            <div> Res: <span data-name="mres"></span></div>
             
         </template>
 
@@ -35,6 +42,10 @@
                 ]
             });
             f.set({"rd": "b"});
+            const flds = f.get_fields();
+            flds.m = 10;
+            f.on("text","input", ()=>flds.btdis = flds.text.length == 0)
+            f.on("m","change", ()=>flds.mres = flds.m);
         </script>
 
 

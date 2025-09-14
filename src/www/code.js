@@ -840,9 +840,9 @@ async function main() {
 
     
     connection.onconnect = async function() {
-        Controller.read_config();
-        let data = await connection.send_request(6, {});
-        ids["ssid"].textContent = parseTextSector(data);
+        Controller.read_config().then(c=>{
+            ids["ssid"].textContent = c["wifi.ssid"];
+        })
         //Controller.update_stats_cycle();
         Controller.update_status_cycle();
     };

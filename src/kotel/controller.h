@@ -92,11 +92,37 @@ public:
     TrayChange get_cur_tray_change() const {return _cur_tray_change;}
 
     struct ManualControlStruct {
+        uint32_t _control_id;
         uint8_t _feeder_time = 0;
         uint8_t _fan_time = 0;
         uint8_t _fan_speed = 0;
         uint8_t _force_pump = 0xFF;
+        static ManualControlStruct from(std::string_view str);
     };
+
+    struct StatusOut {
+        uint32_t cur_time;
+        uint32_t control_id;
+        int16_t temp_output_value;
+        int16_t temp_output_amp_value;
+        int16_t temp_input_value;
+        int16_t temp_input_amp_value;
+        int16_t rssi;
+        uint8_t tray_fill_pct;
+        uint8_t temp_sim;
+        uint8_t temp_input_status;
+        uint8_t temp_output_status;
+        uint8_t mode;
+        uint8_t automode;
+        uint8_t try_open;
+        uint8_t motor_temp_ok;
+        uint8_t pump;
+        uint8_t feeder;
+        uint8_t fan;
+    };
+
+    StatusOut status_out() const;
+
 
     void handle_server(MyHttpServer::Request &req);
 
@@ -110,7 +136,6 @@ struct SetFuelParams {
 
     ///for manual control, this must be called repeatedly
     bool manual_control(const ManualControlStruct &cntr);
-    bool manual_control(std::string_view body, std::string_view &&error_field);
 
 
 
@@ -169,18 +194,9 @@ protected:
     IPAddress _my_ip;
     MyKeyboard::State _kbdstate;
     TrayChange _cur_tray_change;
+    std::uint32_t _man_mode_control_id = 0;
 
     enum class WsReqCmd {
-        file_config = 0,
-        file_tray = 1,
-        file_util1 = 2,
-        file_cntrs1 = 3,
-        file_util2 = 4,
-        file_tempsensor = 5,
-        file_wifi_ssid = 6,
-        file_wifi_pwd = 7,
-        file_wifi_net = 8,
-        file_cntrs2 = 9,
 
         control_status = 'c',
         set_fuel = 'f',
@@ -193,7 +209,8 @@ protected:
         generate_code = 'G',
         unpair_all ='U',
         reset = '!',
-        clear_stats = '0'
+        clear_stats = '0',
+        monitor_cycle = 'm'
 
 
     };
@@ -218,6 +235,8 @@ protected:
     void gen_and_print_token();
     //void update_time();
     void init_serial_log();
+
+
 
 };
 
