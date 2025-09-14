@@ -183,7 +183,7 @@ void NetworkControl::stop_wifi() {
 }
 
 
-void NetworkControl::continue_init_wifi(const std::vector<CAccessPoint> &aps) {
+void NetworkControl::continue_init_wifi(const std::vector<AccessPointInfo> &aps) {
     auto ssid = _cntr.get_storage().wifi_ssid.ssid.get();
     for (const auto &x: aps) {
         std::string_view thisnetssid = x.ssid;

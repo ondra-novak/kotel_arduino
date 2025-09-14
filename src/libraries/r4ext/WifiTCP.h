@@ -5,6 +5,17 @@
 #include "WiFiS3.h"
 
 #include <vector>
+
+
+struct AccessPointInfo {
+  std::string ssid;
+  std::string bssid;
+  std::string rssi;
+  std::string channel;
+  std::string encryption_mode;
+};
+
+
 struct WiFiUtils {
 
     static std::string &modem_cmd(const char *prompt);
@@ -18,7 +29,7 @@ struct WiFiUtils {
     struct Scanner {
         void begin();
         bool is_ready();
-        std::vector<CAccessPoint> get_result();
+        std::vector<AccessPointInfo> get_result();
 
 
     };

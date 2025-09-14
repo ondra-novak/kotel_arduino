@@ -71,8 +71,8 @@ bool WiFiUtils::Scanner::is_ready() {
     return Serial2.available();
 }
 
-std::vector<CAccessPoint> WiFiUtils::Scanner::get_result() {
-    std::vector<CAccessPoint> out;
+std::vector<AccessPointInfo> WiFiUtils::Scanner::get_result() {
+    std::vector<AccessPointInfo> out;
     modem.timeout(4500);
 
     modem.avoid_trim_results();
@@ -84,13 +84,12 @@ std::vector<CAccessPoint> WiFiUtils::Scanner::get_result() {
        split(aps, res, "\r\n");
        std::vector<std::string> tokens;
        for(uint16_t i = 0; i < aps.size(); i++) {
-          CAccessPoint ap;
+           AccessPointInfo ap;
           tokens.clear();
           split(tokens, aps[i], "|");
           if(tokens.size() >= 5) {
              ap.ssid            = tokens[0];
              ap.bssid           = tokens[1];
- //            macStr2macArray(ap.uint_bssid, ap.bssid.c_str());
              ap.rssi            = tokens[2];
              ap.channel         = tokens[3];
              ap.encryption_mode = tokens[4];

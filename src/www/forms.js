@@ -1,6 +1,3 @@
-
-
-
 class FormViewControl {
     #el;
     static eventMap = new WeakMap;
@@ -19,7 +16,7 @@ class FormViewControl {
             this.#el.addEventListener(event, s[event]);
         }
     }
-    get() {return null;}
+    get() {return this.#el.textContent;}
     set(v) {this.#el.textContent = v;}
     element() {return this.#el};
     hide(h) {
@@ -38,13 +35,13 @@ class FormViewControl {
         this.#el.setAttribute(a, v);
     }
     get_attrib(a) {
-        this.#el.getAttribute(a);
+        return this.#el.getAttribute(a);
     }
     set_classlist(a, v) {
         this.#el.classList.toggle(a,v);
     }
     get_classlist(a) {
-        this.#el.classList.contains(a);
+        return this.#el.classList.contains(a);
     }
 };
 
@@ -76,7 +73,7 @@ class FormView {
     #add_control(n,c) {
         if (!c.combine) {
             c.combine =  (a,b) => {
-                if (typeof a =="object" && typeof b == "object") {
+                if (a && b && typeof a =="object" && typeof b == "object") {
                     return Object.assign(a,b);
                 } else {
                     return a || b;
@@ -100,7 +97,7 @@ class FormView {
             }
         }
 
-        let elms = el.querySelectorAll("[data-name],[data-attr],[data-classList],[data-hide],[data-disable]");        
+        let elms = el.querySelectorAll("[data-name],[data-attr],[data-classlist],[data-hide],[data-disable]");        
         elms = [el, ...elms];        
         for (const e of elms) {
             const type = FormView.controls[e.tagName];
@@ -119,8 +116,8 @@ class FormView {
                     })
                 });
             }
-            if (e.dataset.classList) {
-                this.#split_kv(e.dataset.classList).forEach(kv=>{
+            if (e.dataset.classlist) {
+                this.#split_kv(e.dataset.classlist).forEach(kv=>{
                     this.#add_control(kv[1],{
                         set: (v)=>c.set_classlist(kv[0],v),
                         get: ()=>c.get_classlist(kv[0])
@@ -130,7 +127,7 @@ class FormView {
             if (e.dataset.hide) {
                 this.#add_control(e.dataset.hide, {
                     set:(v)=>c.hide(c),
-                    get:()=>c.is_hidden
+                    get:()=>c.is_hidden()
                 });
             }
             if (e.dataset.disable) {
@@ -174,7 +171,9 @@ class FormView {
                         } else  {
                             c.forEach(x=>x.set(value));
                         }
+                        return true;
                     }
+                    return false;
                 },
                 has(target, prop) {
                     return !!target[prop];
@@ -233,9 +232,6 @@ class FormView {
             }
         }
     }
-
-
-
 }
 
 FormView.controls = {
@@ -405,5 +401,4 @@ FormView.controls = {
                 this.#events[event] = fn;
             }
         }
-       
     }

@@ -1,0 +1,119 @@
+x-controlbox {
+    font-size: 10rem;
+    width: 1em;
+    height: 1em;
+    display: block;
+}
+
+.controlBox {
+    display: flex;
+    gap: 0.02em;
+    flex-direction: column;
+    width: 1em;
+    padding-bottom: 0.015em;
+    height: 1em;
+}
+
+.controlBox .mototempmax {
+    position: absolute;
+    right: 0.5em;
+    top:  0;
+    bottom: 0;
+    height: 1.5em;
+    margin: auto;
+    width: 1.5em;
+    background-color: red;
+    border-radius: 1em;
+    border:  3px solid red;
+    text-align: center;
+}
+.controlBox .mototempmax::before {
+    content: "\1F321";
+    color: yellow;
+    font-size: 1em;
+}
+
+.controlBox > div {
+    flex-grow: 1;
+    align-content: center;
+    border-radius: 1em;
+    background-color: #444;
+    color: #888;
+    position: relative;
+    font-size: 0.11em;
+    padding: 0 2.3em;
+}
+
+.controlBox > div.on {
+    background-color: #477f30;
+    color: yellow;
+    font-weight: bold;
+}
+
+.controlBox .iconfan::after {
+    content:"\274A";
+    display:block;
+    font-size: 1.7em;
+    margin-top: -0.2em;
+    margin-bottom:  -0.2em;
+}
+
+ .controlBox .iconfeeder {
+    display:block;
+    border: 1px solid;
+    height: 0.4em;
+    width: 1.4em;
+    margin: 0.4em auto;
+    position: relative;
+    background-color: currentColor;
+    border-radius: 5px;
+}
+.controlBox .iconfeeder::before,
+.controlBox .iconfeeder::after {
+    content: "";
+    display: block;
+    position: absolute;
+    border: 1px solid;
+    height: 1.4em;
+    width: 2px;
+    top: -0.55em;
+    left: 0.25em;
+    background-color: currentColor;
+    transform: rotate(40deg)
+}
+
+.controlBox .iconfeeder::after {
+    left: 0.9em;
+}
+
+.controlBox .icon {
+    width: 1.5em;
+    height: 1.4em;
+    margin-left: 1em;
+    position: absolute;
+    left: 0.5em;
+    top:  0;
+    bottom: 0;
+    margin: auto;
+}
+
+.controlBox .iconpump {
+    display: block;
+    width: 1.4em;
+    height: 1.4em;
+    border:  1px solid;
+    box-sizing: border-box;
+    border-radius: 1em;
+    position: relative;
+}
+.controlBox .iconpump::after {
+    position: absolute;
+    width: 0;
+    height: 0;
+    left: 0;
+    top: 0;
+    border-top: 0.9em solid;
+    border-left: 0.9em solid transparent;
+    content: "";
+    transform: translate(-0.1em, 0.18em) scale(1.5, 1) rotate(45deg);
+}

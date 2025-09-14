@@ -137,7 +137,7 @@ span > button {
     background-color:black;
     box-shadow: 5px 5px 5px 0px #00000091;
 }
-
+/*
 
 
 .zasobnik .label {
@@ -220,7 +220,7 @@ div.zasobnik.open::after {
     right: 0;
     text-align: center
 }
-
+*/
 .ovladace {
     display: flex;
     /* align-items: stretch; */
@@ -304,6 +304,7 @@ cursor: pointer;
     width: 10em;
     text-align: center;
 }
+/*
 .teplomer {
     border-top: 2px solid;
     border-left: 2px solid;
@@ -406,7 +407,7 @@ cursor: pointer;
     border-radius: 1em;
 
 }
-
+*/
 body {
     margin: 0;
     overflow-x:hidden;

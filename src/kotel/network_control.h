@@ -70,7 +70,7 @@ protected:
     void init_wifi_ap();
     void stop_wifi();
 
-    void continue_init_wifi(const std::vector<CAccessPoint> &aps);
+    void continue_init_wifi(const std::vector<AccessPointInfo> &aps);
 
 
 };
