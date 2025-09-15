@@ -277,7 +277,7 @@ constexpr Matrix_MAX7219::Bitmap<5,5> motor_overheat_icon = {
 };
 
 
-
+/*
 
 constexpr Matrix_MAX7219::Bitmap<4,8> celsius_icon={
         " @  "
@@ -289,6 +289,7 @@ constexpr Matrix_MAX7219::Bitmap<4,8> celsius_icon={
         "    "
         "    "
 };
+*/
 
 
 void DisplayControl::tray_icon() {

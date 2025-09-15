@@ -35,7 +35,26 @@ public:
         float s = speed * 0.01;
         float t = _stor.config.fan_nonlinear_correction.value *0.1f;
         // (ln(1/(e^t * (1-s) + s)) + t)/t
-        _adj_speed = (std::log(1.0f/(std::exp(t)*(1-s))+s)+t)/t;
+        float adj_speed = (std::log(1.0f/(std::exp(t)*(1-s)+s))+t)/t;
+        unsigned int off;
+        unsigned int on;
+        for (int i = 4; i < 40; i+=2) {
+            on = i;
+            off = static_cast<unsigned int>(i/adj_speed - i);
+            if (off > 1) break;
+        }
+        if (off > 100) {
+            on = 100;
+            off = static_cast<unsigned int>(on/adj_speed - on);
+        }
+        auto new_off = off*10;
+        auto new_on = on*10;
+        if (new_off != _off_ms || new_on != _on_ms) {
+            resume_at(0);
+        }
+        _off_ms = new_off ;
+        _on_ms = new_on;
+
     }
 
 
@@ -59,22 +78,12 @@ public:
             AbstractTask::stop();
             return;
         }
-        unsigned int interval = _stor.config.fan_pulse_interval;
-        auto pln = std::clamp(
-                static_cast<unsigned int>(interval * _adj_speed),
-                        11U, interval);
-
-        if (_pulse) {
-            unsigned int  rest = interval - pln;
-            if (rest > 0)  {
-                resume_at(cur_time + rest);
-                set_active(!_pulse);
-            } else {
-                resume_at(cur_time+pln);
-            }
+        if (_pulse && _off_ms > 0) {
+            resume_at(cur_time + _off_ms);
+            set_active(false);
         } else {
-            set_active(!_pulse);
-            resume_at(cur_time+pln);
+            set_active(true);
+            resume_at(cur_time+_on_ms);
         }
     }
 
@@ -88,7 +97,8 @@ protected:
     bool _pulse = true;
     bool _running = false;
     uint8_t _speed = 100;
-    float _adj_speed = 1000;
+    unsigned int _on_ms;
+    unsigned int _off_ms;
     TimeStampMs _stop_time = 0;
 
 

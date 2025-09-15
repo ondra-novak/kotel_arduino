@@ -850,7 +850,7 @@ void Controller::generate_pair_secret() {
 void Controller::gen_and_print_token() {
     auto rnd = generate_token_random_code();
     auto tkn = generate_signed_token({rnd.data(), rnd.size()});
-    print(static_buff, "token=", std::string_view(tkn.data(), tkn.size()),"\r\n");
+    print(static_buff, "token=", std::string_view(tkn.data(), tkn.size()),"\n");
 }
 
 TimeStampMs Controller::refresh_wdt(TimeStampMs) {

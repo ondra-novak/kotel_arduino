@@ -73,7 +73,7 @@ void print_data_line(Stream &s, const char *name, const T &object) {
     s.print(name);
     s.print('=');
     print_data(s,object);
-    s.println();
+    s.print('\n');
 
 }
 
@@ -194,20 +194,22 @@ bool update_settings_kv(Config &config, std::string_view keyvalue, const Table &
     std::string tmp;
     auto key = split(keyvalue,"=");
     auto value = keyvalue;
-    if (value.find('%')) {
+    if (value.find('%') != value.npos) {
         url_decode(value.begin(), value.end(), std::back_inserter(tmp));
         value = tmp;
     }
-    return ( update_settings(tables, config, trim(key), trim(value))||...);
+    key = trim(key);
+    value = trim(value);
+    return ( update_settings(tables, config, key, value)||...);
 }
 template<typename Config, typename ... Table>
 bool update_settings_fd(Config &config, std::string_view formdata, const Table &...tables) {
     std::string tmp;
     while (!formdata.empty()) {
         auto kv = split(formdata, "&");
-        if (update_settings_kv(config, kv, tables...)) return true;
+        if (!update_settings_kv(config, kv, tables...)) return false;
     }
-    return false;
+    return true;
 }
 
 

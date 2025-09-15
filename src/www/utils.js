@@ -12,7 +12,7 @@ function delay(millis) {
     });
 }
 
-function parse_response(text, sep = "\r\n") {
+function parse_response(text, sep = "\n") {
     return text.split(sep).reduce((obj, line) => {
         let kv = line.split('=', 2).map(x => x.trim());
         if (kv[0]) {
