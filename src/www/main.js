@@ -1,6 +1,6 @@
 //@require desktop.js
 //@html main.body.html
 //@head main.head.html
-//@style style.css
+//@style main.css
 
 main();

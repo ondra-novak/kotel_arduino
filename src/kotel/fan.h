@@ -36,19 +36,10 @@ public:
         float t = _stor.config.fan_nonlinear_correction.value *0.1f;
         // (ln(1/(e^t * (1-s) + s)) + t)/t
         float adj_speed = (std::log(1.0f/(std::exp(t)*(1-s)+s))+t)/t;
-        unsigned int off;
-        unsigned int on;
-        for (int i = 4; i < 40; i+=2) {
-            on = i;
-            off = static_cast<unsigned int>(i/adj_speed - i);
-            if (off > 1) break;
-        }
-        if (off > 100) {
-            on = 100;
-            off = static_cast<unsigned int>(on/adj_speed - on);
-        }
-        auto new_off = off*10;
-        auto new_on = on*10;
+        auto on = 8 + static_cast<unsigned int>(20.0/(adj_speed*100));
+        auto off = static_cast<unsigned int>(on/adj_speed - on);
+        auto new_off = on * 10;
+        auto new_on = off * 10;
         if (new_off != _off_ms || new_on != _on_ms) {
             resume_at(0);
         }

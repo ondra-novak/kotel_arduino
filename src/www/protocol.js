@@ -17,7 +17,9 @@ const  WsReqCmd = {
 function parseResponse(data) {
     return Object.fromEntries(
         data.split("\n")
-        .map(x=>x.split('=',2)));
+        .filter(x=>x)
+        .map(x=>x.split('=',2)))
+        
 }
 
 function buildRequest(params) {

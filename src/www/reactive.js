@@ -1,18 +1,24 @@
 function reactive(target, callback) {
-  return new Proxy(target, {
-    set(obj, prop, value) {
-      const oldValue = obj[prop];
-      if (oldValue !== value) {
-        obj[prop] = value;
-        const prop_cb = `${prop}_cb`;
-        if ((prop_cb in callback)
-            && typeof callback[prop_cb] == "function") {
-                callback[prop_cb](value. oldValue);
-        } else {
-            callback(prop, value, oldValue);
+    let old_values={};
+    let scheduled =false;
+  
+    return new Proxy(target, {
+        set(obj, prop, value) {
+            const oldValue = obj[prop];
+            if (oldValue !== value) {
+                if (!(prop in old_values)) {
+                    old_values[prop] = oldValue;
+                    if (!scheduled) {
+                        scheduled = true;
+                        queueMicrotask(()=>{
+                            scheduled = false;
+                            let tmp = old_values;
+                            old_values = {};
+                            callback(target, old_values);
+                        })                    
+                    }
+                }
+            }
         }
-      }
-      return true;
-    }
-  });
+    });
 }

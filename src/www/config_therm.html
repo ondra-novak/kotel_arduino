@@ -1,0 +1,41 @@
+<template id="configTherm">
+        <x-title>Nastavení teploměru<button data-name="bst">x</button></x-title>
+        <x-form>
+            <x-label><span>Vybraný teploměr</span><input type="text" readonly data-name="target"></x-label>
+            <label><span>Měřená teplota</span><select data-name="hwaddr">
+                <option data-attr="value=addr" data-key="addr" data-name="option">--select--</option>
+            </select></label>
+            <label data-unit="oc"><span>Kalibrace (odchylka na 60°C)</span><input type="number" data-name="kalib"></label>
+        </x-form>
+        <x-buttons>
+            <button data-name="bok">Ok</button><button data-name="bst">Storno</button>
+        </x-buttons>    
+</template>
+<template id="configOutputTherm">
+    <x-title>Nastavení výstupního teploměru <button data-name="bst">x</button></x-title>
+    <x-form>
+        <label data-unit="oc"><span>Maximální výstupní teplota (přehřátí)</span><input type="number" step="1" data-name="tout" min="0" max="90"></label>
+        <label data-unit="oc"><span>Minimální bezpečná teplota </span><input type="number" step="1" data-name="tlsf" min="0" max="90"></label>
+        <label data-unit="m"><span>Měření trendu</span><input type="number" data-name="touts" step="0.1" min="0" max="10"></label>
+        <x-buttons>
+            <button class="left" data-name="ch">Čidlo</button>
+            <button data-name="bok">Ok</button>
+            <button data-name="bst">Storno</button>
+        </x-buttons>            
+    </x-form>
+</template>
+
+</template>
+<template id="configInputTherm">
+    <x-title>Nastavení vstupního teploměru <button data-name="bst">x</button></x-title>
+    <x-form>
+        <label data-unit="oc"><span>Přechod do sníženého výkonu od</span><input type="number" step="1" data-name="tfull" min="0" max="90"></label>
+        <label data-unit="oc"><span>Přechod do útlumu od</span><input type="number" step="1" data-name="tlow" min="0" max="90"></label>
+        <label data-unit="m"><span>Měření trendu</span><input type="number" data-name="tins" step="0.1" min="0" max="10"></label>
+        <x-buttons>
+            <button class="left" data-name="ch">Čidlo</button>
+            <button data-name="bok">Ok</button>
+            <button data-name="bst">Storno</button>
+        </x-buttons>            
+    </x-form>
+</template>

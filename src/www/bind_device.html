@@ -1,0 +1,14 @@
+<template id="bindDevice"></template>
+    <x-title>Spárovat zařízení</x-title>
+    <p>Toto zařízení se musí spárovat s řídící jednotkou kotle, aby ji bylo možné
+        ovládat. Pro spárování prosím opiš kód na displai řídící jednotky.
+        To znamená, že musíš dojít do kotelny, ten kód se zobrazí tam na tom displai
+    </p>    
+    <button>Ukázat kód v kotelně</button> 
+    <div data-classlist="error=error">Problém se spojením</div>
+    <p>Vyplň zobrazený kód<br><small>(I když kód již není zobrazen, je pořád platný, dokud
+            není zobrazen jiný.)</small></p>
+    <div class="code">
+        <input type="text" data-name="code">
+    </div>
+<button>Spárovat</button>

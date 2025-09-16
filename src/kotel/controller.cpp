@@ -130,6 +130,7 @@ static constexpr std::pair<const char *, uint8_t Config::*> config_table[] ={
         {"tlow", &Config::input_temp_low_power},
         {"touts", &Config::output_temp_samples},
         {"tins", &Config::input_temp_samples},
+        {"tlsf", &Config::lowerst_safe_temp},
         {"m", &Config::operation_mode},
         {"fanpc", &Config::fan_pulse_interval},
         {"tpump",&Config::lowerst_safe_temp},
@@ -331,8 +332,10 @@ void Controller::status_out(Stream &s) {
 }
 
 void Controller::control_pump() {
+    auto t_input = _temp_sensors.get_input_temp();
     _pump.set_active(_storage.config.operation_mode == static_cast<uint8_t>(OperationMode::automatic)
-                || _force_pump);
+                || _force_pump || !t_input.has_value()
+                || _storage.config.lowerst_safe_temp < t_input.value());
 }
 
 void Controller::run_manual_mode() {

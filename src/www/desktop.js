@@ -4,6 +4,8 @@
 //@require netstat.js
 //@require protocol.js
 //@require status.js
+//@require config_therm.js
+//@require tray_config.js
 
 function main() {
     const f = FormView.load("temp_example");
