@@ -1,14 +1,22 @@
-<template id="bindDevice"></template>
+<template id="bindDevice" class="bindDevice">
     <x-title>Spárovat zařízení</x-title>
     <p>Toto zařízení se musí spárovat s řídící jednotkou kotle, aby ji bylo možné
-        ovládat. Pro spárování prosím opiš kód na displai řídící jednotky.
-        To znamená, že musíš dojít do kotelny, ten kód se zobrazí tam na tom displai
+        ovládat. 
     </p>    
-    <button>Ukázat kód v kotelně</button> 
-    <div data-classlist="error=error">Problém se spojením</div>
-    <p>Vyplň zobrazený kód<br><small>(I když kód již není zobrazen, je pořád platný, dokud
-            není zobrazen jiný.)</small></p>
     <div class="code">
-        <input type="text" data-name="code">
+        <input type="text" data-name="code" maxlength="4" placeholder="kód">
+        <button data-name="bind">Spárovat</button>
+        <p class="error" data-hide="!code_error" hidden>Nesprávný kód</p>
+        <p class="error" data-hide="!send_error" hidden>Spojení přerušeno</p>
     </div>
-<button>Spárovat</button>
+    <p><strong>Kde získat kód?</strong></p>
+    <ul>
+        <li>Přímo v kotelně na obrazovce kotle 
+            <ul>
+                <li><button data-name="show">Ukázat kód v kotelně</button></li>
+                <li data-hide="!show_error" class="error" hidden>Nepodařilo se odeslat požadavek</li>
+            </ul>
+        </li>
+        <li>V jiné již spárované aplikaci v sekci "Připojení"</li>
+    </ul>
+</template>

@@ -43,6 +43,12 @@ class FormViewControl {
     get_classlist(a) {
         return this.#el.classList.contains(a);
     }
+    set_style(s, v) {
+        this.#el.style[s] = v;        
+    }
+    get_style(s) {
+        return this.#el.style[s];
+    }
 };
 
 class FormView {
@@ -97,7 +103,7 @@ class FormView {
             }
         }
 
-        let elms = el.querySelectorAll("[data-name],[data-attr],[data-classlist],[data-hide],[data-disable]");        
+        let elms = el.querySelectorAll("[data-name],[data-attr],[data-classlist],[data-hide],[data-style],[data-disable]");        
         elms = [el, ...elms];        
         for (const e of elms) {
             const type = FormView.controls[e.tagName];
@@ -110,9 +116,12 @@ class FormView {
             }
             if (e.dataset.attr) {
                 this.#split_kv(e.dataset.attr).forEach(kv=>{
-                    this.#add_control(kv[1],{
-                        set: (v)=>c.set_attrib(kv[0],v),
-                        get: ()=>c.get_attrib(kv[0])
+                    let k = kv[0];
+                    let v = kv[1];
+                    if (!v) v = k;
+                    this.#add_control(v,{
+                        set: (v)=>c.set_attrib(k,v),
+                        get: ()=>c.get_attrib(k)
                     })
                 });
             }
@@ -123,15 +132,26 @@ class FormView {
                     if (!v) v = k;
                     if (v.startsWith("!")) {
                         v = v.substring(1);
-                        this.#add_control(kv[1],{
-                            set: (v)=>c.set_classlist(kv[0],!v),
-                            get: ()=>!c.get_classlist(kv[0])
+                        this.#add_control(v,{
+                            set: (v)=>c.set_classlist(k,!v),
+                            get: ()=>!c.get_classlist(k)
                     })} else {
-                        this.#add_control(kv[1],{
-                            set: (v)=>c.set_classlist(kv[0],v),
-                            get: ()=>c.get_classlist(kv[0])
+                        this.#add_control(v,{
+                            set: (v)=>c.set_classlist(k,v),
+                            get: ()=>c.get_classlist(k)
                         })
                     }
+                });
+            }
+            if (e.dataset.style) {
+                this.#split_kv(e.dataset.style).forEach(kv=>{
+                    let k = kv[0];
+                    let v = kv[1];
+                    if (!v) v = k;
+                    this.#add_control(v,{
+                        set: (v)=>c.set_style(k,v),
+                        get: ()=>c.get_style(k)
+                    })                    
                 });
             }
             if (e.dataset.hide) {
@@ -344,6 +364,24 @@ FormView.controls = {
             e.textContent = v;
         }
     },
+    BUTTON: class extends FormViewControl {
+        on(event, fn) {
+            if (event != "click") return super.on(event, fn);
+            else {
+                super.on(event,async (ev)=>{
+                    const st = this.is_disable();
+                    this.disable(true);
+                    try {
+                        await Promise.resolve(fn(ev));
+                        this.disable(st);                        
+                    } catch (e) {
+                        this.disable(st);
+                        throw e;
+                    }
+                });
+            }
+        }    
+    },
     TEMPLATE: class extends FormViewControl {            
         #list = new Map;
         #last = null;
@@ -460,7 +498,7 @@ class ModalDialog extends FormView {
         let dlg = document.createElement("DIALOG");
         dlg.appendChild(cloned);
         
-        for (const attr of cloned.attributes || []) {
+        for (const attr of t_element.attributes || []) {
             if (attr.name !== "id" && attr.name !== "name") {
                 dlg.setAttribute(attr.name, attr.value);
             }

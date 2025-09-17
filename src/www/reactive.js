@@ -8,6 +8,7 @@ function reactive(target, callback) {
             if (oldValue !== value) {
                 if (!(prop in old_values)) {
                     old_values[prop] = oldValue;
+                    target[prop] = value;
                     if (!scheduled) {
                         scheduled = true;
                         queueMicrotask(()=>{

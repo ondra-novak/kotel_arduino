@@ -19,7 +19,7 @@ FormView.controls["X-TRAYGAUGE"] = class extends FormViewControl {
             const p = v*0.01;
             const koef = 0.7;
             const f = Math.floor((Math.sqrt(koef * p) + p * (1 - Math.sqrt(koef))) * 100);
-            this.#fields.h =  `height: ${f}%`;
+            this.#fields.height =  `${f}%`;
         }
     }
     get() {

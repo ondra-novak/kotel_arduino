@@ -1,10 +1,21 @@
 //@require forms.js
+//@require reactive.js
 //@html temp_gauge.html
 //@style temp_gauge.css
 
 FormView.controls["X-TEMPGAUGE"] = class extends FormViewControl {
 
     #fields;
+    #values = reactive({
+                cur:null,min:null,max:null,amp:null
+            },
+            (v)=>{
+                        this.#fields.cur_tmp = this.#gstyle(v.cur);
+                        this.#fields.cur_tmp_value = this.#gtext(v.cur);
+                        this.#fields.min_tmp = this.#gstyle(v.min);
+                        this.#fields.max_tmp = this.#gstyle(v.max);            
+                        this.#fields.amp_tmp_value = this.#gtext(v.amp);
+                    });
 
     constructor(el) {
         super(el);
@@ -36,55 +47,6 @@ FormView.controls["X-TEMPGAUGE"] = class extends FormViewControl {
         }
     }
 
-    get() {
-        const self = this;
-        return new Proxy({
-            cur:0,min:0,max:0,amp:0
-        },{
-            get: (t,p) => {return t[p];},
-            set: (t,p,v) => {
-                if (p == "cur") {
-                    self.#fields.cur_tmp = self.#gstyle(v);
-                    self.#fields.cur_tmp_value = self.#gtext(v);
-                    t[p] =v;
-                    return true;
-                } else if (p =="min") {
-                    t[p] = v;
-                    self.#fields.min_tmp = self.#gstyle(v);
-                    return true;
-                } else if (p =="max") {
-                    t[p] = v;
-                    self.#fields.max_tmp = self.#gstyle(v);
-                    return true;
-                } else if (p =="amp") {
-                    t[p] = v;
-                    self.#fields.amp_tmp_value = self.#gtext(v);
-                    return true;
-                } else{
-                    return false;
-                }
-            },
-            has: (target, prop) => {
-                return !!target[prop];
-            },
-            ownKeys: (target) => {
-                return Object.keys(target);
-            },
-            getOwnPropertyDescriptor: (target, prop) => {
-                const c = target[prop];
-                if (c) {
-                    return {
-                        enumerable: true,
-                        configurable: true
-                    };
-                }
-                return undefined;
-            }       
-        })
-    }
-    
-    set(v) {
-        this.get().cur = v;
-    }
-
+    get() {return this.#values}
+                    
 }

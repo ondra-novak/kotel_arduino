@@ -5,9 +5,21 @@ html {
     font-size: 15px;
 }
 
-button, input, select, textarea {
+input, select, textarea {
     font-size: 20px;
     font-family: sans-serif;
+}
+button {
+    font-family: sans-serif;
+    font-size: 15px;
+    padding: 3px 10px;
+}
+button:disabled {
+    background-color:#eee;
+    /* text-shadow: -1px 0 0px #888, 0 -1px 0px #888, 1px 0 0px  white, 0 1px 0px white; */
+    color: #b7b7b7;
+}
+input {
     max-width: 10rem;
 }
 input, select,textarea {
@@ -59,8 +71,9 @@ x-title {
 x-title > button {
     inset: 0;
     position: absolute;
-    width: 1.4em;
+    width: 1.7em;
     margin-left: auto;
+    padding: 0;
 }
 
 .popup-window {
@@ -139,4 +152,15 @@ label[data-unit=skg]::before {content:"s";font-size:0.8em;top: 0.4em;width:  1em
 
 x-form {
     display:block;
+}
+
+.error {
+    color: #F40;
+    font-weight: bold;
+    
+    
+}
+
+[hidden] {
+    display: none !important;
 }

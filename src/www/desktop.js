@@ -6,6 +6,7 @@
 //@require status.js
 //@require config_therm.js
 //@require tray_config.js
+//@require bind_device.js
 
 function main() {
     const f = FormView.load("temp_example");
