@@ -1,0 +1,15 @@
+.dashboard .grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-evenly;
+}
+.dashboard .grid > * {
+    margin: 0.1em;
+    cursor: pointer;
+}
+.dashboard  .tmax .tempGauge .min.needle::before {
+    border-color: red;
+}
+.dashboard  .tmin .tempGauge .max.needle::before {
+    border-color: lightgreen;
+}

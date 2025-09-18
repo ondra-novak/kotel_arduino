@@ -1,0 +1,101 @@
+x-headerstatus {
+    display:block;
+}
+.headerStatus .header  {
+    display:flex;
+    justify-content: space-between;
+}
+
+
+.headerStatus .stav::before {
+    display:block;
+    content:"Nahrávám...";
+    font-variant-caps:small-caps;
+    font-weight: bold;
+    text-align: center;
+    flex-grow: 1;
+    font-size: 1.2em;
+}
+
+.headerStatus .stav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid;
+}
+
+.headerStatus .stav > * {
+    height: 3em;
+    width: 6em;
+    align-content: center;
+}
+
+.headerStatus .stav >div {
+    background-color:#878181;
+    color:#ffffff;
+    font-weight: bold;
+}
+
+.headerStatus .stav.mode1 >div {
+    background-color:green;
+    color:#ffffff;
+}
+
+.headerStatus .stav.mode2 >div {
+    background-color:red;
+    color:yellow;
+    font-weight: bold;
+}
+
+.headerStatus .stav.mode0::before {
+    content:"Neznámý";
+}
+.headerStatus .stav.mode1::before {
+    content:"Ruční ovládání";
+    color: #ff9b9b;
+}
+
+
+.headerStatus .stav >div::before {
+    content: "RUČNĚ";
+}
+
+.headerStatus .stav.op1 >div::before {
+    content: "STOP";
+}
+
+.headerStatus .stav.op0 >div::before {
+    content: "AUTOMAT";
+}
+
+.headerStatus .stav.mode2{
+    background-color: #445344;
+}
+
+.headerStatus .stav.mode2.automode0::before {
+    content:"Automaticky / Plný výkon";
+}
+.headerStatus .stav.mode2.automode1::before {
+    content:"Automaticky / Snížený výkon";
+}
+.headerStatus .stav.mode2.automode2::before {
+    content:"Automaticky / Útlum";
+}
+.headerStatus .stav.mode3::before {
+    content:"STOP";
+}
+.headerStatus .stav.mode4::before {
+    content:"Zahajování";
+}
+.headerStatus .stav.mode5::before {
+    content:"Ostatní";
+}
+
+.headerStatus .stav > div {
+    text-align:center;
+    cursor:pointer;
+}
+
+.headerStatus .stav > div:active {
+    background-color:#0004;
+}

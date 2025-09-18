@@ -2,6 +2,10 @@
 //@require websocketclient.js
 //@require reactive.js
 
+/// <reference path="./websocketclient.js"/>
+/// <reference path="./reactive.js"/>
+/// <reference path="./protocol.js"/>
+
 class Status {
 
     #ws;
@@ -17,10 +21,13 @@ class Status {
     }
     #cur_ctr = 0;
     #config;
-    
+
     
     constructor(ws) {
         this.#ws = ws;
+        this.#ws.onconnect = () => {
+            this.get_config();
+        }
         
     }
     async cycle() {
@@ -30,8 +37,9 @@ class Status {
             this.#ok(this.#last);
         } catch (e) {
             this.#ok(null);
-            console.warn(e);
+            console.warn(e);        
         }
+        this.#wt = null;
         const st = this.#last;
         this.#cur_ctr = parseInt(st.cntr);
         const m = parseInt(st.m);
@@ -40,7 +48,6 @@ class Status {
         this.run_cycle();        
     }
     start() {
-        this.get_config();
         this.run_cycle();
     }
     
@@ -75,9 +82,16 @@ class Status {
     }
     
     async set_config(cfg) {
-        const resp = await this.#ws.send_request(WsReqCmd.set_config,buildRequest(cfg));
+        let resp;
+        try {
+             resp = await this.#ws.send_request(WsReqCmd.set_config,buildRequest(cfg));
+        } catch (e) {
+            console.warn(e);
+            return this.set_config(cfg);
+        }
         if (resp) throw new Error(`Failed to set config: ${resp}`);
-        return await this.get_config();
+        this.#config = Object.assign(this.#config, cfg);
+        return this.#config;
     }
        
  }

@@ -5,6 +5,10 @@ html {
     font-size: 15px;
 }
 
+body {
+    margin:0;
+}
+
 input, select, textarea {
     font-size: 20px;
     font-family: sans-serif;

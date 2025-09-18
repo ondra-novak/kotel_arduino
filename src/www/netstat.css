@@ -16,8 +16,8 @@ x-netstat {
 }
 
 .netStat .icon {
-    width: 0.65em;
-    height: 0.65em;
+    width: 0.6em;
+    height: 0.6em;
     border: 0.04em solid transparent;
     border-top: 0.04em solid currentColor;
     border-radius: 0.3em;

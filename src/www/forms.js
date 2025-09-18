@@ -72,7 +72,7 @@ class FormView {
     
     static load(template_id) {
         var t = document.getElementById(template_id);
-        if (!t) throw new Error("template not found");
+        if (!t) throw new Error(`template ${template_id} not found`);
         return FormView.fromTemplate(t);
     }
 
