@@ -209,6 +209,10 @@ fd.initf=0
             this.#swpd = true;
             await this.#status.set_config({m:m});            
             this.#swpd = false;
+            const cntrs = this.#status.get_controls();
+            cntrs.fcp = 0;
+            cntrs.fnt = 0;
+            cntrs.fdt = 0;
         });
         f.on("net","click", ()=>{
             return configureNetwork(cfgexchange);
