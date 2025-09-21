@@ -33,6 +33,11 @@ public:
     static constexpr int manual_run_interval_ms = 120000;
     static constexpr int feeder_min_press_interval_ms = 150;
     static constexpr int fan_speed_change_step = 20;
+#ifdef EMULATOR
+    static constexpr int day_length_seconds = 60;
+#else
+    static constexpr int day_length_seconds = 24*60*60;
+#endif
 
     enum class DriveMode {
         unknown,
@@ -155,6 +160,7 @@ protected:
     TimeStampMs auto_drive_cycle(TimeStampMs cur_time);
     TimeStampMs read_serial(TimeStampMs cur_time);
     TimeStampMs refresh_wdt(TimeStampMs cur_time);
+    TimeStampMs daily_log(TimeStampMs cur_time);
 protected:
 
 
@@ -186,8 +192,9 @@ protected:
     TaskMethod<Controller, &Controller::read_serial> _read_serial;
     TaskMethod<Controller, &Controller::refresh_wdt> _refresh_wdt;
     TaskMethod<Controller, &Controller::run_keyboard> _keyboard_scanner;
+    TaskMethod<Controller, &Controller::daily_log> _daily_log;
     NetworkControl _network;
-    Scheduler<10> _scheduler;
+    Scheduler<11> _scheduler;
     std::optional<TCPClient> _list_temp_async;
     StringStream<1024> static_buff;
     std::array<char, 4> _last_code;
@@ -198,14 +205,12 @@ protected:
 
     enum class WsReqCmd {
 
-        control_status = 'c',
         set_fuel = 'f',
         get_config = 'C',
         set_config = 'S',
         failed_config = 'F',
         get_stats = 'T',
         ping = 'p',
-        enum_tasks = '#',
         generate_code = 'G',
         unpair_all ='U',
         reset = '!',
@@ -226,7 +231,6 @@ protected:
     void send_file(MyHttpServer::Request &req, std::string_view content_type, std::string_view file_name);
 
     void status_out_ws(Stream &s);
-    std::string_view get_task_name(const AbstractTask *task);
     bool is_overheat() const;
     void generate_otp_code();
     std::array<char, 20> generate_token_random_code();

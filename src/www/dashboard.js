@@ -150,7 +150,16 @@ fd.initf=0
 
     async fuel(cfgexchange) {
         const r = await configureTray(cfgexchange);
-        console.log(r);
+        if (r && r.fuel) {
+            let f = r.fuel;
+            if (r.unit == "pytel") {
+                f = f * this.#status.get_last_config().bgkg;
+                const resp = await this.#ws.send_request(WsReqCmd.set_fuel,f.toFixed(0));
+                if (resp.length > 0) {
+                    alert (resp);
+                }
+            }
+        }
     }
 
     dashboard_start() {
@@ -202,6 +211,7 @@ fd.initf=0
                 case 3: return configureInputTherm(cfgexchange);
                 case 4: return configureAdvanced(cfgexchange, this.#ws);
                 case 5: return configureNetwork(cfgexchange);
+                case 6: return bindConfig(this.#ws);
             }
         });
     }

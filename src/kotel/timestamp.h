@@ -29,5 +29,7 @@ constexpr TimeStampMs max_timestamp = ~TimeStampMs{};
 
 uint32_t get_current_time();
 void set_current_time(uint32_t t);
+bool is_time_synced();
+void day_to_date(long days, char *buf, size_t buflen);
 
 

@@ -100,20 +100,31 @@ bool parse_to_field_uint(UINT &fld, std::string_view value) {
     return true;
 }
 
-bool parse_to_field(int8_t &fld, std::string_view value) {
-    uint8_t x;
+template<typename INT>
+bool parse_to_field_int(INT &fld, std::string_view value) {
+    std::make_unsigned_t<INT> x;
     if (!value.empty() && value.front() == '-') {
         if (!parse_to_field_uint(x, value.substr(1))) return false;
-        fld = -static_cast<int8_t>(x);
+        fld = -static_cast<INT>(x);
         return true;
     } else {
         if (!parse_to_field_uint(x,value)) return false;
-        fld = static_cast<int8_t>(x);
+        fld = static_cast<INT>(x);
         return true;
     }
 
 }
 
+
+bool parse_to_field(int8_t &fld, std::string_view value) {
+    return parse_to_field_int(fld, value);
+}
+bool parse_to_field(int16_t &fld, std::string_view value) {
+    return parse_to_field_int(fld, value);
+}
+bool parse_to_field(int32_t &fld, std::string_view value) {
+    return parse_to_field_int(fld, value);
+}
 bool parse_to_field(uint8_t &fld, std::string_view value) {
     return parse_to_field_uint(fld,value);
 }

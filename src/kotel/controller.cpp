@@ -30,10 +30,11 @@ Controller::Controller()
         ,_read_serial(this)
         ,_refresh_wdt(this)
         ,_keyboard_scanner(this)
+        ,_daily_log(this)
         ,_network(*this)
         ,_scheduler({&_feeder, &_fan, &_temp_sensors,  &_display,
             &_motoruntime, &_auto_drive_cycle, &_network,
-            &_read_serial, &_refresh_wdt, &_keyboard_scanner})
+            &_read_serial, &_refresh_wdt, &_keyboard_scanner, &_daily_log})
 {
 
 }
@@ -340,6 +341,9 @@ void Controller::control_pump() {
 }
 
 void Controller::run_manual_mode() {
+    if (_cur_mode != DriveMode::manual) {
+        ++_storage.cntr.manual_control_count;
+    }
     _cur_mode = DriveMode::manual;
     _auto_mode = AutoMode::notset;
     _start_mode_until = get_current_timestamp() + from_minutes(60);
@@ -383,7 +387,7 @@ void Controller::run_stop_mode() {
     if (_cur_mode != DriveMode::stop) {
         ++_storage.cntr.stop_count;
         if (!_temp_sensors.get_output_temp()) {
-            ++_storage.cntr.temp_read_failure_count;
+            ++_storage.cntr.therm_failure_count;
         } else if (is_overheat()) {
             ++_storage.cntr.overheat_count;
         }
@@ -529,6 +533,21 @@ void Controller::handle_server(MyHttpServer::Request &req) {
         } else {
             _server.error_response(req,400,{});
         }
+    } else if (req.request_line.path == "/api/history" && req.request_line.method == HttpMethod::GET) {
+        auto last_day = _storage.snapshot.day_number;
+        auto first_day = last_day - graph_files * eeprom_sector_size + 1;
+        _server.send_simple_header(req, "text/csv", -1,false,"");
+        print(*req.client, "Datum,Podavac,Podavac uspoarne, Plneni, Prehrati, Chyba teplomeru, Restart, Rucni rezim\n");
+        for (uint16_t i = first_day; i <= last_day; ++i) {
+            auto snp = _storage.read_day_stats(i);
+            char day[20];
+            day_to_date(i, day, sizeof(day));
+            print(*req.client, day, ",", snp.feeder, ",",
+                   snp.feeder_low, ",", snp.fuel_kg, ",",
+                   snp.overheat_count,",", snp.therm_fail_count,",",
+                   snp.restart_count,",", snp.manual_count,"\n");
+        }
+
     } else if (req.request_line.path == "/") {
         _server.send_file_async(req, HttpServerBase::ContentType::html, embedded_index_html, true, embedded_index_html_etag);
 #ifdef EMULATOR
@@ -685,42 +704,20 @@ void Controller::handle_ws_request(MyHttpServer::Request &req)
     static_buff.write(static_cast<char>(cmd));
     switch (cmd)
     {
-    case WsReqCmd::control_status: if (msg.size() == sizeof(ManualControlStruct)) {
-        ManualControlStruct s;
-        std::copy(msg.begin(), msg.end(), reinterpret_cast<char *>(&s));
-        manual_control(s);
-        status_out_ws(static_buff);
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
-    }
-    break;
- /*   case WsReqCmd::set_fuel: if (msg.size() == sizeof(SetFuelParams)) {
-        SetFuelParams s;
-        std::copy(msg.begin(), msg.end(), reinterpret_cast<char *>(&s));
-        if (!set_fuel(s)) {
-            static_buff.print('\x1');
+    case WsReqCmd::set_fuel: {
+        int32_t amount;
+        if (parse_to_field_int(amount, msg)) {
+            _storage.add_fuel(amount);
+        } else {
+            static_buff.print("Parse error: number");
         }
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
     }
-    break;*/
+    break;
     case WsReqCmd::get_config: {
         config_out(static_buff);
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
     }
-    break;
-/*    case WsReqCmd::get_stats: {
-        uint32_t cntr = _storage.get_eeprom().get_crc_error_counter();
-        uint32_t timestamp = get_current_timestamp()/1000;
-        uint32_t consumed_kg_total = _storage.tray.calc_total_consumed_fuel();
-        static_buff.write(reinterpret_cast<const char *>(&_storage.runtm), sizeof(_storage.runtm));
-        static_buff.write(reinterpret_cast<const char *>(&_storage.runtm2), sizeof(_storage.runtm2));
-        static_buff.write(reinterpret_cast<const char *>(&_storage.cntr1), sizeof(_storage.cntr1));
-        static_buff.write(reinterpret_cast<const char *>(&_storage.cntr2), sizeof(_storage.cntr2));
-        static_buff.write(reinterpret_cast<const char *>(&_storage.tray), sizeof(_storage.tray));
-        static_buff.write(reinterpret_cast<const char *>(&consumed_kg_total), sizeof(consumed_kg_total));
-        static_buff.write(reinterpret_cast<const char *>(&cntr), sizeof(cntr));
-        static_buff.write(reinterpret_cast<const char *>(&timestamp), sizeof(timestamp));
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
-    }*/
     break;
     case WsReqCmd::set_config: {
         std::string_view failed_field;
@@ -730,12 +727,6 @@ void Controller::handle_ws_request(MyHttpServer::Request &req)
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
     }
     break;
-    case WsReqCmd::enum_tasks:
-        _scheduler.enum_tasks([&](const AbstractTask *t){
-            print(static_buff,get_task_name(t)," ",t->_run_time," ",t->get_scheduled_time(),"\r\n");
-        });
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
-        break;
     case WsReqCmd::generate_code:
         generate_otp_code();
         static_buff.write(_last_code.data(), _last_code.size());
@@ -757,19 +748,6 @@ void Controller::handle_ws_request(MyHttpServer::Request &req)
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
         delay(10000);   //delay more than 5 sec invokes WDT
         break;
-/*    case WsReqCmd::clear_stats:
-        _storage.tray.commit_consumed(_storage.tray.feeder_time);
-        _storage.tray.feeder_time = _storage.tray.feeder_time - _storage.tray.tray_fill_time ;
-        _storage.tray.tray_open_time = 0;
-        _storage.tray.tray_fill_time = 0;
-        _storage.tray.consumed_fuel_kg = 0;
-        _storage.cntr1 = {};
-        _storage.cntr2 = {};
-        _storage.runtm = {};
-        _storage.runtm2 = {};
-        _storage.save();
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
-        break;*/
     default:
         break;
     }
@@ -790,18 +768,6 @@ TimeStampMs Controller::read_serial(TimeStampMs) {
 }
 
 
-std::string_view Controller::get_task_name(const AbstractTask *task) {
-    if (task == &_feeder) return "feeder";
-    if (task == &_fan) return "fan";
-    if (task == &_temp_sensors) return "temp_sensors";
-    if (task == &_display) return "display";
-    if (task == &_motoruntime) return "motoruntime";
-    if (task == &_auto_drive_cycle) return "auto_drive_cycle";
-    if (task == &_network) return "network";
-    if (task == &_read_serial) return "read_serial";
-    if (task == &_refresh_wdt) return "wdt";
-    return "unknown";
-}
 
 bool Controller::enable_temperature_simulation(std::string_view b) {
     SimulInfo sinfo;
@@ -984,6 +950,13 @@ TimeStampMs Controller::run_keyboard(TimeStampMs cur_time) {
 
     }
     return 2;
+}
+
+TimeStampMs Controller::daily_log(TimeStampMs ) {
+    if (!is_time_synced()) return 1000;
+    auto dnum = get_current_time()/day_length_seconds;
+    _storage.record_day_stats(static_cast<uint16_t>(dnum));
+    return std::min(60000,day_length_seconds *1000);
 }
 
 }

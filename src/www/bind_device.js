@@ -37,3 +37,29 @@ async function bindDeviceDialog() {
     } while (!res);
     return res;
 }
+async function bindConfig(ws) {
+    const dlg = ModalDialog.load("bindConfig");
+    const fld = dlg.get_fields();
+    dlg.on("gen","click",async ()=>{
+        fld.code = await ws.send_request(WsReqCmd.generate_code);
+    });
+    dlg.on("bok","click", async()=>{
+
+        switch (parseInt(fld.op)) {
+            case 0: break;
+            case 1: {
+                ws.set_token("");
+                location.reload();
+            } break;
+            case 2: {        
+                const tkn_text = await ws.send_request(WsReqCmd.unpair_all);
+                token = parseResponse(tkn_text)["token"];
+                ws.set_token(token);
+            }break;
+        }
+        dlg.close();
+    });
+    
+
+    return dlg.do_modal("bst");
+}

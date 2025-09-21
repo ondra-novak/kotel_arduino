@@ -13,11 +13,15 @@ constexpr unsigned int file_wifi_net = 7;
 constexpr unsigned int file_cntrs2 = 8;
 constexpr unsigned int file_pair_secret = 9;
 constexpr unsigned int file_tray = 10;
+constexpr unsigned int graph_files=12;
+constexpr unsigned int files_feeder_graph = 11;
+constexpr unsigned int files_feeder_low_graph = files_feeder_graph+graph_files;
+constexpr unsigned int files_fuel_fill_graph = files_feeder_low_graph+graph_files;
+constexpr unsigned int files_errors_log = files_fuel_fill_graph+graph_files;
+constexpr unsigned int files_control_log = files_errors_log+graph_files;
+constexpr unsigned int file_directory_len = files_control_log+graph_files;
+
 constexpr unsigned int eeprom_sector_size = 30;
-constexpr unsigned int file_history_offset = 11;    //32-127 history files
-constexpr unsigned int file_history_count = 60;     //
-constexpr unsigned int file_directory_len = file_history_offset+file_history_count;
-constexpr unsigned int week_stat_day_count = 7;
 
 
 namespace kotel {
@@ -84,23 +88,16 @@ struct Counters {
     uint16_t tray_open_count = 0;        //kolikrat se otevrela nasypka
     uint16_t restart_count = 0;          //kolikrat byl system restartovan
     uint16_t overheat_count = 0;         //kolikrat se hlasilo prehrati
-    uint16_t temp_read_failure_count=0;  //kolikrat se objevila chyba teplomeru
-    uint16_t fan_start_count = 0;
-    uint16_t feeder_start_count = 0;
-    uint16_t stop_count = 0;
+    uint16_t therm_failure_count=0;  //kolikrat se objevila chyba teplomeru
+    uint16_t fan_start_count = 0;        //spusteni teplomer
+    uint16_t feeder_start_count = 0;     //spusteni feedera
+    uint16_t stop_count = 0;             //pocet zastaveni
+    uint16_t manual_control_count = 0;   //pocet prepnuti do rucniho rezimu
 
 
 };
 
 static_assert(sizeof(Counters)<=eeprom_sector_size);
-
-struct WeekRecord {
-    uint16_t _day_number = 0;      //timestamp/86400
-    uint16_t _feeder[week_stat_day_count]          //relative change of feeder
-                     = {0xFFFF,0xFFFF,0xFFFF,0xFFFF,0xFFFF,0xFFFF,0xFFFF};
-    uint16_t _feeder_low[week_stat_day_count]     //relatice change of feeder in low power
-                     = {0xFFFF,0xFFFF,0xFFFF,0xFFFF,0xFFFF,0xFFFF,0xFFFF};
-};
 
 
 struct Tray {
@@ -116,13 +113,22 @@ struct Tray {
 static_assert(sizeof(Tray)<=eeprom_sector_size);
 
 struct   Snapshot {
-    uint32_t _feeder = 0;           //4 feeder snapshot pro tydenni statistiky
-    uint32_t _feeder_low = 0;       //8 feeder_low snapshot pro tydenni statistiky
-    uint16_t _day_number = 0;       //26 (align) day number pro tydenni statistiky
+    uint32_t feeder = 0;           //4 feeder snapshot
+    uint32_t feeder_low = 0;       //8 feeder_low snapshot
+    uint32_t fuel_kg = 0;          //12 fuel_kg_accum snapshot
+    uint16_t manual_count = 0;      //14 snapshot manual_control_count
+    uint16_t overheat_count = 0;    //16 snapshot overheat_count
+    uint16_t therm_fail_count = 0;  //18 snapshot therm_fail_count
+    uint16_t restart_count = 0;     //20 snapshot restart_count
+    uint16_t day_number = 0;       //22
 };
 
-static_assert(sizeof(WeekRecord)==eeprom_sector_size);
+struct DailyData {
+    uint8_t _days[eeprom_sector_size] = {};  //denní data, 0-255, jeden bajt, jeden den
+};
+
 static_assert(sizeof(Snapshot)<=eeprom_sector_size);
+static_assert(sizeof(DailyData)==eeprom_sector_size);
 
 
 struct TempSensor {

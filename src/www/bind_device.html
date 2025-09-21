@@ -20,3 +20,19 @@
         <li>V jiné již spárované aplikaci v sekci "Připojení"</li>
     </ul>
 </template>
+<template id="bindConfig" class="bindConfig">
+    <x-title>Párování<button data-name="bst">x</button></x-title>
+    <div>
+        <input data-name="code" type="text" readonly>
+        <button data-name="gen">Generovat párovací kód</button>
+        <select data-name="op">
+            <option value="0"> -- nedělej nic --</option>
+            <option value="1">Odhlásit toto zařízení</option>
+            <option value="2">Odhlásit ostatní zařízení</option>
+        </select>        
+    </div>
+    <x-buttons>
+        <button data-name="bok">Ok</button>
+        <button data-name="bst">Storno</button>
+    </x-buttons>
+</template>

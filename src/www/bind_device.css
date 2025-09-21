@@ -12,9 +12,23 @@
     text-align:center;
 }
 
-.bindDevice .code > input {
+.bindDevice .code > input, .bindConfig >div > input {
     font-size: 1.5rem;
     text-align: center;
     text-transform: uppercase;
     letter-spacing: 1rem;
+}
+
+
+.bindConfig >div {
+    display:flex;
+    flex-direction:column;
+    height: 9rem;
+    justify-content: space-between;
+    padding: 1rem 1rem;
+}
+
+.bindConfig >div > * {
+    width: 16rem;
+    text-align: center;
 }

@@ -67,6 +67,14 @@ struct WiFi_Password{
 class Storage {
 public:
 
+    struct AllDailyData {
+        DailyData feeder;
+        DailyData feeder_low;
+        DailyData fuel;
+        DailyData errors;
+        DailyData controls;
+
+    };
 
     Config config;
     Runtime runtm;
@@ -74,7 +82,6 @@ public:
     TempSensor temp;
     Snapshot snapshot;
     Tray tray;
-    WeekRecord weeks[file_history_count];
     WiFi_SSID wifi_ssid;
     WiFi_Password wifi_password;
     WiFi_Password pair_secret;
@@ -93,10 +100,7 @@ public:
         _eeprom.read_file(file_wifi_ssid, wifi_ssid);
         _eeprom.read_file(file_wifi_pwd, wifi_password);
         _eeprom.read_file(file_wifi_net, wifi_config);
-        for (auto &x: weeks) {
-            int idx = &x - weeks;
-            _eeprom.read_file(file_history_offset+idx, x);
-        }
+
         pair_secret_need_init = !_eeprom.read_file(file_pair_secret,pair_secret);
     }
     auto get_eeprom() const {
@@ -126,46 +130,101 @@ public:
         }
     }
 
-    void record_day_stats(uint16_t day) {
-        if (snapshot._day_number != day) {
-            WeekRecord *t = nullptr;
-            WeekRecord *f = nullptr;
-            uint16_t v = 0xFFFF;
-            for (auto &x:weeks) {
-                if (x._day_number + week_stat_day_count > day) {
-                    f = &x;
-                    break;
-                }
-                if (x._day_number < v) {
-                    t = &x;
-                    v = x._day_number;
-                }
-            }
-            if (f == nullptr) {
-                f = t;
-                f->_day_number = day;
-            }
+    template<typename Fn>
+    void manage_day_stats(uint16_t day, Fn &&fn) {
+        auto index = (day/eeprom_sector_size)%graph_files;
+        auto pos = day %  eeprom_sector_size;
+        auto fdofs = index + files_feeder_graph;
+        auto fdlofs = index + files_feeder_low_graph;
+        auto flofs = index + files_fuel_fill_graph;
+        auto errofs = index + files_errors_log;
+        auto cntofs = index + files_control_log;
 
-            auto uint16cast = [](uint32_t v) ->uint16_t {
-                if (v > 0xFFFE) return 0xFFFE;
-                else return static_cast<uint16_t>(v);
-            };
+        AllDailyData dd;
 
-            auto ofs = day - f->_day_number;
-            f->_feeder[ofs] = uint16cast(runtm.feeder - snapshot._feeder);
-            f->_feeder_low[ofs] = uint16cast(runtm.feeder_low - snapshot._feeder_low);
-            snapshot._feeder += f->_feeder[ofs];
-            snapshot._feeder_low += f->_feeder_low[ofs];
-            snapshot._day_number = day;
-            _eeprom.update_file(file_history_offset + (f - weeks), *f);
-            _eeprom.update_file(file_snapshot, snapshot);
+        _eeprom.read_file(fdofs, dd.feeder);
+        _eeprom.read_file(fdlofs, dd.feeder_low);
+        _eeprom.read_file(flofs, dd.fuel);
+        _eeprom.read_file(errofs, dd.errors);
+        _eeprom.read_file(cntofs, dd.controls);
+
+        if (fn(pos, dd)) {
+            _eeprom.update_file(fdofs, dd.feeder);
+            _eeprom.update_file(fdlofs, dd.feeder_low);
+            _eeprom.update_file(flofs, dd.fuel);
+            _eeprom.update_file(errofs, dd.errors);
+            _eeprom.update_file(cntofs, dd.controls);
         }
+
+    }
+
+    void record_day_stats(uint16_t day) {
+        if (snapshot.day_number == day) return;
+
+        auto build_half = [](uint16_t a, uint16_t b) {
+            if (a > 0xE) a = 0xF;
+            if (b > 0xE) b = 0xF;
+            return (static_cast<uint8_t>(a) << 4) | static_cast<uint8_t>(b);
+        };
+        auto build_fdr = [](uint32_t a, uint32_t b) -> uint8_t {
+            if (a < b) return 0;
+            auto diff = a - b;
+            diff >>= 7;
+            if (diff > 0xFF) diff = 0xFF;
+            return static_cast<uint8_t>(diff);
+        };
+        auto restore_fdr = [](uint32_t a, uint8_t diff) {
+            return a + static_cast<uint32_t>(diff << 7);
+        };
+
+        manage_day_stats(day, [&](
+                auto pos, AllDailyData &dd) {
+
+
+            dd.feeder._days[pos] = build_fdr(runtm.feeder , snapshot.feeder);
+            dd.feeder_low._days[pos] = build_fdr(runtm.feeder_low , snapshot.feeder_low);
+            dd.fuel._days[pos] = static_cast<uint8_t>(std::min<uint32_t>(0xFF,tray.fuel_kg_accum - snapshot.fuel_kg));
+            dd.errors._days[pos] = build_half(cntr.overheat_count- snapshot.overheat_count,
+                                              cntr.therm_failure_count - snapshot.therm_fail_count);
+            dd.controls._days[pos] = build_half(cntr.manual_control_count- snapshot.manual_count,
+                                              cntr.restart_count - snapshot.restart_count);
+
+            snapshot.day_number = day;
+            snapshot.feeder = restore_fdr(snapshot.feeder, dd.feeder._days[pos]);
+            snapshot.feeder_low = restore_fdr(snapshot.feeder_low, dd.feeder_low._days[pos]);
+            snapshot.fuel_kg = tray.fuel_kg_accum;
+            snapshot.manual_count = cntr.manual_control_count;
+            snapshot.overheat_count = cntr.overheat_count;
+            snapshot.restart_count = cntr.restart_count;
+            snapshot.therm_fail_count = cntr.therm_failure_count;
+
+            _eeprom.update_file(file_snapshot, snapshot);
+            return true;
+        });
+    }
+
+    Snapshot read_day_stats(uint16_t day) {
+        Snapshot r;
+        manage_day_stats(day,[&](int pos,const AllDailyData &dd){
+
+            r.day_number = day;
+            r.feeder = static_cast<uint32_t>(dd.feeder._days[pos])<<7;
+            r.feeder_low = static_cast<uint32_t>(dd.feeder_low._days[pos])<<7;
+            r.fuel_kg = static_cast<uint16_t>(dd.fuel._days[pos]);
+            r.manual_count = static_cast<uint16_t>(dd.controls._days[pos]>>4);
+            r.restart_count = static_cast<uint16_t>(dd.controls._days[pos] & 0xF);
+            r.overheat_count = static_cast<uint16_t>(dd.errors._days[pos]>>4);
+            r.therm_fail_count = static_cast<uint16_t>(dd.errors._days[pos] & 0xF);
+
+            return false;
+        });
+        return r;
     }
 
     int32_t calc_remaining_fuel() const {
         int32_t cur_time = tray.feeder_time_accum + (runtm.feeder - tray.feeder_time_last_fill);
         int32_t speed = tray.feeder_speed;
-        int32_t remain = tray.initial_fill_adj + tray.feeder_time_accum - cur_time / speed;
+        int32_t remain = tray.initial_fill_adj + tray.fuel_kg_accum - cur_time / speed;
         return remain;
     }
 
@@ -180,7 +239,7 @@ public:
         int32_t capacity = static_cast<int32_t>(config.tray_kg);
         if (tray.feeder_time_last_fill == 0) {
             tray.feeder_time_last_fill = runtm.feeder;
-            tray.initial_fill_adj = kg;
+            tray.initial_fill_adj += kg;
             tray.feeder_time_accum = 0;
             tray.fuel_kg_accum = 0;
         } else {
@@ -195,7 +254,7 @@ public:
             if (remain + kg > capacity) {
                 tray. initial_fill_adj -= remain + kg - capacity;
             }
-            int32_t calc_speed = tray.feeder_time_accum / tray.fuel_kg_accum;
+            int32_t calc_speed = std::max<int32_t>(1,tray.feeder_time_accum / tray.fuel_kg_accum);
             calc_speed = (calc_speed * 3 + tray.feeder_speed)/4;
             tray.feeder_speed = static_cast<uint16_t>(calc_speed);
         }
