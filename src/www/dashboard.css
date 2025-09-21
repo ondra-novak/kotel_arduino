@@ -2,7 +2,7 @@
     display: flex;
     flex-wrap: wrap;
     justify-content: space-evenly;
-    padding: 3em 0;
+    padding: 3em 0 1em 0;
 }
 .dashboard .grid > * {
     margin: 0.1em;
@@ -95,3 +95,37 @@
 .dashboard .bottom svg {
     width: 2rem;
 }
+.dashboard .mcp {
+    max-width: 21rem;
+    border: 1px solid;
+    margin: auto;
+    text-align: center;
+}
+.dashboard .mcp > div.cntrbt {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.dashboard .mcp > div.cntrbt > *{
+    flex-grow: 1;
+    background-color: #444;
+    padding: 1.1rem 0;
+    border-radius: 1rem;
+    cursor: pointer;
+}
+.dashboard .mcp > div.cntrbt > *.active {
+    background-color:#477f30;
+    color: yellow;
+    font-weight: bold;
+}
+.dashboard .mcp > div.cntrbt > *.pending{
+    background-color:black;
+    font-weight: bold;
+}
+
+.dashboard .slider > input {
+    height: 3rem;
+    width: 90%;
+    max-width: none;
+}
+    

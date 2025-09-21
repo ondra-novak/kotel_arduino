@@ -32,6 +32,7 @@ class Dashboard {
     #ws = new WebSocketExchange();
     #status = new Status(this.#ws);
     #flds = null;
+    #fnss = null;
     #menu = new MenuSettings();
 
     #store_config(cfg) {
@@ -77,6 +78,16 @@ class Dashboard {
             flds.cntr.feeder = !!parseInt(st.fd);
             flds.cntr.fan = !!parseInt(st.fn);
             flds.netfail = false;
+            flds.man = st.m == "1";
+            flds.pump_active = !parseInt(st.p) ?"":"active";
+            flds.fdr_active = !parseInt(st.fd)?"":"active";
+            flds.fan_active = !parseInt(st.fn)?"":"active";
+            const fnsp =this.#status.get_controls().fns;;
+            if (fnsp != this.#fnss) {
+                flds.fanpct =  fnsp;
+                this.#fnss = fnsp;
+            }
+
         } else {
             flds.netfail = true;
         }
@@ -213,6 +224,25 @@ fd.initf=0
                 case 5: return configureNetwork(cfgexchange);
                 case 6: return bindConfig(this.#ws);
             }
+        });
+        f.on("fdr","click", ()=>{
+            const cntrs = this.#status.get_controls();
+            cntrs.fdt = cntrs.fdt?0:2;
+            this.#flds.fdr_active = "pending";
+        });
+        f.on("fan","click", ()=>{
+            const cntrs = this.#status.get_controls();
+            cntrs.fnt = cntrs.fnt?0:2;
+            this.#flds.fan_active = "pending";
+        });
+        f.on("pump","click", ()=>{
+            const cntrs = this.#status.get_controls();
+            cntrs.fcp = cntrs.fcp?0:1;
+            this.#flds.pump_active = "pending";
+        });
+        f.on("fanpct","change",()=>{
+            const cntrs = this.#status.get_controls();
+            cntrs.fns = this.#flds.fanpct;
         });
     }
 }
