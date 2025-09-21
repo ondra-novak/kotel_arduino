@@ -32,6 +32,7 @@ async function configureThermometer(target, cur_cfg) {
 async function configureOutputTherm(cfgobj) {
     const f = ModalDialog.load("configOutputTherm");
     const cfg = cfgobj.get();
+    const newcfg = {};
     const flds = f.get_fields();
     flds.tout = cfg.tout;
     flds.tlsf = cfg.tlsf;
@@ -42,15 +43,15 @@ async function configureOutputTherm(cfgobj) {
             kalib: cfg.tsoutcalib60,                
         })
         if (r) {
-            cfg.tsoutaddr = r.hwaddr;
-            cfg.tsoutcalib60 = r.kalib;
+            newcfg.tsoutaddr = r.hwaddr;
+            newcfg.tsoutcalib60 = r.kalib;
         }
     });
     f.on("bok","click",async ()=>{
-        cfg.tout = flds.tout;
-        cfg.tlsf = flds.tlsf;
-        if (!isNaN(flds.touts)) cfg.touts = (flds.touts * 6).toFixed(0);
-        await Promise.resolve(cfgobj.set(cfg));
+        newcfg.tout = flds.tout;
+        newcfg.tlsf = flds.tlsf;
+        if (!isNaN(flds.touts)) newcfg.touts = (flds.touts * 6).toFixed(0);
+        await Promise.resolve(cfgobj.set(newcfg));
         f.close(true);
     })
     return f.do_modal("bst");
@@ -60,6 +61,7 @@ async function configureOutputTherm(cfgobj) {
 async function configureInputTherm(cfgobj) {
     const f = ModalDialog.load("configInputTherm");
     const cfg = cfgobj.get();
+    const newcfg = {};
     const flds = f.get_fields();
     flds.tlow = cfg.tlow;
     flds.tfull = cfg.tfull;
@@ -70,15 +72,15 @@ async function configureInputTherm(cfgobj) {
             kalib: cfg.tsincalib60,                
         })
         if (r) {
-            cfg.tsinaddr = r.hwaddr;
-            cfg.tsincalib60 = r.kalib;
+            newcfg.tsinaddr = r.hwaddr;
+            newcfg.tsincalib60 = r.kalib;
         }
     });
     f.on("bok","click",async ()=>{
-        cfg.tlow = flds.tlow;
-        cfg.tfull = flds.tfull;
-        if (!isNaN(flds.trend)) cfg.tins = (flds.tins* 6).toFixed(0);
-        await Promise.resolve(cfgobj.set(cfg));
+        newcfg.tlow = flds.tlow;
+        newcfg.tfull = flds.tfull;
+        if (!isNaN(flds.trend)) newcfg.tins = (flds.tins* 6).toFixed(0);
+        await Promise.resolve(cfgobj.set(newcfg));
         f.close(true);
     })
     return f.do_modal("bst");

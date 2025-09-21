@@ -9,14 +9,17 @@
 async function configureTray(cfgobj) {
     const f = ModalDialog.load("trayConfig");
     const cfg = cfgobj.get();
+    const newcfg = {};
     const flds = f.get_fields();
     flds.traykg = cfg.traykg;
     flds.bgkg = cfg.bgkg;
+    flds.mjkg = cfg.hval
     f.on("bok","click",async ()=>{
-        cfg.traykg = flds.traykg;
-        cfg.bgkg = flds.bgkg;
-        await Promise.resolve(cfgobj.set(cfg));
-        f.close(f.get(["addkg","addbag"]));
+        newcfg.traykg = flds.traykg;
+        newcfg.bgkg = flds.bgkg;
+        newcfg.hval = flds.mjkg;
+        await Promise.resolve(cfgobj.set(newcfg));
+        f.close(f.get(["fuel","unit"]));
     })
     return f.do_modal("bst");
 }

@@ -8,6 +8,7 @@ class WebSocketExchange {
     #pingtm = -1;
     #token = "";
     #ip = false;
+    #rcnn = false;
     #opentm = null;
     onconnect = function() { };
     ontokenreq = function() {return "";};
@@ -56,8 +57,12 @@ class WebSocketExchange {
             this.#promises = {};
             this.#ws.close();
             this.#ws = null;
+            this.#rcnn = true;
             clearTimeout(this.#pingtm);
-            setTimeout(() => this.flush(), 1000);
+            setTimeout(() => {
+                this.#rcnn = false;
+                this.flush();
+            }, 1000);
         }
     }
 
@@ -78,6 +83,8 @@ class WebSocketExchange {
     }
     
     flush() {
+        if (this.#rcnn) return;
+        if (this.#tosend.length == 0) return;
         if (!this.#ws) {
             let uri = location.href.replace(/^http/, "ws").replace(/(.*)\/.*$/,"$1/") + "api/ws?token="+this.#token;
             this.#ws = new WebSocket(uri);

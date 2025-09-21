@@ -1,0 +1,39 @@
+<template id="netConfig" class="netConfig">
+    <x-title>Nastavení WiFi<button data-name="bst">x</button></x-title>
+    <x-form>
+        <label><span>Přístupový bod</span><input type="text" data-name="ap"></label>
+        <label><span>Heslo</span><input type="text" data-name="pwd"></label>
+        <x-section title="Okolní sítě">
+            <div class="middle">
+                <button data-hide="found" data-name="scan">Vyhledat</button>
+                <button data-hide="!found" data-name="scan">Obnovit</button>
+                <table>
+                    <tr data-key="idx" data-name="list">
+                        <td data-name="ssid"></td>
+                        <td data-name="encr"></td>
+                        <td data-name="sign"></td>
+                    </tr>
+                </table>
+            </div>
+        </x-section>
+    </x-form>
+    <x-buttons>
+        <button class="left" data-name="adv">Nastavení sítě</button>
+        <button data-name="bok">OK</button>
+        <button data-name="bst">Storno</button>
+    </x-buttons>    
+</template>
+<template id="netSettings" class="netSettings">
+    <x-title>Nastavení sítě<button data-name="bst">x</button></x-title>
+    <x-form>
+        <label><span>Statická IP Adresa</span><x-ipinput data-name="ipaddr"></x-ipinput></label>
+        <label><span>Adresa DNS</span><x-ipinput data-name="dns"></x-ipinput></label>
+        <label><span>Výchozí brána</span><x-ipinput data-name="gateway"></x-ipinput></label>
+        <label><span>Maska sítě</span><x-ipinput data-name="mask"></x-ipinput></label>
+    </x-form>
+    <x-buttons>
+        <button data-name="bok">OK</button>
+        <button data-name="bst">Storno</button>
+    </x-buttons>    
+
+</template>

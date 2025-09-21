@@ -1,0 +1,31 @@
+.netConfig {
+    width: 20rem;
+}
+.netConfig table {
+    width: 100%;
+    text-align: left;
+}
+
+.netConfig table td:last-child {
+    text-align: right;
+}
+
+
+.netConfig table td {
+    height: 1.5em;
+}
+
+.netConfig .middle {
+    text-align:center;
+}
+
+.netConfig table tr:hover td {
+    background-color: #444;
+    cursor:pointer;
+}
+.netSettings x-ipinput {
+    width: 12rem;
+}
+.netSettings x-ipinput > input {
+    font-size: 0.95rem;
+}

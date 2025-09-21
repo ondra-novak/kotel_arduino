@@ -27,13 +27,14 @@ FormView.controls["X-HEADERSTATUS"] = class extends FormViewControl {
         automode:0,
         op:0,
         netok:false,
-        simul:false
+        simul:false,
+        op_pend: false
     },(v)=>{
-        this.#fields.devicedate = v.devicetime.toLocaleDateString();
+        this.#fields.devicedate = v.devicetime.toLocaleDateString(undefined, { day: 'numeric', month: 'numeric' });
         this.#fields.devicetime = v.devicetime.toLocaleTimeString();
-        this.#fields.stav = `stav op${v.op} mode${v.mode} automode${v.automode}`;
+        this.#fields.stav = `stav op${v.op} mode${v.mode} automode${v.automode} ${v.op_pend?"pend":""}`;
         this.#fields.simul = v.simul;
-        this.#fields.netok = v.netstatus;
+        this.#fields.netok = v.netok;
     });
 
     on(ev, fn ){

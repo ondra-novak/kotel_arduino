@@ -86,7 +86,7 @@ class Status {
         try {
              resp = await this.#ws.send_request(WsReqCmd.set_config,buildRequest(cfg));
         } catch (e) {
-            console.warn(e);
+            console.warn(e);            
             return this.set_config(cfg);
         }
         if (resp) throw new Error(`Failed to set config: ${resp}`);

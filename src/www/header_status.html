@@ -1,12 +1,15 @@
 <template id="headerStatus">
     <div class="headerStatus">
-        <div class="header" data-classlist="netok">
-            <div data-name="devicedate"></div>
-            <span>Kotel</span>
-            <div data-name="devicetime"></div>
+        <div class="header" >
         </div>
         <div class="stav" data-attr="class=stav">
-            <div data-name="prepnout_rezim"></div>
+            <div class="netstate" ></div>
+            <div class="datetime">
+                <div data-name="devicetime"></div>
+                <div data-name="devicedate"></div>
+            </div>
+            <div class="automode" data-classlist="netok"></div>
+            <div data-name="prepnout_rezim" class="mode"></div>
         </div>
         <div class="varovani" hidden="hidden" data-hide="!simul">POZOR: Simulovaná teplota, pouze test!!!</div>
     </div>

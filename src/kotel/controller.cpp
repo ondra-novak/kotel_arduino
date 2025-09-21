@@ -293,7 +293,8 @@ bool Controller::config_update(std::string_view body, std::string_view &&failed_
                 || update_settings(wifi_ssid_table, _storage.wifi_ssid, key, value)
                 || update_settings(wifi_password_table, _storage.wifi_password, key, value)
                 || update_settings(wifi_netcfg_table, _storage.wifi_config, key, value)
-                || update_settings(pair_sectet_table, _storage.pair_secret, key, value);
+                || update_settings(pair_sectet_table, _storage.pair_secret, key, value)
+                || update_settings(tray_table_2, _storage.tray, key, value);
 
         if (!ok) {
             failed_field = key;
@@ -462,6 +463,27 @@ void Controller::handle_server(MyHttpServer::Request &req) {
             _server.send_simple_header(req, Ctx::text);
             _list_temp_async.emplace(std::move(*req.client));
             return;
+        }
+    } else if (req.request_line.path == "/api/scan_wifi") {
+        if (req.request_line.method == HttpMethod::POST) {
+            _server.error_response(req, 202, {});
+            req.client->stop();
+            _fan.stop();
+            _feeder.stop();
+            _network.begin_scan();
+            return;
+        } else if (req.request_line.method == HttpMethod::GET) {
+            NetworkControl::ScanResultItem items[32];
+            static_buff.clear();
+            auto cnt = _network.get_scan_results(items, 32);
+            for (std::size_t i = 0; i < cnt; ++i) {
+                print(static_buff, items[i].rssi,",",
+                        items[i].encryption,",",
+                        items[i].ssid,"\n");
+            }
+            _server.send_file(req,Ctx::text,static_buff.get_text(), false);
+        } else {
+            _server.error_response(req,400,{});
         }
     } else if (req.request_line.path == "/api/code" && req.request_line.method == HttpMethod::POST) {
         if (req.body.empty()) {

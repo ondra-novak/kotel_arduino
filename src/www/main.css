@@ -7,6 +7,7 @@ html {
 
 body {
     margin:0;
+    overflow-x: hidden;
 }
 
 input, select, textarea {
@@ -139,7 +140,6 @@ label[data-unit]::after, label[data-unit]::before {
     pointer-events: none;
     color: wheat;
     z-index:20;
-    background-color: black;
 }
 label[data-unit=s]::after { content:"s";}
 label[data-unit=m]::after { content:"m";}
@@ -156,6 +156,25 @@ label[data-unit=skg]::before {content:"s";font-size:0.8em;top: 0.4em;width:  1em
 
 x-form {
     display:block;
+}
+
+x-section {
+    display:block;
+    border: 2px groove #f5deb37d;
+    margin: 1rem;
+    padding: 1rem;
+    position:relative;
+}
+
+x-section::before {
+    content: attr(title);
+    display: block;
+    position:absolute;
+    left: 0.5rem;
+    top: -0.5rem;
+    background-color: black;
+    padding: 0 0.2rem;
+    font-weight: bold;
 }
 
 .error {

@@ -1,0 +1,13 @@
+<template id="advConfig" class="advConfig">
+    <x-title>Nastavení výkonu<button data-name="bst">x</button></x-title>
+    <x-form>
+        <label data-unit="skg"><span>Rychlost podavače (spočítáno)</span><input type="number" data-name="speed" min="1" max="65535"></label>
+        <label><span>Faktor nelinearity ventilátoru</span><input type="number" data-name="fannc" min="0.1" max="5"></label>
+        <label><span>Intenzita zobrazení</span><input type="number" data-name="dspli" min="0" max="15"></label>
+    </x-form>
+    <x-buttons>
+        <button data-name="rst" class="left">Restartovat</button>
+        <button data-name="bok">OK</button>
+        <button data-name="bst">Storno</button>
+    </x-buttons>    
+</template>

@@ -1,11 +1,18 @@
 <template id="trayConfig">
     <x-title>Nastavení zásobníku<button data-name="bst">x</button></x-title>
     <x-form>
+        <label data-unit="mjkg"><span>Výhřevnost paliva</span><input type="number" data-name="mjkg" step="0.1" min="0" max="25.5"></label>
         <label data-unit="kg"><span>Maximální naložení zásobníku</span><input type="number" data-name="traykg" min="1" max="255"></label>
         <label data-unit="kg"><span>Hmotnost jednoho pytle</span><input type="number" data-name="bgkg"  min="1" max="255"></label>            
         <hr>
-        <label data-unit="kg"><span>Přidat palivo</span><input type="number" data-name="addkg" min="-120" max="+120"></label>
-        <label data-unit="bg"><span>Přidat palivo (pytle) </span><input type="number" data-name="addbag" min="-120" max="120"></label>
+        <label><span>Přidat palivo</span><div>            
+            <input type="number" data-name="fuel" min="-120" max="+120">
+            <select data-name="unit" size="1">
+                <option>pytel</option>
+                <option>kg</option>
+            </select>
+        </div>
+        </label>        
     </x-form>
     <x-buttons>
         <button data-name="bok">Ok</button><button data-name="bst">Storno</button>

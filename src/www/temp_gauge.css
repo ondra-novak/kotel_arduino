@@ -14,13 +14,14 @@ x-tempgauge {
     height: 1em;
     border-radius: 1em;
     position: relative;
+    overflow: hidden;
 }
 
 .tempGauge .label {
     position:absolute;
     left:0;
     right: 0;
-    font-size: 0.13em;
+    font-size: 0.1em;
     z-index: 1;
 }
 
