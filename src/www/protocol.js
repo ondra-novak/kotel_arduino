@@ -3,7 +3,6 @@ const  WsReqCmd = {
     set_fuel : 'f',
     get_config : 'C',
     set_config : 'S',
-    failed_config : 'F',
     get_stats : 'T',
     ping : 'p',
     enum_tasks : '#',
@@ -11,7 +10,8 @@ const  WsReqCmd = {
     unpair_all :'U',
     reset : '!',
     clear_stats : '0',
-    monitor_cycle : 'm'
+    monitor_cycle : 'm',
+    history : 'h'
 };
 
 function parseResponse(data) {

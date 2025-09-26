@@ -33,11 +33,7 @@ public:
     static constexpr int manual_run_interval_ms = 120000;
     static constexpr int feeder_min_press_interval_ms = 150;
     static constexpr int fan_speed_change_step = 20;
-#ifdef EMULATOR
-    static constexpr int day_length_seconds = 60;
-#else
     static constexpr int day_length_seconds = 24*60*60;
-#endif
 
     enum class DriveMode {
         unknown,
@@ -126,7 +122,14 @@ public:
         uint8_t fan;
     };
 
+    struct HistoryRequest {
+        uint16_t day_from = 0;
+        uint16_t day_to = 0;
+        static HistoryRequest from(std::string_view str);
+    };
+
     StatusOut status_out() const;
+    void history_out(const HistoryRequest &req, Print &out);
 
 
     void handle_server(MyHttpServer::Request &req);
@@ -208,15 +211,14 @@ protected:
         set_fuel = 'f',
         get_config = 'C',
         set_config = 'S',
-        failed_config = 'F',
         get_stats = 'T',
         ping = 'p',
         generate_code = 'G',
         unpair_all ='U',
         reset = '!',
         clear_stats = '0',
-        monitor_cycle = 'm'
-
+        monitor_cycle = 'm',
+        history = 'h'
 
     };
 
@@ -240,6 +242,9 @@ protected:
     //void update_time();
     void init_serial_log();
 
+#ifdef EMULATOR
+    void prepare_history_mockup();
+#endif
 
 
 };

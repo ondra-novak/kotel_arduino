@@ -15,7 +15,32 @@ extern std::string www_path;
 
 #define ENABLE_VDT 1
 
+#ifdef EMULATOR
+#include <random>
+// Funkce pro generování mock dat spotřeby
+template <typename OutFn>
+void generateConsumptionData(
+    OutFn out,
+    int days = 360,           // počet dnů
+    int baseValue = 20,       // výchozí hodnota
+    int maxDelta = 1,         // maximální odchylka nahoru/dolů
+    unsigned seed = std::random_device{}() // seed pro RNG
+) {
+    std::mt19937 rng(seed);
+    std::uniform_int_distribution<int> dist(-maxDelta, maxDelta);
+
+    int value = baseValue;
+    for (int i = 0; i < days; ++i) {
+        out(value);
+        int delta = dist(rng);
+        value = std::max(0, value + delta); // nesmí být záporné
+    }
+}
+#endif
+
+
 namespace kotel {
+
 
 
 
@@ -36,7 +61,6 @@ Controller::Controller()
             &_motoruntime, &_auto_drive_cycle, &_network,
             &_read_serial, &_refresh_wdt, &_keyboard_scanner, &_daily_log})
 {
-
 }
 
 void Controller::begin() {
@@ -221,7 +245,11 @@ static constexpr std::pair<const char *, uint8_t Controller::StatusOut::*> statu
         {"p",&Controller::StatusOut::pump},
         {"fd",&Controller::StatusOut::feeder},
         {"fn",&Controller::StatusOut::fan}
+};
 
+static constexpr std::pair<const char *, uint16_t Controller::HistoryRequest::*> history_table[] = {
+        {"from", &Controller::HistoryRequest::day_from},
+        {"to", &Controller::HistoryRequest::day_to},
 };
 
 static int16_t encode_temp(std::optional<float> v) {
@@ -235,6 +263,11 @@ static int16_t encode_temp(std::optional<float> v) {
 Controller::ManualControlStruct Controller::ManualControlStruct::from(std::string_view str) {
     ManualControlStruct out;
     update_settings_fd(out, str, man_control_table_1, man_control_table_2);
+    return out;
+}
+Controller::HistoryRequest Controller::HistoryRequest::from(std::string_view str) {
+    HistoryRequest out;
+    update_settings_fd(out, str, history_table);
     return out;
 }
 
@@ -413,6 +446,18 @@ IPAddress Controller::get_local_ip() const {
     return _network.get_local_ip();
 }
 
+void Controller::history_out(const HistoryRequest &req, Print &out) {
+    for (uint16_t i = req.day_from; i < req.day_to; ++i) {
+        auto snp = _storage.read_day_stats(i);
+        char day[20];
+        day_to_date(i, day, sizeof(day));
+        print(out, day, ",", snp.feeder, ",",
+               snp.feeder_low, ",", snp.fuel_kg, ",",
+               snp.overheat_count,",", snp.therm_fail_count,",",
+               snp.restart_count,",", snp.manual_count,"\n");
+    }
+
+}
 
 
 #ifdef EMULATOR
@@ -534,20 +579,11 @@ void Controller::handle_server(MyHttpServer::Request &req) {
             _server.error_response(req,400,{});
         }
     } else if (req.request_line.path == "/api/history" && req.request_line.method == HttpMethod::GET) {
-        auto last_day = _storage.snapshot.day_number;
-        auto first_day = last_day - graph_files * eeprom_sector_size + 1;
+        uint16_t last_day = _storage.snapshot.day_number+1;
+        uint16_t first_day = last_day - graph_files * eeprom_sector_size;
         _server.send_simple_header(req, "text/csv", -1,false,"");
         print(*req.client, "Datum,Podavac,Podavac uspoarne, Plneni, Prehrati, Chyba teplomeru, Restart, Rucni rezim\n");
-        for (uint16_t i = first_day; i <= last_day; ++i) {
-            auto snp = _storage.read_day_stats(i);
-            char day[20];
-            day_to_date(i, day, sizeof(day));
-            print(*req.client, day, ",", snp.feeder, ",",
-                   snp.feeder_low, ",", snp.fuel_kg, ",",
-                   snp.overheat_count,",", snp.therm_fail_count,",",
-                   snp.restart_count,",", snp.manual_count,"\n");
-        }
-
+        history_out({first_day, last_day}, *req.client);
     } else if (req.request_line.path == "/") {
         _server.send_file_async(req, HttpServerBase::ContentType::html, embedded_index_html, true, embedded_index_html_etag);
 #ifdef EMULATOR
@@ -742,6 +778,11 @@ void Controller::handle_ws_request(MyHttpServer::Request &req)
         manual_control(m);
         status_out(static_buff);
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
+        break;
+    }
+    case WsReqCmd::history: {
+        auto hr = HistoryRequest::from(msg);
+        history_out(hr, static_buff);
         break;
     }
     case WsReqCmd::reset:
@@ -954,9 +995,46 @@ TimeStampMs Controller::run_keyboard(TimeStampMs cur_time) {
 
 TimeStampMs Controller::daily_log(TimeStampMs ) {
     if (!is_time_synced()) return 1000;
-    auto dnum = get_current_time()/day_length_seconds;
+#ifdef EMULATOR
+    prepare_history_mockup();
+#endif
+    //-1 - because day is recorded at beginning of new day
+    auto dnum = get_current_time()/day_length_seconds-1;
     _storage.record_day_stats(static_cast<uint16_t>(dnum));
     return std::min(60000,day_length_seconds *1000);
 }
+
+#ifdef EMULATOR
+void Controller::prepare_history_mockup() {
+    if (_storage.snapshot.day_number == 0) {
+        auto dnum = get_current_time()/day_length_seconds-1;
+        std::mt19937 rng(0);
+        int feeder = 30;
+        int feeder_low = 10;
+        int fill = 0;
+        for (int i = 0; i < 360; ++i) {
+            _storage.manage_day_stats(i-360+dnum+1, [&](int pos, Storage::AllDailyData &dd){
+                dd.feeder._days[pos] = feeder;
+                dd.feeder_low._days[pos] = std::min(feeder_low, feeder);
+                std::uniform_int_distribution<int> dist(-10, 10);
+                std::uniform_int_distribution<int> fdist(150, 225);
+                std::uniform_int_distribution<int> f0dist(5, 10);
+                feeder = std::clamp(feeder + dist(rng)/8, 5, 60);
+                feeder_low = std::clamp(feeder_low + dist(rng)/8, 5, 60);
+                if (f0dist(rng) < fill) {
+                    dd.fuel._days[pos] = fdist(rng);
+                    fill=0;
+                } else {
+                    dd.fuel._days[0] = 0;
+                    ++fill;
+                }
+                return true;
+            });
+        }
+        _storage.snapshot.day_number = dnum;
+    }
+}
+#endif
+
 
 }
