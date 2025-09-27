@@ -1,0 +1,64 @@
+.dailyChart {
+    width: 100%;
+}
+
+.dailyChart .main {
+    position: relative;
+    padding-left: 5vh;
+}
+
+.dailyChart .main > div{overflow-x: auto;overflow-y:hidden;height: 80vh;box-sizing: border-box;}
+
+.dailyChart .main > svg{
+    position: absolute;
+    left: 0;
+    height: 100%;
+    box-sizing: border-box;
+}
+.dailyChart .main > div > svg {
+    height: 100%;
+}
+.dailyChart .f {
+    stroke: white;
+    stroke-width: 2px;
+    fill: none;
+}
+.dailyChart .fu {
+    fill: #00ff2261;
+}
+.dailyChart .fl {
+    fill: #fff4;
+    stroke: #fff36e;
+}
+.dailyChart .l {fill: none;stroke: wheat;stroke-dasharray: 3;}
+.dailyChart .d {fill: none;stroke: wheat;stroke-dasharray: 3;}
+.dailyChart .lbb{
+    fill: wheat;
+    transform: translate(0, 1em);
+    text-anchor: middle;
+}
+.dailyChart .flbl{
+    fill: wheat;
+    font-size: 0.7em;
+    text-anchor:middle;
+}
+.dailyChart .lbl{
+    fill: wheat;
+    text-anchor: end;
+    transform: translate(0,0.3em);
+}
+
+.dailyChart .e1 {
+    fill: #ff0000;
+}
+.dailyChart .e2 {
+    stroke: red;
+    fill: none;
+}
+.dailyChart .c1 {
+    stroke: white;
+    fill:  none;
+}
+.dailyChart .c2 {
+    fill: #00e0ff69;
+}

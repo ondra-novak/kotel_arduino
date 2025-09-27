@@ -13,6 +13,7 @@
 //@require menu_settings.js
 //@require adv_config.js
 //@require net_config.js
+//@require chart.js
 
 
 /// <reference path="./temp_gauge.js"/>
@@ -247,6 +248,9 @@ fd.initf=0
         f.on("fanpct","change",()=>{
             const cntrs = this.#status.get_controls();
             cntrs.fns = this.#flds.fanpct;
+        });
+        f.on("chart","click",()=>{
+            openChart(this.#ws, parseInt(this.#status.get_last_config()["fd.speed"]));
         });
     }
 }

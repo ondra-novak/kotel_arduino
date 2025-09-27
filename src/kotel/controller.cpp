@@ -369,8 +369,7 @@ void Controller::status_out(Stream &s) {
 void Controller::control_pump() {
     auto t_input = _temp_sensors.get_input_temp();
     _pump.set_active(_storage.config.operation_mode == static_cast<uint8_t>(OperationMode::automatic)
-                || _force_pump || !t_input.has_value()
-                || _storage.config.lowerst_safe_temp < t_input.value());
+                || _force_pump );
 }
 
 void Controller::run_manual_mode() {
@@ -783,6 +782,7 @@ void Controller::handle_ws_request(MyHttpServer::Request &req)
     case WsReqCmd::history: {
         auto hr = HistoryRequest::from(msg);
         history_out(hr, static_buff);
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
         break;
     }
     case WsReqCmd::reset:
@@ -1008,8 +1008,8 @@ TimeStampMs Controller::daily_log(TimeStampMs ) {
 void Controller::prepare_history_mockup() {
     if (_storage.snapshot.day_number == 0) {
         auto dnum = get_current_time()/day_length_seconds-1;
-        std::mt19937 rng(0);
-        int feeder = 30;
+        std::mt19937 rng(2);
+        int feeder = 70;
         int feeder_low = 10;
         int fill = 0;
         for (int i = 0; i < 360; ++i) {
@@ -1019,14 +1019,22 @@ void Controller::prepare_history_mockup() {
                 std::uniform_int_distribution<int> dist(-10, 10);
                 std::uniform_int_distribution<int> fdist(150, 225);
                 std::uniform_int_distribution<int> f0dist(5, 10);
-                feeder = std::clamp(feeder + dist(rng)/8, 5, 60);
-                feeder_low = std::clamp(feeder_low + dist(rng)/8, 5, 60);
+                std::uniform_int_distribution<int> errd(0,40);
+                std::uniform_int_distribution<int> errv(0, 255);
+                feeder = std::clamp(feeder + dist(rng)/3, 5, 60);
+                feeder_low = std::clamp(feeder_low + dist(rng)/3, 5, 60);
                 if (f0dist(rng) < fill) {
                     dd.fuel._days[pos] = fdist(rng);
                     fill=0;
                 } else {
-                    dd.fuel._days[0] = 0;
+                    dd.fuel._days[pos] = 0;
                     ++fill;
+                }
+                if (errd(rng) == 0) {
+                    dd.errors._days[pos] = errv(rng);
+                }
+                if (errd(rng) == 0) {
+                    dd.controls._days[pos] = errv(rng);
                 }
                 return true;
             });

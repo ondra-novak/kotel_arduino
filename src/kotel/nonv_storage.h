@@ -177,21 +177,23 @@ public:
             return a + static_cast<uint32_t>(diff << 7);
         };
 
-
-        uint16_t to_clear = std::min<uint16_t>(day - (snapshot.day_number+1),360);
-        for (uint16_t i = 0; i < to_clear; ) {
-            manage_day_stats(snapshot.day_number+i,[&](auto pos, AllDailyData &dd){
-                while (pos < eeprom_sector_size && i < to_clear) {
-                    dd.feeder._days[pos] = 0;
-                    dd.feeder_low._days[pos] = 0;
-                    dd.fuel._days[pos] = 0;
-                    dd.errors._days[pos] = 0;
-                    dd.controls._days[pos] = 0;
-                    ++pos;
-                    ++i;
-                }
-                return true;
-            });
+        //don't clear if brand new
+        if (snapshot.day_number) {
+            uint16_t to_clear = std::min<uint16_t>(day - (snapshot.day_number+1),360);
+            for (uint16_t i = 0; i < to_clear; ) {
+                manage_day_stats(snapshot.day_number+i,[&](auto pos, AllDailyData &dd){
+                    while (pos < eeprom_sector_size && i < to_clear) {
+                        dd.feeder._days[pos] = 0;
+                        dd.feeder_low._days[pos] = 0;
+                        dd.fuel._days[pos] = 0;
+                        dd.errors._days[pos] = 0;
+                        dd.controls._days[pos] = 0;
+                        ++pos;
+                        ++i;
+                    }
+                    return true;
+                });
+            }
         }
 
         manage_day_stats(day, [&](
