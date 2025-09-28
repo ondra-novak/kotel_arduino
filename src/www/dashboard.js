@@ -14,6 +14,7 @@
 //@require adv_config.js
 //@require net_config.js
 //@require chart.js
+//@require stats.js
 
 
 /// <reference path="./temp_gauge.js"/>
@@ -32,6 +33,7 @@ class Dashboard {
 
     #ws = new WebSocketExchange();
     #status = new Status(this.#ws);
+    #stats = new Stats(this.#ws);
     #flds = null;
     #fnss = null;
     #menu = new MenuSettings();
@@ -92,70 +94,6 @@ class Dashboard {
         } else {
             flds.netfail = true;
         }
-        
-            
-/*
-{
-    "time": "1758205094",
-    "cntr": "0",
-    "to": "285",
-    "tao": "314",
-    "ti": "220",
-    "tai": "227",
-    "rssi": "-51",
-    "tfp": "0",
-    "tsim": "0",
-    "tis": "0",
-    "tos": "0",
-    "m": "2",
-    "am": "0",
-    "tro": "0",
-    "mto": "0",
-    "p": "1",
-    "fd": "0",
-    "fn": "60"
-}
-
-Ctout=75
-tfull=60
-tlow=65
-touts=10
-tins=10
-tlsf=55
-m=1
-fanpc=100
-tpump=55
-srlog=0
-bgkg=15
-traykg=225
-dspli=0
-hval=17.00
-fannc=2.00
-full.burnout=20
-full.fanpw=60
-full.fueling=8
-low.burnout=30
-low.fanpw=40
-low.fueling=5
-tsinaddr=01-FD-7D-45-38-FC-89-40
-tsoutaddr=02-6D-38-D9-78-EF-00-1E
-tsincalib60=0
-tsoutcalib60=0
-wifi.ssid=aaaa
-wifi.password=***
-net.ip=0.0.0.0
-net.dns=0.0.0.0
-net.gateway=0.0.0.0
-net.netmask=255.255.255.0
-fd.Et=0
-fuel.Em=0
-fd.tefp=0
-fd.open=0
-fd.lastf=0
-fd.speed=251
-fd.initf=0
-*/
-
     }
 
     #swpd = false;
@@ -181,7 +119,6 @@ fd.initf=0
         }
         this.#status.start();
         this.#update_status_cycle();
-
         const cfgexchange = {
                 get:()=>{return this.#status.get_last_config();},
                 set:(cfg)=>{return this.#status.set_config(cfg);}
@@ -251,6 +188,9 @@ fd.initf=0
         });
         f.on("chart","click",()=>{
             openChart(this.#ws, parseInt(this.#status.get_last_config()["fd.speed"]));
+        });
+        f.on("stats","click",()=>{
+            this.#stats.showDlg();
         });
     }
 }

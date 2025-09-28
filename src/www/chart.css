@@ -1,5 +1,5 @@
 .dailyChart {
-    width: 100%;
+    width: 91vw;
 }
 
 .dailyChart .main {
@@ -7,7 +7,7 @@
     padding-left: 5vh;
 }
 
-.dailyChart .main > div{overflow-x: auto;overflow-y:hidden;height: 80vh;box-sizing: border-box;}
+.dailyChart .main > div{overflow-x: auto;overflow-y:hidden;height: 85vh;box-sizing: border-box;}
 
 .dailyChart .main > svg{
     position: absolute;

@@ -55,7 +55,7 @@ async function openChart(ws /*:WebSocketExchange*/, fdspeed) {
         chart.clear();
         rulery.clear();
         const md = mdata.filter(x=>x);
-        const maxF = Math.max(...md.map(d => d.f),...md.map(d=>d.fu/10))*1.1;
+        const maxF = Math.max(5,...md.map(d => d.f),...md.map(d=>d.fu/10))*1.1;
         const multf = 480/maxF;
 
         const to_x = idx=>idx*4;
@@ -94,7 +94,7 @@ async function openChart(ws /*:WebSocketExchange*/, fdspeed) {
         });
         const maxx = to_x(md.length)
         for (let y = 0; y < maxF; y+= 5) {
-            levels.moveTo(0,to_y(y)).horizontalLineTo(maxx);
+            levels.moveTo(maxx,to_y(y)).horizontalLineTo(-maxx);
             lftlbl.add(27, to_y(y), y);
         }
         

@@ -251,6 +251,39 @@ static constexpr std::pair<const char *, uint16_t Controller::HistoryRequest::*>
         {"from", &Controller::HistoryRequest::day_from},
         {"to", &Controller::HistoryRequest::day_to},
 };
+static constexpr std::pair<const char *, uint32_t Runtime::*> stats_table_runtime[] ={
+        {"rt.feeder", &Runtime::feeder},
+        {"rt.fan", &Runtime::fan},
+        {"rt.feeder_low", &Runtime::feeder_low},
+        {"rt.full_power", &Runtime::full_power},
+        {"rt.low_power", &Runtime::low_power},
+        {"rt.cooling", &Runtime::cooling},
+        {"rt.stop_time", &Runtime::stop_time}
+};
+static constexpr std::pair<const char *, uint16_t Counters::*> stats_table_counters[] ={
+        {"cnt.feeder_overheat",&Counters::feeder_overheat_count},
+        {"cnt.tray_open",&Counters::tray_open_count},
+        {"cnt.restart",&Counters::restart_count},
+        {"cnt.overheat",&Counters::overheat_count},
+        {"cnt.therm_failure",&Counters::therm_failure_count},
+        {"cnt.fan_start",&Counters::fan_start_count},
+        {"cnt.feeder_start",&Counters::feeder_start_count},
+        {"cnt.stop",&Counters::stop_count},
+        {"cnt.manual_control",&Counters::manual_control_count}
+};
+static constexpr std::pair<const char *, uint32_t Tray::*> stats_table_tray[] ={
+        {"tray.feeder_time_accum",&Tray::feeder_time_accum},
+        {"tray.fuel_kg_accum",&Tray::fuel_kg_accum},
+        {"tray.feeder_time_enter_full_power",&Tray::feeder_time_enter_full_power},
+        {"tray.feeder_time_open_tray",&Tray::feeder_time_open_tray},
+        {"tray.feeder_time_last_fill",&Tray::feeder_time_last_fill},
+};
+static constexpr std::pair<const char *, uint16_t Tray::*> stats_table_tray2[] ={
+        {"tray.feeder_speed", &Tray::feeder_speed}
+};
+static constexpr std::pair<const char *, int16_t Tray::*> stats_table_tray3[] ={
+        {"tray.initial_fill_adj", &Tray::initial_fill_adj}
+};
 
 static int16_t encode_temp(std::optional<float> v) {
     if (v.has_value()) {
@@ -363,11 +396,18 @@ void Controller::status_out(Stream &s) {
     print_table(s, status_table_1, st);
     print_table(s, status_table_2, st);
     print_table(s, status_table_3, st);
+}
 
+void Controller::stats_out(Stream &s) {
+    print_table(s, stats_table_runtime, _storage.runtm);
+    print_table(s, stats_table_counters, _storage.cntr);
+    print_table(s, stats_table_tray, _storage.tray);
+    print_table(s, stats_table_tray2, _storage.tray);
+    print_table(s, stats_table_tray3, _storage.tray);
 }
 
 void Controller::control_pump() {
-    auto t_input = _temp_sensors.get_input_temp();
+//    auto t_input = _temp_sensors.get_input_temp();
     _pump.set_active(_storage.config.operation_mode == static_cast<uint8_t>(OperationMode::automatic)
                 || _force_pump );
 }
@@ -785,6 +825,11 @@ void Controller::handle_ws_request(MyHttpServer::Request &req)
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
         break;
     }
+    case WsReqCmd::get_stats: {
+        stats_out(static_buff);
+        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
+        break;
+    }
     case WsReqCmd::reset:
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
         delay(10000);   //delay more than 5 sec invokes WDT
@@ -795,12 +840,6 @@ void Controller::handle_ws_request(MyHttpServer::Request &req)
 }
 
 
-
-void Controller::status_out_ws(Stream &s) {
-    auto st = status_out();
-    s.write(reinterpret_cast<const char *>(&st), sizeof(st));
-
-}
 
 
 TimeStampMs Controller::read_serial(TimeStampMs) {
@@ -996,7 +1035,7 @@ TimeStampMs Controller::run_keyboard(TimeStampMs cur_time) {
 TimeStampMs Controller::daily_log(TimeStampMs ) {
     if (!is_time_synced()) return 1000;
 #ifdef EMULATOR
-    prepare_history_mockup();
+    //prepare_history_mockup();
 #endif
     //-1 - because day is recorded at beginning of new day
     auto dnum = get_current_time()/day_length_seconds-1;

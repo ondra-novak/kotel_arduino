@@ -11,7 +11,7 @@ const  WsReqCmd = {
     reset : '!',
     clear_stats : '0',
     monitor_cycle : 'm',
-    history : 'h'
+    history : 'h'    
 };
 
 function parseResponse(data) {

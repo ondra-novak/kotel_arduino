@@ -64,6 +64,7 @@ public:
 
     void config_out(Stream &s);
     void status_out(Stream &s);
+    void stats_out(Stream &s);
     bool config_update(std::string_view body, std::string_view &&failed_field = {});
     void list_onewire_sensors(Stream &s);
 
@@ -129,6 +130,7 @@ public:
     };
 
     StatusOut status_out() const;
+
     void history_out(const HistoryRequest &req, Print &out);
 
 
@@ -232,7 +234,6 @@ protected:
     void handle_ws_request(MyHttpServer::Request &req);
     void send_file(MyHttpServer::Request &req, std::string_view content_type, std::string_view file_name);
 
-    void status_out_ws(Stream &s);
     bool is_overheat() const;
     void generate_otp_code();
     std::array<char, 20> generate_token_random_code();
