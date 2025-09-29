@@ -404,6 +404,7 @@ void Controller::stats_out(Stream &s) {
     print_table(s, stats_table_tray, _storage.tray);
     print_table(s, stats_table_tray2, _storage.tray);
     print_table(s, stats_table_tray3, _storage.tray);
+    print(s,"tray.remain=",_storage.calc_remaining_fuel());
 }
 
 void Controller::control_pump() {
@@ -786,12 +787,10 @@ void Controller::handle_ws_request(MyHttpServer::Request &req)
         } else {
             static_buff.print("Parse error: number");
         }
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
     }
     break;
     case WsReqCmd::get_config: {
         config_out(static_buff);
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
     }
     break;
     case WsReqCmd::set_config: {
@@ -799,44 +798,41 @@ void Controller::handle_ws_request(MyHttpServer::Request &req)
         if (!config_update(msg, std::move(failed_field))) {
             print(static_buff, failed_field);
         }
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
     }
     break;
     case WsReqCmd::generate_code:
         generate_otp_code();
         static_buff.write(_last_code.data(), _last_code.size());
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
         break;
     case WsReqCmd::unpair_all:
         generate_pair_secret();
         gen_and_print_token();
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
         break;
     case WsReqCmd::monitor_cycle: {
         auto m = ManualControlStruct::from(msg);
         manual_control(m);
         status_out(static_buff);
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
         break;
     }
     case WsReqCmd::history: {
         auto hr = HistoryRequest::from(msg);
         history_out(hr, static_buff);
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
         break;
     }
-    case WsReqCmd::get_stats: {
+    case WsReqCmd::get_stats:
         stats_out(static_buff);
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
         break;
-    }
+    case WsReqCmd::reset_fuel:
+         _storage.reset_fuel_stats();
+         break;
     case WsReqCmd::reset:
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
         delay(10000);   //delay more than 5 sec invokes WDT
-        break;
+        return;
     default:
         break;
     }
+    _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
 }
 
 
@@ -1035,7 +1031,7 @@ TimeStampMs Controller::run_keyboard(TimeStampMs cur_time) {
 TimeStampMs Controller::daily_log(TimeStampMs ) {
     if (!is_time_synced()) return 1000;
 #ifdef EMULATOR
-    //prepare_history_mockup();
+    prepare_history_mockup();
 #endif
     //-1 - because day is recorded at beginning of new day
     auto dnum = get_current_time()/day_length_seconds-1;

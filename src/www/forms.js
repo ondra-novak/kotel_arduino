@@ -311,7 +311,7 @@ FormView.controls = {
             if (e.type === "checkbox") {
                 if (e.dataset.mask) {
                     return e.checked?parseInt(e.dataset.mask):0;                }
-                if (e.value) return Object.fromEntries([e.value, e.checked]);
+                if (e.hasAttribute("value")) return Object.fromEntries([[e.value, e.checked]]);
                 return e.checked;
             } else if (e.type === "radio") {
                 if (e.value) return e.checked?e.value:null;
@@ -322,7 +322,7 @@ FormView.controls = {
                 return e.valueAsDate;
             } else {
                 return e.value;
-            }
+            }   
         }
         set(v) {
             const e = this.element();

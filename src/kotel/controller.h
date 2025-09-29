@@ -219,6 +219,7 @@ protected:
         unpair_all ='U',
         reset = '!',
         clear_stats = '0',
+        reset_fuel = 'r',
         monitor_cycle = 'm',
         history = 'h'
 

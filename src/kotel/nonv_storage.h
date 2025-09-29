@@ -285,6 +285,14 @@ public:
         int32_t remain = calc_remaining_fuel();
         add_fuel(std::min(capacity, capacity - remain));
     }
+    void reset_fuel_stats() {
+        auto remain = std::max<int>(0,calc_remaining_fuel());
+        tray.initial_fill_adj = remain;
+        tray.feeder_time_accum = 0;
+        tray.feeder_time_last_fill = runtm.feeder;
+        tray.fuel_kg_accum = 0;
+        _eeprom.update_file(file_tray, tray);
+    }
 
 
 protected:

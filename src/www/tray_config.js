@@ -6,7 +6,7 @@
 /// <reference path="./forms.js" />
 /// <reference path="./protocol.js" />
 
-async function configureTray(cfgobj) {
+async function configureTray(cfgobj, onrst) {
     const f = ModalDialog.load("trayConfig");
     const cfg = cfgobj.get();
     const newcfg = {};
@@ -19,8 +19,14 @@ async function configureTray(cfgobj) {
         newcfg.bgkg = flds.bgkg;
         newcfg.hval = flds.mjkg;
         await Promise.resolve(cfgobj.set(newcfg));
-        f.close(f.get(["fuel","unit"]));
+        f.close(f.get(["fuel","unit","reset"]));        
     })
+    f.on("reset","click",)
     return f.do_modal("bst");
 }
 
+async function askResetFuel() {
+    const dlg =  ModalDialog.load("resetFuel");
+    dlg.on("bok","click",() => dlg.close(true));
+    return dlg.do_modal("bst");
+}

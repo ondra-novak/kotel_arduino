@@ -12,9 +12,19 @@
                 <option>kg</option>
             </select>
         </div>
-        </label>        
+        </label>
+        <label><input type="checkbox" data-name="reset"><span>Změna paliva</span></label>        
     </x-form>
     <x-buttons>
         <button data-name="bok">Ok</button><button data-name="bst">Storno</button>
+    </x-buttons>
+</template>
+<template id="resetFuel">
+    <x-title>Potvrzení změny paliva<button data-name="bst">x</button></x-title>
+    <p>Pokud došlo ke změně paliva, je třeba resetovat statistiky pro výpočet spotřeby. </p>
+    <p>Přeješ si statistiky resetovat?</p>
+    <x-buttons>
+        <button data-name="bok">Ano</button>
+        <button data-name="bst">Ne</button>
     </x-buttons>
 </template>

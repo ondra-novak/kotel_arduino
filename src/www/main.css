@@ -65,6 +65,10 @@ dialog {
     color: wheat;
 }
 
+dialog p {
+    margin: 1rem;
+}
+
 x-title {
     display:block;
     background-color: #834;
@@ -128,7 +132,7 @@ label, x-label {
     position: relative;
 }
 
-label > *:first-child, x-label > *:first-child{
+label > span, x-label > span {
     flex-grow: 1;
 }
 
