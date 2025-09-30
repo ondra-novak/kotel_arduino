@@ -308,7 +308,7 @@ Controller::HistoryRequest Controller::HistoryRequest::from(std::string_view str
 Controller::StatusOut Controller::status_out() const {
     return {
             get_current_time(),
-            _man_mode_control_id,
+            _kb_stop?0:_man_mode_control_id,
             encode_temp(_temp_sensors.get_output_temp()),
             encode_temp(_temp_sensors.get_output_ampl()),
             encode_temp(_temp_sensors.get_input_temp()),
@@ -649,7 +649,7 @@ void Controller::handle_server(MyHttpServer::Request &req) {
 
 bool Controller::manual_control(const ManualControlStruct &cntr) {
     if (_cur_mode != DriveMode::manual || _sensors.tray_open) return false;
-    if (cntr._control_id < _man_mode_control_id) return false;
+    if (cntr._control_id < _man_mode_control_id || _kb_stop) return false;
     _man_mode_control_id = cntr._control_id;
     if (cntr._fan_speed != 0xFF) {
         _fan.set_speed(cntr._fan_speed);
@@ -671,6 +671,7 @@ bool Controller::manual_control(const ManualControlStruct &cntr) {
     }
     if (cntr._force_pump != 0xFF) {
         _force_pump = cntr._force_pump != 0;
+        control_pump();
     }
     return true;
 }
@@ -978,6 +979,7 @@ TimeStampMs Controller::run_keyboard(TimeStampMs cur_time) {
                 _storage.config.operation_mode = 1;
                 stop_btn.set_user_state();
                 _storage.save();
+                _kb_stop = false;
             }
         } else {
             if (stop_btn.stabilize(default_btn_release_interval_ms)) {
@@ -986,6 +988,7 @@ TimeStampMs Controller::run_keyboard(TimeStampMs cur_time) {
                     _feeder.stop();
                     _fan.stop();
                     _storage.save();
+                    _kb_stop = true;
                 }
             }
         }

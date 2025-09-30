@@ -100,6 +100,7 @@
     border: 1px solid;
     margin: auto;
     text-align: center;
+    position: relative;
 }
 .dashboard .mcp > div.cntrbt {
     display: flex;
@@ -127,5 +128,13 @@
     height: 3rem;
     width: 90%;
     max-width: none;
+}
+.dashboard .star {
+    position:absolute;
+    right:1rem;
+    top: 1rem
+}
+.dashboard .star::after {
+    content: "★";
 }
     

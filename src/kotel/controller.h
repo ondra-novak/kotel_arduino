@@ -176,6 +176,7 @@ protected:
     bool _was_tray_open = false;
     bool _keyboard_connected = false;
     bool _fan_step_down = false;
+    bool _kb_stop = false;
 
     DriveMode _cur_mode = DriveMode::init;
     AutoMode _auto_mode = AutoMode::fullpower;
@@ -206,7 +207,7 @@ protected:
     IPAddress _my_ip;
     MyKeyboard::State _kbdstate;
     TrayChange _cur_tray_change;
-    std::uint32_t _man_mode_control_id = 0;
+    std::uint32_t _man_mode_control_id = 1;
 
     enum class WsReqCmd {
 

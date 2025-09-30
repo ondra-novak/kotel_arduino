@@ -85,6 +85,7 @@ class Dashboard {
             flds.pump_active = !parseInt(st.p) ?"":"active";
             flds.fdr_active = !parseInt(st.fd)?"":"active";
             flds.fan_active = !parseInt(st.fn)?"":"active";
+            flds.inactive = this.#status.is_man_inactive();
             const fnsp =this.#status.get_controls().fns;;
             if (fnsp != this.#fnss) {
                 flds.fanpct =  fnsp;

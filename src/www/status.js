@@ -41,10 +41,17 @@ class Status {
         }
         this.#wt = null;
         const st = this.#last;
-        this.#cur_ctr = parseInt(st.cntr);
+        const cntr = parseInt(st.cntr);
+        this.#cur_ctr = cntr;            
         const m = parseInt(st.m);
         const fn = parseInt(st.fn);
         if (m == 2 && fn > 0) this.#req.fns = fn;
+        if (m == 1 && cntr > this.#req.ctr) {
+            this.#req.fdt = 2*parseInt(st.fd);
+            this.#req.fnt = 2*parseInt(st.fn);
+            this.#req.fcp = parseInt(st.p);
+            if (this.#req.fnt) this.#req.fns = fn;
+        }
         this.run_cycle();        
     }
     start() {
@@ -60,11 +67,14 @@ class Status {
         return this.#last;
     }
     get_controls() {
-        return reactive(this.#req, ()=>{
-            if (this.#req.ctr != this.#cur_ctr) {
-                this.#req.ctr = this.#cur_ctr+1; 
-            }
+        return reactive(this.#req, ()=>{            
+            this.#req.ctr = this.#cur_ctr + 1; 
+            
         });
+    }
+
+    is_man_inactive() {
+        return this.#cur_ctr != this.#req.ctr;
     }
     
     async wait() {
