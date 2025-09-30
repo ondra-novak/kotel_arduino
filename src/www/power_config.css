@@ -1,3 +1,16 @@
 dialog.powerConfig {
     min-width: 20rem;
 }
+dialog.powerConfig .info {
+    margin-top: 1rem;
+    text-align:right;
+}
+dialog.powerConfig .info span:last-child {
+    font-weight: bold;
+}
+dialog.powerConfig .info span:last-child::before {
+    content: " ";
+}
+dialog.powerConfig .info span:last-child::after {
+    content: " kg / den";
+}

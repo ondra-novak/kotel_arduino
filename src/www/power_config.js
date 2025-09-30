@@ -21,24 +21,8 @@ function calculate_burnout(MJ_kg, s_kg, pw, at) {
     return (MJ_kg * 1000 * combustion_eff) / (s_kg * pw) * at - at;
 }
 
-function calculateCycleParams(MJ_kg, s_kg, pw, f) {
-    let berr = 1;
-    let sel = 0;
-    let ct = 0;
-    let at = 0;
-    for (let a = 5; a < 20; ++a) {
-        ct = Math.round(a/f);        
-        let pw2 = calculate_power(MJ_kg,s_kg, ct, a);
-        let err = Math.abs(pw2 - pw);
-        if (err < berr) {
-            berr = err;
-            sel = a;
-        }
-    }
-    ct = sel/f;
-    at = sel;
-    console.log(berr);
-    return [at,ct];
+function calc_consumption(speed, ft, bt) {
+    return ft/(ft+bt) * 86400 / speed;
 }
 
 function powerConfig(cfgobj) {
@@ -54,8 +38,18 @@ function powerConfig(cfgobj) {
     flds.low_fueling = cfg["low.fueling"];
     flds.low_burnout = cfg["low.burnout"];
     flds.low_fan = cfg["low.fanpw"];
-    const update_full_power = ()=>flds.full_power=calculate_power(hval, spd, flds.full_fueling+flds.full_burnout, flds.full_fueling).toFixed(0);
-    const update_low_power = ()=>flds.low_power=calculate_power(hval, spd, flds.low_fueling+flds.low_burnout, flds.low_fueling).toFixed(0);
+    const update_consuption = ()=>{
+        flds.fc = calc_consumption(spd, flds.full_fueling, flds.full_burnout).toFixed(1);
+        flds.lc = calc_consumption(spd, flds.low_fueling, flds.low_burnout).toFixed(1);
+    }
+    const update_full_power = ()=>{
+        flds.full_power=calculate_power(hval, spd, flds.full_fueling+flds.full_burnout, flds.full_fueling).toFixed(0);
+        update_consuption();
+    }
+    const update_low_power = ()=>{
+        flds.low_power=calculate_power(hval, spd, flds.low_fueling+flds.low_burnout, flds.low_fueling).toFixed(0);
+        update_consuption();
+    }
     update_full_power();
     update_low_power();
     f.on("full_fueling","change",update_full_power);
@@ -65,10 +59,12 @@ function powerConfig(cfgobj) {
     f.on("full_power","change",()=>{
         flds.full_fueling = Math.ceil(flds.full_power/2);     
         flds.full_burnout = Math.round(calculate_burnout(hval,spd, flds.full_power, flds.full_fueling));
+        update_consuption();
     });
     f.on("low_power","change",()=>{
         flds.low_fueling = Math.ceil(flds.low_power);        
         flds.low_burnout = Math.round(calculate_burnout(hval,spd, flds.low_power, flds.low_fueling));
+        update_consuption();
     });
     f.on("bok","click",async ()=>{
         newcfg["full.fueling"] = flds.full_fueling;

@@ -6,12 +6,14 @@
             <label data-unit="s" hidden data-hide="!adv"><span>Přikládání</span><input type="number" data-name="full_fueling" min="1" max="255"></label>
             <label data-unit="s" hidden data-hide="!adv"><span>Prohořívání</span><input type="number" data-name="full_burnout" min="1" max="255"></label>
             <label data-unit="pc"><span>Ventilátor</span><input type="number" data-name="full_fan"></label>
+            <div class="info"><span>Spotřeba:</span><span data-name="fc"></span></div>
         </x-section>
         <x-section title="Snížený výkon">
             <label data-unit="kw"><span>Výkon</span><input type="number" data-name="low_power" min="1" max="25" step="1"></label>
             <label data-unit="s" hidden data-hide="!adv"><span>Přikládání</span><input type="number" data-name="low_fueling" min="1" max="255"></label>
             <label data-unit="s" hidden data-hide="!adv"><span>Prohořívání</span><input type="number" data-name="low_burnout" min="1" max="255"></label>
             <label data-unit="pc"><span>Ventilátor</span><input type="number" data-name="low_fan"></label>
+            <div class="info"><span>Spotřeba:</span><span data-name="lc"></span></div>
         </x-section>                                
     </x-form>
     <x-buttons>
