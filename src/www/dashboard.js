@@ -60,6 +60,7 @@ class Dashboard {
             flds.hdr.op = parseInt(cfg.m);
             flds.ssid = cfg["wifi.ssid"];                
             if (!this.#swpd) flds.hdr.op_pend = false;
+            this.#menu.set_ver(cfg.ver);
         }
         if (st) {
             flds.hdr.devicetime =  new Date(parseInt(st.time)*1000);
@@ -167,13 +168,13 @@ class Dashboard {
         f.on("gear","click", async ()=>{
             const r = await this.#menu.open();
             switch (r) {
-                case 0: return this.fuel(cfgexchange);
-                case 1: return powerConfig(cfgexchange);
-                case 2: return configureOutputTherm(cfgexchange);
-                case 3: return configureInputTherm(cfgexchange);
-                case 4: return configureAdvanced(cfgexchange, this.#ws);
-                case 5: return configureNetwork(cfgexchange);
-                case 6: return bindConfig(this.#ws);
+                case 1: return this.fuel(cfgexchange);
+                case 2: return powerConfig(cfgexchange);
+                case 3: return configureOutputTherm(cfgexchange);
+                case 4: return configureInputTherm(cfgexchange);
+                case 5: return configureAdvanced(cfgexchange, this.#ws);
+                case 6: return configureNetwork(cfgexchange);
+                case 7: return bindConfig(this.#ws);
             }
         });
         f.on("fdr","click", ()=>{

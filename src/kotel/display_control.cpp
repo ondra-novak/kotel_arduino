@@ -468,11 +468,27 @@ void DisplayControl::draw_wifi_state( TimeStampMs cur_time) {
     }
 }
 
+template<typename T, typename Q>
+static constexpr T const_find(T from, T to,  Q c) {
+    while (from != to) if (*from == c) break; else ++from;
+    return from;
+}
+
+static constexpr std::string_view short_version(const std::string_view ver) {
+    auto iter = const_find(ver.begin(), ver.end(),'-');
+    if (iter != ver.end()) {
+        ++iter;
+        iter = const_find(iter, ver.end(),'-');
+    }
+    return ver.substr(0, std::distance(ver.begin(), iter));
+}
+
+constexpr auto shorten_version = short_version(project_version);
+
 void DisplayControl::display_version() {
-    char c[9];
-    snprintf(c,9,"v 1.%d",project_version);
     frame_buffer.clear();
-    TR::textout(frame_buffer, Matrix_MAX7219::font_6p, {0,1}, c);
+    int sz = TR::get_text_width(Matrix_MAX7219::font_6p,shorten_version.begin(), shorten_version.end());
+    TR::textout(frame_buffer, Matrix_MAX7219::font_6p, {(32-sz)/2,1}, shorten_version.begin(), shorten_version.end());
     display.display(frame_buffer, 0, 0);
     _pause_display_sec = 5;
 }

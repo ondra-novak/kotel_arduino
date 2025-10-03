@@ -4,6 +4,7 @@
 #include "web_page.h"
 #include "stringstream.h"
 #include "serial.h"
+#include "version.h"
 #include <SoftwareATSE.h>
 #include "controller_config.h"
 
@@ -342,6 +343,7 @@ void Controller::config_out(Stream &s) {
     print_table(s, tray_table, _storage.tray);
     print_table(s, tray_table_2, _storage.tray);
     print_table(s, tray_table_3, _storage.tray);
+    print(s,"ver=",project_version,"\n");
 }
 
 

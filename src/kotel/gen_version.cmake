@@ -1,5 +1,5 @@
 execute_process(
-    COMMAND git rev-list root..HEAD --count
+    COMMAND git describe --tags
     OUTPUT_VARIABLE VERSION
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )

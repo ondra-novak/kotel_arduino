@@ -20,6 +20,16 @@ ul.menuSettings > li:hover {
     background-color: #040;
     
 }
+ul.menuSettings > li[data-name=version] {
+    margin-bottom: 3px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid;
+    cursor: default;
+}
+ul.menuSettings > li[data-name=version]:hover {
+    background-color: initial;
+}
+
 ul.menuSettings > li:active {
     background-color: #444;
     
