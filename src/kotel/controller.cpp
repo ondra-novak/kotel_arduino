@@ -404,7 +404,8 @@ void Controller::stats_out(Stream &s) {
     print_table(s, stats_table_tray, _storage.tray);
     print_table(s, stats_table_tray2, _storage.tray);
     print_table(s, stats_table_tray3, _storage.tray);
-    print(s,"tray.remain=",_storage.calc_remaining_fuel());
+    print(s,"tray.remain=",_storage.calc_remaining_fuel(),"\n");
+    print(s,"eeprom_errors=", _storage.get_eeprom().get_crc_error_counter(),"\n");
 }
 
 void Controller::control_pump() {
