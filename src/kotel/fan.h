@@ -1,12 +1,13 @@
 #pragma once
 #include "nonv_storage.h"
 #include "task.h"
+#include <cmath>
 namespace kotel {
 
 class Fan: public AbstractTask {
 public:
 
-
+// (\ln(1/(-e^{t}\cdot x+e^{t}+x))+t)/t
 
     Fan(Storage &stor):_stor(stor) {}
 
@@ -20,7 +21,7 @@ public:
         if (!_running) {
             _running = true;
             resume_at(0);
-            ++_stor.cntr1.fan_start_count;
+            ++_stor.cntr.fan_start_count;
         }
     }
 
@@ -31,6 +32,20 @@ public:
 
     void set_speed(uint8_t speed) {
         _speed = speed;
+        float s = speed * 0.01;
+        float t = _stor.config.fan_nonlinear_correction.value *0.1f;
+        // (ln(1/(e^t * (1-s) + s)) + t)/t
+        float adj_speed = (std::log(1.0f/(std::exp(t)*(1-s)+s))+t)/t;
+        auto on = 8 + static_cast<unsigned int>(20.0/(adj_speed*100));
+        auto off = static_cast<unsigned int>(on/adj_speed - on);
+        auto new_off = off * 10;
+        auto new_on = on * 10;
+        if (new_off != _off_ms || new_on != _on_ms) {
+            resume_at(0);
+        }
+        _off_ms = new_off ;
+        _on_ms = new_on;
+
     }
 
 
@@ -54,21 +69,12 @@ public:
             AbstractTask::stop();
             return;
         }
-        auto pln = static_cast<unsigned int>(_stor.config.fan_pulse_count);
-        auto spd = std::max<int>(std::min<int>(_speed, 100),1);
-        pln = std::max<unsigned int>(11, pln * spd / 100);
-        if (_pulse) {
-            auto total = pln * 100 / spd;
-            auto rest = total - pln;
-            if (rest > 0)  {
-                resume_at(cur_time + rest);
-                set_active(!_pulse);
-            } else {
-                resume_at(cur_time+pln);
-            }
+        if (_pulse && _off_ms > 0) {
+            resume_at(cur_time + _off_ms);
+            set_active(false);
         } else {
-            set_active(!_pulse);
-            resume_at(cur_time+pln);
+            set_active(true);
+            resume_at(cur_time+_on_ms);
         }
     }
 
@@ -82,6 +88,8 @@ protected:
     bool _pulse = true;
     bool _running = false;
     uint8_t _speed = 100;
+    unsigned int _on_ms;
+    unsigned int _off_ms;
     TimeStampMs _stop_time = 0;
 
 

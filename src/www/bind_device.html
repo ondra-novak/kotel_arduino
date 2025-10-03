@@ -1,0 +1,38 @@
+<template id="bindDevice" class="bindDevice">
+    <x-title>Spárovat zařízení</x-title>
+    <p>Toto zařízení se musí spárovat s řídící jednotkou kotle, aby ji bylo možné
+        ovládat. 
+    </p>    
+    <div class="code">
+        <input type="text" data-name="code" maxlength="4" placeholder="kód">
+        <button data-name="bind">Spárovat</button>
+        <p class="error" data-hide="!code_error" hidden>Nesprávný kód</p>
+        <p class="error" data-hide="!send_error" hidden>Spojení přerušeno</p>
+    </div>
+    <p><strong>Kde získat kód?</strong></p>
+    <ul>
+        <li>Přímo v kotelně na obrazovce kotle 
+            <ul>
+                <li><button data-name="show">Ukázat kód v kotelně</button></li>
+                <li data-hide="!show_error" class="error" hidden>Nepodařilo se odeslat požadavek</li>
+            </ul>
+        </li>
+        <li>V jiné již spárované aplikaci v sekci "Připojení"</li>
+    </ul>
+</template>
+<template id="bindConfig" class="bindConfig">
+    <x-title>Párování<button data-name="bst">x</button></x-title>
+    <div>
+        <input data-name="code" type="text" readonly>
+        <button data-name="gen">Generovat párovací kód</button>
+        <select data-name="op">
+            <option value="0"> -- nedělej nic --</option>
+            <option value="1">Odhlásit toto zařízení</option>
+            <option value="2">Odhlásit ostatní zařízení</option>
+        </select>        
+    </div>
+    <x-buttons>
+        <button data-name="bok">Ok</button>
+        <button data-name="bst">Storno</button>
+    </x-buttons>
+</template>

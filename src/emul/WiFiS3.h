@@ -41,22 +41,11 @@ enum wl_enc_type {
 
 
 
-class CAccessPoint {
-   public:
-      std::string ssid;
-      std::string bssid;
-      uint8_t uint_bssid[6];
-      std::string rssi;
-      std::string channel;
-      std::string encryption_mode;
-};
-
-
 class CWifi {
 private:
    void _config(IPAddress local_ip, IPAddress gateway, IPAddress subnet, IPAddress dns1, IPAddress dns2);
    unsigned long _timeout;
-   std::vector<CAccessPoint> access_points;
+//   std::vector<CAccessPoint> access_points;
    std::string ssid;
    std::string apssid;
 

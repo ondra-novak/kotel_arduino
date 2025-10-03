@@ -30,6 +30,17 @@ public:
     const MyHttpServer &get_server() const {return _server;}
     const IPAddress get_local_ip() const {return _local_ip;}
 
+    struct ScanResultItem{
+        const char *ssid;
+        int32_t encryption;
+        int32_t rssi;
+    };
+
+    void begin_scan();
+    std::size_t get_scan_results(ScanResultItem *buffer, std::size_t size);
+
+
+
 protected:
 
     enum class WifiMode : uint8_t{
@@ -63,6 +74,7 @@ protected:
     uint8_t _disconnected_streak = 0;
     bool _connected = false;
     IPAddress _local_ip;
+    int8_t _scan_results = 0;
 
 
     void init_wifi();
@@ -70,7 +82,7 @@ protected:
     void init_wifi_ap();
     void stop_wifi();
 
-    void continue_init_wifi(const std::vector<CAccessPoint> &aps);
+
 
 
 };

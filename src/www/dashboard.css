@@ -1,0 +1,140 @@
+.dashboard .grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-evenly;
+    padding: 3em 0 1em 0;
+}
+.dashboard .grid > * {
+    margin: 0.1em;
+    cursor: pointer;
+}
+.dashboard  .tmax .tempGauge .min.needle::before {
+    border-color: red;
+}
+.dashboard  .tmin .tempGauge .max.needle::before {
+    border-color: lightgreen;
+}
+.dashboard .middle{
+    min-height: 100vh;
+}
+.dashboard .bottom {
+    position: fixed;
+    bottom: 0;
+    display: table;
+    border-top: 1px solid;
+    min-height: 3rem;
+    align-items: center;
+    width: 100%;
+    background-color: #444;
+    cursor: pointer;
+}
+.dashboard .bottom .net.netfail {
+    color:  #ff8080
+}
+.dashboard .bottom .net {
+    color: #9eff9e;
+    text-align: left;
+    border: none;
+}
+
+.dashboard .bottom  > * {    
+    display: table-cell;
+    vertical-align: middle;
+    border-left: 1px solid;
+    text-align: center;
+}
+.dashboard .bottom  > * > span {
+    white-space: nowrap
+}
+.dashboard .wifiicon {
+    display: inline-block;
+    font-size: 3rem;
+    width: 0.6em;
+    height: 0.5em;
+    border: 0.04em solid transparent;
+    border-top: 0.04em solid currentColor;
+    border-radius: 0.3em;
+    position: relative;
+    box-sizing: border-box;
+    margin: 0 auto -0.2em auto;
+}
+
+.dashboard .wifiicon::before {
+    box-sizing: border-box;
+    width: 0.47em;
+    height: 0.47em;
+    border: 0.04em solid transparent;
+    border-top: 0.04em solid currentColor;
+    border-radius: 0.3em;
+    position: absolute;
+    content: "";
+    top: 0.05em;
+    left:0;
+    right: 0;
+    margin: 0 auto;
+}
+.dashboard .wifiicon::after {
+    box-sizing: border-box;
+    width: 1.05em;
+    height: 1.05em;
+    border: 0.14em solid transparent;
+    border-top: 0.14em solid currentColor;
+    border-radius: 3em;
+    position: absolute;
+    content: "•";
+    left:0;
+    right: 0;
+    margin: 0 auto;
+    top: 0.48em;
+    text-align: center;
+    line-height: 0.7em;
+    vertical-align:middle;
+    font-size: 0.3em;
+}
+
+.dashboard .bottom svg {
+    width: 2rem;
+}
+.dashboard .mcp {
+    max-width: 21rem;
+    border: 1px solid;
+    margin: auto;
+    text-align: center;
+    position: relative;
+}
+.dashboard .mcp > div.cntrbt {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.dashboard .mcp > div.cntrbt > *{
+    flex-grow: 1;
+    background-color: #444;
+    padding: 1.1rem 0;
+    border-radius: 1rem;
+    cursor: pointer;
+}
+.dashboard .mcp > div.cntrbt > *.active {
+    background-color:#477f30;
+    color: yellow;
+    font-weight: bold;
+}
+.dashboard .mcp > div.cntrbt > *.pending{
+    background-color:black;
+    font-weight: bold;
+}
+
+.dashboard .slider > input {
+    height: 3rem;
+    width: 90%;
+    max-width: none;
+}
+.dashboard .star {
+    position:absolute;
+    right:1rem;
+    top: 1rem
+}
+.dashboard .star::after {
+    content: "★";
+}
+    

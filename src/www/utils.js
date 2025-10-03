@@ -12,7 +12,7 @@ function delay(millis) {
     });
 }
 
-function parse_response(text, sep = "\r\n") {
+function parse_response(text, sep = "\n") {
     return text.split(sep).reduce((obj, line) => {
         let kv = line.split('=', 2).map(x => x.trim());
         if (kv[0]) {
@@ -49,7 +49,7 @@ function encodeBinaryFrame(pattern, data) {
         let offset = 0;
         pattern.forEach(x => {
             switch (x[0]) {
-                case "uint32": if (view) view.setUInt32(offset, data[x[1]],true); offset += 4; break;
+                case "uint32": if (view) view.setUint32(offset, data[x[1]],true); offset += 4; break;
                 case "int16": if (view) view.setInt16(offset, data[x[1]],true); offset += 2; break;
                 case "uint16": if (view) view.setUint16(offset, data[x[1]],true); offset += 2; break;
                 case "uint8": if (view) view.setUint8(offset, data[x[1]],true); offset += 1; break;

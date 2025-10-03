@@ -1,0 +1,67 @@
+x-netstat {
+    display: block;
+    width: 1em;
+    height: 1em;
+    font-size: 10rem;
+    position:relative;
+}
+
+.netStat {
+    text-align: center;
+    height: fit-content;
+    margin: auto;
+    position: absolute;
+    top:0;left:0;right:0;bottom:0;    
+
+}
+
+.netStat .icon {
+    width: 0.6em;
+    height: 0.6em;
+    border: 0.04em solid transparent;
+    border-top: 0.04em solid currentColor;
+    border-radius: 0.3em;
+    position: relative;
+    box-sizing: border-box;
+    margin: 0 auto -0.2em auto;
+}
+
+.netStat .icon::before {
+    box-sizing: border-box;
+    width: 0.47em;
+    height: 0.47em;
+    border: 0.04em solid transparent;
+    border-top: 0.04em solid currentColor;
+    border-radius: 0.3em;
+    position: absolute;
+    content: "";
+    top: 0.05em;
+    left:0;
+    right: 0;
+    margin: 0 auto;
+}
+.netStat .icon::after {
+    box-sizing: border-box;
+    width: 1.05em;
+    height: 1.05em;
+    border: 0.14em solid transparent;
+    border-top: 0.14em solid currentColor;
+    border-radius: 3em;
+    position: absolute;
+    content: "•";
+    left:0;
+    right: 0;
+    margin: 0 auto;
+    top: 0.48em;
+    text-align: center;
+    line-height: 0.7em;
+    vertical-align:middle;
+    font-size: 0.3em;
+}
+.netStat .label {
+    font-size: 0.12em;
+    line-height: 1.5em;
+}
+.netStat [data-name=rssi]::after {
+    content: " dbm";
+}

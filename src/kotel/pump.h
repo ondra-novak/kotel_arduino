@@ -16,7 +16,6 @@ public:
         if (a != _active) {
             _active = a;
             if (a) {
-                ++_stor.cntr1.pump_start_count;
                 pinMode(pin_out_pump_on, active_pump);
             } else {
                 _stor.save();

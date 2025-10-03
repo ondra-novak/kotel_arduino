@@ -33,9 +33,9 @@ public:
     const char *data() const {return _buffer;}
 
     auto begin() {return data();}
-    const auto begin() const  {return data();}
+    auto begin() const  {return data();}
     auto end() {return data()+size();}
-    const auto end() const  {return data()+size();}
+    auto end() const  {return data()+size();}
 
     int send(IPAddress ip, uint16_t port, std::size_t sz) {
         return UDPClientBase::send(ip,port,{_buffer, sz});

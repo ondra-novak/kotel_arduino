@@ -79,10 +79,17 @@ uint8_t CWifi::beginAP(const char *) {
 }
 
 int8_t CWifi::scanNetworks() {
-    return 1;
+    return 8;
 }
 
-const char* CWifi::SSID(uint8_t networkItem) {
-    if (networkItem == 0) return "SimulatedAP";
-    else return nullptr;
+
+const char* CWifi::SSID(uint8_t) {
+    return "SimulatedAP";
 }
+uint8_t CWifi::encryptionType(uint8_t networkItem) {
+    return networkItem;
+}
+int32_t CWifi::RSSI(uint8_t networkItem) {
+    return - (networkItem+1)*10;
+}
+

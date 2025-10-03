@@ -33,6 +33,7 @@ public:
     static constexpr int manual_run_interval_ms = 120000;
     static constexpr int feeder_min_press_interval_ms = 150;
     static constexpr int fan_speed_change_step = 20;
+    static constexpr int day_length_seconds = 24*60*60;
 
     enum class DriveMode {
         unknown,
@@ -63,6 +64,7 @@ public:
 
     void config_out(Stream &s);
     void status_out(Stream &s);
+    void stats_out(Stream &s);
     bool config_update(std::string_view body, std::string_view &&failed_field = {});
     void list_onewire_sensors(Stream &s);
 
@@ -92,11 +94,45 @@ public:
     TrayChange get_cur_tray_change() const {return _cur_tray_change;}
 
     struct ManualControlStruct {
+        uint32_t _control_id;
         uint8_t _feeder_time = 0;
         uint8_t _fan_time = 0;
         uint8_t _fan_speed = 0;
         uint8_t _force_pump = 0xFF;
+        static ManualControlStruct from(std::string_view str);
     };
+
+    struct StatusOut {
+        uint32_t cur_time;
+        uint32_t control_id;
+        int16_t temp_output_value;
+        int16_t temp_output_amp_value;
+        int16_t temp_input_value;
+        int16_t temp_input_amp_value;
+        int16_t rssi;
+        uint8_t tray_fill_pct;
+        uint8_t temp_sim;
+        uint8_t temp_input_status;
+        uint8_t temp_output_status;
+        uint8_t mode;
+        uint8_t automode;
+        uint8_t try_open;
+        uint8_t motor_temp_ok;
+        uint8_t pump;
+        uint8_t feeder;
+        uint8_t fan;
+    };
+
+    struct HistoryRequest {
+        uint16_t day_from = 0;
+        uint16_t day_to = 0;
+        static HistoryRequest from(std::string_view str);
+    };
+
+    StatusOut status_out() const;
+
+    void history_out(const HistoryRequest &req, Print &out);
+
 
     void handle_server(MyHttpServer::Request &req);
 
@@ -110,7 +146,6 @@ struct SetFuelParams {
 
     ///for manual control, this must be called repeatedly
     bool manual_control(const ManualControlStruct &cntr);
-    bool manual_control(std::string_view body, std::string_view &&error_field);
 
 
 
@@ -130,6 +165,7 @@ protected:
     TimeStampMs auto_drive_cycle(TimeStampMs cur_time);
     TimeStampMs read_serial(TimeStampMs cur_time);
     TimeStampMs refresh_wdt(TimeStampMs cur_time);
+    TimeStampMs daily_log(TimeStampMs cur_time);
 protected:
 
 
@@ -140,6 +176,7 @@ protected:
     bool _was_tray_open = false;
     bool _keyboard_connected = false;
     bool _fan_step_down = false;
+    bool _kb_stop = false;
 
     DriveMode _cur_mode = DriveMode::init;
     AutoMode _auto_mode = AutoMode::fullpower;
@@ -161,40 +198,31 @@ protected:
     TaskMethod<Controller, &Controller::read_serial> _read_serial;
     TaskMethod<Controller, &Controller::refresh_wdt> _refresh_wdt;
     TaskMethod<Controller, &Controller::run_keyboard> _keyboard_scanner;
+    TaskMethod<Controller, &Controller::daily_log> _daily_log;
     NetworkControl _network;
-    Scheduler<10> _scheduler;
+    Scheduler<11> _scheduler;
     std::optional<TCPClient> _list_temp_async;
     StringStream<1024> static_buff;
     std::array<char, 4> _last_code;
     IPAddress _my_ip;
     MyKeyboard::State _kbdstate;
     TrayChange _cur_tray_change;
+    std::uint32_t _man_mode_control_id = 1;
 
     enum class WsReqCmd {
-        file_config = 0,
-        file_tray = 1,
-        file_util1 = 2,
-        file_cntrs1 = 3,
-        file_util2 = 4,
-        file_tempsensor = 5,
-        file_wifi_ssid = 6,
-        file_wifi_pwd = 7,
-        file_wifi_net = 8,
-        file_cntrs2 = 9,
 
-        control_status = 'c',
         set_fuel = 'f',
         get_config = 'C',
         set_config = 'S',
-        failed_config = 'F',
         get_stats = 'T',
         ping = 'p',
-        enum_tasks = '#',
         generate_code = 'G',
         unpair_all ='U',
         reset = '!',
-        clear_stats = '0'
-
+        clear_stats = '0',
+        reset_fuel = 'r',
+        monitor_cycle = 'm',
+        history = 'h'
 
     };
 
@@ -208,9 +236,6 @@ protected:
     void handle_ws_request(MyHttpServer::Request &req);
     void send_file(MyHttpServer::Request &req, std::string_view content_type, std::string_view file_name);
 
-    bool set_fuel(const SetFuelParams &sfp);
-    void status_out_ws(Stream &s);
-    std::string_view get_task_name(const AbstractTask *task);
     bool is_overheat() const;
     void generate_otp_code();
     std::array<char, 20> generate_token_random_code();
@@ -219,6 +244,11 @@ protected:
     void gen_and_print_token();
     //void update_time();
     void init_serial_log();
+
+#ifdef EMULATOR
+    void prepare_history_mockup();
+#endif
+
 
 };
 

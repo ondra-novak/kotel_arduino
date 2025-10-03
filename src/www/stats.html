@@ -1,0 +1,37 @@
+<template id="statsDlg" class="statsDlg">
+    <x-title>Statistiky<button data-name="bst">x</button></x-title>
+    <x-form>
+        <x-section title="Motohodiny">
+            <label><span>Motohodiny podavač</span><input type="text" readonly data-name="rt.feeder"></label>
+            <label><span>Motohodiny podavač (nízký výkon)</span><input type="text" readonly data-name="rt.feeder_low"></label>
+            <label><span>Motohodiny ventilátor</span><input type="text" readonly data-name="rt.fan"></label>
+        </x-section>
+        <x-section title="Režimy">
+            <label><span>Plný výkon</span><input type="text" readonly data-name="rt.full_power"></label>
+            <label><span>Nízký výkon</span><input type="text" readonly data-name="rt.low_power"></label>
+            <label><span>Útlum</span><input type="text" readonly data-name="rt.cooling"></label>
+            <label><span>Zastaveno</span><input type="text" readonly data-name="rt.stop_time"></label>
+        </x-section>
+        <x-section title="Události">
+            <label><span>Spuštění ventilátoru</span><input type="text" readonly data-name="cnt.fan_start"></label>
+            <label><span>Spuštění podavače</span><input type="text" readonly data-name="cnt.feeder_start"></label>
+            <label><span>Otevření zásobníku</span><input type="text" readonly data-name="cnt.tray_open"></label>
+            <label><span>Zastavení</span><input type="text" readonly data-name="cnt.stop"></label>
+            <label><span>Přepnutí do ručního režimu</span><input type="text" readonly data-name="cnt.manual_control"></label>
+            <label><span>Restart</span><input type="text" readonly data-name="cnt.restart"></label>
+            <label><span>Chyba teploměru</span><input type="text" readonly data-name="cnt.therm_failure"></label>
+            <label><span>Přehřátí podavače</span><input type="text" readonly data-name="cnt.feeder_overheat"></label>
+            <label><span>Přehřatí kotle</span><input type="text" readonly data-name="cnt.overheat"></label>
+            <label><span>Chyby EEPROM</span><input type="text" readonly data-name="eeprom_errors"></label>
+        </x-section>
+        <x-section title="Data pro spotřebu">
+            <label data-unit="kg"><span>Celkové palivo</span><input type="text" readonly data-name="tray.fuel_kg_accum"></label>
+            <label data-unit="kg"><span>Celkové palivo spáleno</span><input type="text" readonly data-name="feeder_fuel_kg"></label>
+            <label data-unit="skg"><span>Rychlost podavače (aktuální výpočet)</span><input type="text" readonly data-name="feeder_speed_calc"></label>
+            <label data-unit="skg"><span>Rychlost podavače (klouzavý průměr)</span><input type="text" readonly data-name="tray.feeder_speed"></label>
+            <label data-unit="kg"><span>Počáteční naložení (odhad)</span><input type="text" readonly data-name="tray.initial_fill_adj"></label>
+            <label data-unit="kg"><span>Aktuální naložení (odhad)</span><input type="text" readonly data-name="tray.remain"></label>
+            <label data-unit="kgd"><span>Spotřeba</span><input type="text" readonly data-name="avg_fuel_con"></label>
+        </x-section>
+    </x-form>
+</template>

@@ -5,6 +5,7 @@
 #include "stringstream.h"
 #include "serial.h"
 #include <SoftwareATSE.h>
+#include "controller_config.h"
 
 #include "sha1.h"
 #ifdef EMULATOR
@@ -14,7 +15,32 @@ extern std::string www_path;
 
 #define ENABLE_VDT 1
 
+#ifdef EMULATOR
+#include <random>
+// Funkce pro generování mock dat spotřeby
+template <typename OutFn>
+void generateConsumptionData(
+    OutFn out,
+    int days = 360,           // počet dnů
+    int baseValue = 20,       // výchozí hodnota
+    int maxDelta = 1,         // maximální odchylka nahoru/dolů
+    unsigned seed = std::random_device{}() // seed pro RNG
+) {
+    std::mt19937 rng(seed);
+    std::uniform_int_distribution<int> dist(-maxDelta, maxDelta);
+
+    int value = baseValue;
+    for (int i = 0; i < days; ++i) {
+        out(value);
+        int delta = dist(rng);
+        value = std::max(0, value + delta); // nesmí být záporné
+    }
+}
+#endif
+
+
 namespace kotel {
+
 
 
 
@@ -29,12 +55,12 @@ Controller::Controller()
         ,_read_serial(this)
         ,_refresh_wdt(this)
         ,_keyboard_scanner(this)
+        ,_daily_log(this)
         ,_network(*this)
         ,_scheduler({&_feeder, &_fan, &_temp_sensors,  &_display,
             &_motoruntime, &_auto_drive_cycle, &_network,
-            &_read_serial, &_refresh_wdt, &_keyboard_scanner})
+            &_read_serial, &_refresh_wdt, &_keyboard_scanner, &_daily_log})
 {
-
 }
 
 void Controller::begin() {
@@ -56,7 +82,7 @@ void Controller::begin() {
         delay(1);
     }
     print(Serial, "Keyboard: ", _keyboard_connected?"connected":"not detected","\r\n");
-    _storage.cntr1.restart_count++;
+    _storage.cntr.restart_count++;
     if (_storage.pair_secret_need_init) {
         generate_pair_secret();
     }
@@ -74,21 +100,20 @@ static inline bool defined_and_above(const std::optional<float> &val, float cmp)
 void Controller::run() {
     _sensors.read_sensors();
     auto prev_mode = _cur_mode;
-    bool start_mode = _start_mode_until > get_current_timestamp();
     control_pump();
     if (_sensors.tray_open) {
-        _storage.tray.tray_open_time = _storage.tray.feeder_time;
+        _storage.tray.feeder_time_open_tray = _storage.runtm.feeder;
         _was_tray_open = true;
         _feeder.stop();
         _fan.stop();
     } else {
         if (_was_tray_open) {
             _was_tray_open = false;
-            _storage.cntr1.tray_open_count++;
+            _storage.cntr.tray_open_count++;
             if (_cur_tray_change._full) {
-                _storage.tray.set_max_fill(_storage.tray.feeder_time, _storage.config.tray_kg);
+                _storage.set_max_fill();
             } else if (_cur_tray_change._change) {
-                _storage.tray.update_tray_fill(_storage.tray.feeder_time, _cur_tray_change._change*_storage.config.bag_kg);
+                _storage.add_fuel(_cur_tray_change._change*_storage.config.bag_kg);
             }
             _cur_tray_change = {};
             _storage.save();
@@ -98,20 +123,7 @@ void Controller::run() {
         } else if (_storage.config.operation_mode == 0) {
             run_manual_mode();
         } else if (_storage.config.operation_mode == 1) {
-            if (_cur_mode == DriveMode::init) {
-                run_init_mode();
-            } else if ( (!_temp_sensors.get_output_temp().has_value()) //we don't have output temperature
-                || (_temp_sensors.get_output_temp().has_value() //output temperature is less than input temperature
-                        && _temp_sensors.get_input_temp().has_value()
-                        && *_temp_sensors.get_input_temp() < _storage.config.pump_start_temp
-                        && !start_mode)
-                || (_temp_sensors.get_output_temp().has_value() //output temp is too low
-                        && *_temp_sensors.get_output_temp() < _storage.config.pump_start_temp
-                        && !start_mode)){
-                run_stop_mode();
-            } else {
-                run_auto_mode();
-            }
+            run_auto_mode();
         } else {
             run_other_mode();
         }
@@ -131,7 +143,7 @@ void Controller::run() {
 
 }
 
-static constexpr std::pair<const char *, uint8_t Profile::*> profile_table[] ={
+static constexpr std::pair<const char *, uint8_t Profile::*> profile_table[] = {
         {"burnout",&Profile::burnout_sec},
         {"fanpw",&Profile::fanpw},
         {"fueling",&Profile::fueling_sec},
@@ -139,105 +151,47 @@ static constexpr std::pair<const char *, uint8_t Profile::*> profile_table[] ={
 
 static constexpr std::pair<const char *, uint8_t Config::*> config_table[] ={
         {"tout", &Config::output_max_temp},
-        {"tin", &Config::input_min_temp},
-        {"touts", &Config::output_max_temp_samples},
-        {"tins", &Config::input_min_temp_samples},
+        {"tfull", &Config::input_temp_full_power},
+        {"tlow", &Config::input_temp_low_power},
+        {"touts", &Config::output_temp_samples},
+        {"tins", &Config::input_temp_samples},
+        {"tlsf", &Config::lowerst_safe_temp},
         {"m", &Config::operation_mode},
-        {"fanpc", &Config::fan_pulse_count},
-        {"tpump",&Config::pump_start_temp},
+        {"fanpc", &Config::fan_pulse_interval},
+        {"tpump",&Config::lowerst_safe_temp},
         {"srlog",&Config::serial_log_out},
         {"bgkg",&Config::bag_kg},
         {"traykg",&Config::tray_kg},
         {"dspli",&Config::display_intensity},
 };
 
-static constexpr std::pair<const char *, HeatValue Config::*> config_table_2[] ={
+static constexpr std::pair<const char *, OneDecimalValue Config::*> config_table_2[] ={
         {"hval",&Config::heat_value},
+        {"fannc", &Config::fan_nonlinear_correction},
 };
-
-template<typename X>
-void print_data(Stream &s, const X &data) {
-    s.print(data);
-}
-
-
-template<>
-void print_data(Stream &s, const HeatValue &data) {
-    s.print(static_cast<float>(data.heatvalue)*0.1f);
-}
-
-
-template<>
-void print_data(Stream &s, const SimpleDallasTemp::Address &data) {
-    if (data[0]<16) s.print('0');
-    s.print(data[0], HEX);
-    for (unsigned int i = 1; i < data.size();++i) {
-        s.print('-');
-        if (data[i]<16) s.print('0');
-        s.print(data[i],HEX);
-    }
-}
-
-template<>
-void print_data(Stream &s, const IPAddr &data) {
-    s.print(data.ip[0]);
-    for (unsigned int i = 1; i < 4; ++i) {
-        s.print('.');
-        s.print(data.ip[i]);
-    }
-}
-
-template<>
-void print_data(Stream &s, const TextSector &data) {
-    auto txt = data.get();
-    s.write(txt.data(), txt.size());
-}
-
-template<>
-void print_data(Stream &s, const PasswordSector &data) {
-    auto txt = data.get();
-    for (std::size_t i = 0; i < txt.size(); ++i) s.print('*');
-}
-
-template<>
-void print_data(Stream &s, const std::optional<float> &data) {
-    if (data.has_value()) s.print(*data);
-}
-
-
-template<typename T>
-void print_data_line(Stream &s, const char *name, const T &object) {
-    s.print(name);
-    s.print('=');
-    print_data(s,object);
-    s.println();
-
-}
-
-template<typename Table, typename Object>
-void print_table(Stream &s, const Table &table, const Object &object, std::string_view prefix = {}) {
-    for (const auto &[k,ptr]: table) {
-        if (!prefix.empty()) s.write(prefix.data(), prefix.size());
-        print_data_line(s, k, object.*ptr);
-    }
-
-}
 static constexpr std::pair<const char *, SimpleDallasTemp::Address TempSensor::*> tempsensor_table_1[] ={
         {"tsinaddr", &TempSensor::input_temp},
         {"tsoutaddr", &TempSensor::output_temp},
 };
-
-
+static constexpr std::pair<const char *, int8_t TempSensor::*> tempsensor_calibration_table[] =  {
+        {"tsincalib60", &TempSensor::input_calib_60},
+        {"tsoutcalib60", &TempSensor::output_calib_60},
+};
 
 static constexpr std::pair<const char *, uint32_t Tray::*> tray_table[] ={
-        {"feed.t", &Tray::feeder_time},
-        {"tray.ot", &Tray::tray_open_time},
-        {"tray.ft", &Tray::tray_fill_time}
+        {"fd.Et", &Tray::feeder_time_accum},
+        {"fuel.Em", &Tray::fuel_kg_accum},
+        {"fd.tefp", &Tray::feeder_time_enter_full_power},
+        {"fd.open", &Tray::feeder_time_open_tray},
+        {"fd.lastf",&Tray::feeder_time_last_fill},
 };
 
 static constexpr std::pair<const char *, uint16_t Tray::*> tray_table_2[] ={
-        {"tray.tfkg", &Tray::tray_fill_kg},
-        {"tray.f1kgt", &Tray::feeder_1kg_time}
+        {"fd.speed", &Tray::feeder_speed}
+};
+
+static constexpr std::pair<const char *, int16_t Tray::*> tray_table_3[] ={
+        {"fd.initf", &Tray::initial_fill_adj}
 };
 
 static constexpr std::pair<const char *, TextSector WiFi_SSID::*> wifi_ssid_table[] ={
@@ -257,55 +211,121 @@ static constexpr std::pair<const char *, IPAddr WiFi_NetSettings::*> wifi_netcfg
         {"net.netmask", &WiFi_NetSettings::netmask},
 };
 
-static constexpr std::pair<const char *, Tray Storage::*> tray_control_table[] ={
-        {"tray.tfkg", &Storage::tray},
+static constexpr std::pair<const char *, uint8_t Controller::ManualControlStruct::*> man_control_table_1[] ={
+        {"fdt",&Controller::ManualControlStruct::_feeder_time},
+        {"fnt",&Controller::ManualControlStruct::_fan_time},
+        {"fns",&Controller::ManualControlStruct::_fan_speed},
+        {"fcp",&Controller::ManualControlStruct::_force_pump},
 };
-static constexpr std::pair<const char *, uint16_t Tray::*> tray_control_table_2[] ={
-        {"tray.f1kgt", &Tray::feeder_1kg_time}
-};
-
-
-template <typename T>
-struct member_pointer_type;
-
-template <typename X, typename Y>
-struct member_pointer_type<X Y::*> {
-    using type = X;
+static constexpr std::pair<const char *, uint32_t Controller::ManualControlStruct::*> man_control_table_2[] ={
+        {"ctr",&Controller::ManualControlStruct::_control_id},
 };
 
-template <typename T>
-using member_pointer_type_t = typename member_pointer_type<T>::type;
+static constexpr std::pair<const char *, uint32_t Controller::StatusOut::*> status_table_1[] ={
+        {"time",&Controller::StatusOut::cur_time},
+        {"cntr",&Controller::StatusOut::control_id}
+};
+static constexpr std::pair<const char *, int16_t Controller::StatusOut::*> status_table_2[] ={
+        {"to",&Controller::StatusOut::temp_output_value},
+        {"tao",&Controller::StatusOut::temp_output_amp_value},
+        {"ti",&Controller::StatusOut::temp_input_value},
+        {"tai",&Controller::StatusOut::temp_input_amp_value},
+        {"rssi",&Controller::StatusOut::rssi}
 
+};
+static constexpr std::pair<const char *, uint8_t Controller::StatusOut::*> status_table_3[] ={
+        {"tfp",&Controller::StatusOut::tray_fill_pct},
+        {"tsim",&Controller::StatusOut::temp_sim},
+        {"tis",&Controller::StatusOut::temp_input_status},
+        {"tos",&Controller::StatusOut::temp_output_status},
+        {"m",&Controller::StatusOut::mode},
+        {"am",&Controller::StatusOut::automode},
+        {"tro",&Controller::StatusOut::try_open},
+        {"mto",&Controller::StatusOut::motor_temp_ok},
+        {"p",&Controller::StatusOut::pump},
+        {"fd",&Controller::StatusOut::feeder},
+        {"fn",&Controller::StatusOut::fan}
+};
 
-template<typename Table>
-void print_table_format(Stream &s, Table &t) {
-    using T = member_pointer_type_t<decltype(t[0].second)>;
-    bool comma = false;
-    for (const auto &[k,ptr]: t) {
-        if (comma) s.print(','); else comma = true;
-        s.print('"');
-        s.print(k);
-        s.print("\":\"");
-        if constexpr(std::is_same_v<T, uint8_t>) {
-            s.print("uint8");
-        } else if constexpr(std::is_same_v<T, uint16_t>) {
-            s.print("uint16");
-        } else if constexpr(std::is_same_v<T, uint32_t>) {
-            s.print("uint32");
-        } else if constexpr(std::is_same_v<T, TextSector>) {
-            s.print("text");
-        } else if constexpr(std::is_same_v<T, PasswordSector>) {
-            s.print("password");
-        } else if constexpr(std::is_same_v<T, IPAddr>) {
-            s.print("ipv4");
-        } else if constexpr(std::is_same_v<T, SimpleDallasTemp::Address>) {
-            s.print("onewire_address");
-        } else {
-            static_assert(std::is_same_v<T, bool>, "Undefined type");
-        }
-        s.print('"');
+static constexpr std::pair<const char *, uint16_t Controller::HistoryRequest::*> history_table[] = {
+        {"from", &Controller::HistoryRequest::day_from},
+        {"to", &Controller::HistoryRequest::day_to},
+};
+static constexpr std::pair<const char *, uint32_t Runtime::*> stats_table_runtime[] ={
+        {"rt.feeder", &Runtime::feeder},
+        {"rt.fan", &Runtime::fan},
+        {"rt.feeder_low", &Runtime::feeder_low},
+        {"rt.full_power", &Runtime::full_power},
+        {"rt.low_power", &Runtime::low_power},
+        {"rt.cooling", &Runtime::cooling},
+        {"rt.stop_time", &Runtime::stop_time}
+};
+static constexpr std::pair<const char *, uint16_t Counters::*> stats_table_counters[] ={
+        {"cnt.feeder_overheat",&Counters::feeder_overheat_count},
+        {"cnt.tray_open",&Counters::tray_open_count},
+        {"cnt.restart",&Counters::restart_count},
+        {"cnt.overheat",&Counters::overheat_count},
+        {"cnt.therm_failure",&Counters::therm_failure_count},
+        {"cnt.fan_start",&Counters::fan_start_count},
+        {"cnt.feeder_start",&Counters::feeder_start_count},
+        {"cnt.stop",&Counters::stop_count},
+        {"cnt.manual_control",&Counters::manual_control_count}
+};
+static constexpr std::pair<const char *, uint32_t Tray::*> stats_table_tray[] ={
+        {"tray.feeder_time_accum",&Tray::feeder_time_accum},
+        {"tray.fuel_kg_accum",&Tray::fuel_kg_accum},
+        {"tray.feeder_time_enter_full_power",&Tray::feeder_time_enter_full_power},
+        {"tray.feeder_time_open_tray",&Tray::feeder_time_open_tray},
+        {"tray.feeder_time_last_fill",&Tray::feeder_time_last_fill},
+};
+static constexpr std::pair<const char *, uint16_t Tray::*> stats_table_tray2[] ={
+        {"tray.feeder_speed", &Tray::feeder_speed}
+};
+static constexpr std::pair<const char *, int16_t Tray::*> stats_table_tray3[] ={
+        {"tray.initial_fill_adj", &Tray::initial_fill_adj}
+};
+
+static int16_t encode_temp(std::optional<float> v) {
+    if (v.has_value()) {
+        return static_cast<int16_t>(*v*10.0);
+    } else {
+        return static_cast<int16_t>(0x8000);
     }
+}
 
+Controller::ManualControlStruct Controller::ManualControlStruct::from(std::string_view str) {
+    ManualControlStruct out;
+    update_settings_fd(out, str, man_control_table_1, man_control_table_2);
+    return out;
+}
+Controller::HistoryRequest Controller::HistoryRequest::from(std::string_view str) {
+    HistoryRequest out;
+    update_settings_fd(out, str, history_table);
+    return out;
+}
+
+
+Controller::StatusOut Controller::status_out() const {
+    return {
+            get_current_time(),
+            _kb_stop?0:_man_mode_control_id,
+            encode_temp(_temp_sensors.get_output_temp()),
+            encode_temp(_temp_sensors.get_output_ampl()),
+            encode_temp(_temp_sensors.get_input_temp()),
+            encode_temp(_temp_sensors.get_input_ampl()),
+            static_cast<int16_t>(_network.get_rssi()),
+            static_cast<uint8_t>(_storage.calc_remaining_fuel_pct()),
+            static_cast<uint8_t>(_temp_sensors.is_simulated()?1:0),
+            static_cast<uint8_t>(_temp_sensors.get_output_status()),
+            static_cast<uint8_t>(_temp_sensors.get_input_status()),
+            static_cast<uint8_t>(_cur_mode),
+            static_cast<uint8_t>(_auto_mode),
+            static_cast<uint8_t>(_sensors.tray_open?1:0),
+            static_cast<uint8_t>(_sensors.feeder_overheat?1:0),
+            static_cast<uint8_t>(_pump.is_active()?1:0),
+            static_cast<uint8_t>(_feeder.is_active()?1:0),
+            static_cast<uint8_t>(_fan.get_current_speed()),
+   };
 }
 
 void Controller::config_out(Stream &s) {
@@ -315,127 +335,15 @@ void Controller::config_out(Stream &s) {
     print_table(s, profile_table, _storage.config.full_power, "full.");
     print_table(s, profile_table, _storage.config.low_power, "low.");
     print_table(s, tempsensor_table_1, _storage.temp);
+    print_table(s, tempsensor_calibration_table, _storage.temp);
     print_table(s, wifi_ssid_table, _storage.wifi_ssid);
     print_table(s, wifi_password_table, _storage.wifi_password);
     print_table(s, wifi_netcfg_table, _storage.wifi_config);
+    print_table(s, tray_table, _storage.tray);
     print_table(s, tray_table_2, _storage.tray);
+    print_table(s, tray_table_3, _storage.tray);
 }
 
-
-template<typename UINT>
-bool parse_to_field_uint(UINT &fld, std::string_view value) {
-    uint32_t v = 0;
-    constexpr uint32_t max = ~static_cast<UINT>(0);
-    for (char c: value) {
-        if (c < '0' || c > '9') return false;
-        v = v * 10 + (c - '0');
-        if (v > max) return false;
-    }
-    fld  = static_cast<UINT>(v);
-    return true;
-}
-
-bool parse_to_field(int8_t &fld, std::string_view value) {
-    uint8_t x;
-    if (!value.empty() && value.front() == '-') {
-        if (!parse_to_field_uint(x, value.substr(1))) return false;
-        fld = -static_cast<int8_t>(x);
-        return true;
-    } else {
-        if (!parse_to_field_uint(x,value)) return false;
-        fld = static_cast<int8_t>(x);
-        return true;
-    }
-
-}
-
-bool parse_to_field(uint8_t &fld, std::string_view value) {
-    return parse_to_field_uint(fld,value);
-}
-bool parse_to_field(uint16_t &fld, std::string_view value) {
-    return parse_to_field_uint(fld,value);
-}
-bool parse_to_field(uint32_t &fld, std::string_view value) {
-    return parse_to_field_uint(fld,value);
-}
-
-bool parse_to_field(float &fld, std::string_view value) {
-    char buff[21];
-    char *c;
-    value = value.substr(0,20);
-    *std::copy(value.begin(), value.end(), buff) = 0;
-    fld = std::strtof(buff,&c);
-    return c > buff;
-}
-
-bool parse_to_field(SimpleDallasTemp::Address &fld, std::string_view value) {
-    for (auto &x: fld) {
-        auto part = split(value,"-");
-        if (part.empty()) return false;
-        int v = 0;
-        for (char c: part) {
-            v = v * 16;
-            if (c >= '0' && c <= '9') v += (c-'0');
-            else if (c >= 'A' && c <= 'F') v += (c-'A'+10);
-            else if (c >= 'a' && c <= 'f') v += (c-'a'+10);
-            else return false;
-            if (v > 0xFF) return false;
-        }
-        x = static_cast<uint8_t>(v);
-    }
-    return (value.empty());
-}
-bool parse_to_field(IPAddr &fld, std::string_view value) {
-    for (auto &x:fld.ip) {
-        auto part = split(value,".");
-        if (part.empty()) return false;
-        if (!parse_to_field(x, part)) return false;
-    }
-    return true;
-}
-
-bool parse_to_field(TextSector &fld, std::string_view value) {
-    fld.set_url_dec(value);
-    return true;
-}
-
-bool parse_to_field(Tray &fld, std::string_view value) {
-    if (!parse_to_field(fld.tray_fill_kg, value)) return false;
-    fld.tray_fill_time = fld.tray_open_time;
-    return true;
-}
-
-bool parse_to_field(HeatValue &fld, std::string_view value) {
-    float f;
-    if (!parse_to_field(f, value)) return false;
-    fld.heatvalue = static_cast<uint8_t>(f * 10.0f);
-    return true;
-}
-
-
-template<typename Table, typename Config>
-bool update_settings(const Table &table, Config &config, std::string_view key, std::string_view value, std::string_view prefix = {}) {
-    if (!prefix.empty()) {
-        if (key.substr(0,prefix.size()) == prefix) {
-            key = key.substr(prefix.size());
-        } else {
-            return false;
-        }
-    }
-    for (const auto &[k,ptr]: table) {
-        if (k == key) {
-            return parse_to_field(config.*ptr, value);
-        }
-    }
-    return false;
-}
-
-template<typename Table, typename Config>
-bool update_settings_kv(const Table &table, Config &config, std::string_view keyvalue) {
-    auto key = split(keyvalue,"=");
-    auto value = keyvalue;
-    return update_settings(table, config, trim(key), trim(value));
-}
 
 bool Controller::config_update(std::string_view body, std::string_view &&failed_field) {
 
@@ -448,12 +356,13 @@ bool Controller::config_update(std::string_view body, std::string_view &&failed_
                 || update_settings(profile_table, _storage.config.full_power, key, value, "full.")
                 || update_settings(profile_table, _storage.config.low_power, key, value, "low.")
                 || update_settings(tempsensor_table_1, _storage.temp, key, value)
+                || update_settings(tempsensor_calibration_table, _storage.temp, key, value)
                 || update_settings(wifi_ssid_table, _storage.wifi_ssid, key, value)
                 || update_settings(wifi_password_table, _storage.wifi_password, key, value)
                 || update_settings(wifi_netcfg_table, _storage.wifi_config, key, value)
                 || update_settings(pair_sectet_table, _storage.pair_secret, key, value)
-                || update_settings(tray_control_table, _storage, key, value)
-                || update_settings(tray_control_table_2, _storage.tray, key, value);
+                || update_settings(tray_table_2, _storage.tray, key, value);
+
         if (!ok) {
             failed_field = key;
             return false;
@@ -465,6 +374,8 @@ bool Controller::config_update(std::string_view body, std::string_view &&failed_
     return true;
 
 }
+
+
 
 void Controller::list_onewire_sensors(Stream &s) {
     auto cntr = _temp_sensors.get_controller();
@@ -481,37 +392,32 @@ void Controller::list_onewire_sensors(Stream &s) {
 }
 
 void Controller::status_out(Stream &s) {
-    print_data_line(s,"mode", static_cast<int>(_cur_mode));
-    print_data_line(s,"auto_mode", static_cast<int>(_auto_mode));
-    print_data_line(s,"temp.output.value", _temp_sensors.get_output_temp());
-    print_data_line(s,"temp.output.status", static_cast<int>(_temp_sensors.get_output_status()));
-    print_data_line(s,"temp.output.ampl", _temp_sensors.get_output_ampl());
-    print_data_line(s,"temp.input.value", _temp_sensors.get_input_temp());
-    print_data_line(s,"temp.input.status", static_cast<int>(_temp_sensors.get_input_status()));
-    print_data_line(s,"temp.input.ampl", _temp_sensors.get_input_ampl());
-    print_data_line(s,"temp.sim", _temp_sensors.is_simulated()?1:0);
-    print_data_line(s,"tray_open", _sensors.tray_open);
-    print_data_line(s,"motor_temp_ok", !_sensors.feeder_overheat);
-    print_data_line(s,"pump", _pump.is_active());
-    print_data_line(s,"feeder", _feeder.is_active());
-    print_data_line(s,"fan", _fan.get_current_speed());
-    print_data_line(s,"network.ip", WiFi.localIP());
-    print_data_line(s,"network.ssid", WiFi.SSID());
-    print_data_line(s,"network.signal",WiFi.RSSI());
+    StatusOut st = status_out();
+    print_table(s, status_table_1, st);
+    print_table(s, status_table_2, st);
+    print_table(s, status_table_3, st);
+}
 
-
+void Controller::stats_out(Stream &s) {
+    print_table(s, stats_table_runtime, _storage.runtm);
+    print_table(s, stats_table_counters, _storage.cntr);
+    print_table(s, stats_table_tray, _storage.tray);
+    print_table(s, stats_table_tray2, _storage.tray);
+    print_table(s, stats_table_tray3, _storage.tray);
+    print(s,"tray.remain=",_storage.calc_remaining_fuel(),"\n");
+    print(s,"eeprom_errors=", _storage.get_eeprom().get_crc_error_counter(),"\n");
 }
 
 void Controller::control_pump() {
-    if (_storage.config.operation_mode == 0 && _force_pump) {
-        _pump.set_active(true);
-        return;
-    }
-    auto t = _temp_sensors.get_output_ampl();
-    _pump.set_active(t > _storage.config.pump_start_temp);
+//    auto t_input = _temp_sensors.get_input_temp();
+    _pump.set_active(_storage.config.operation_mode == static_cast<uint8_t>(OperationMode::automatic)
+                || _force_pump );
 }
 
 void Controller::run_manual_mode() {
+    if (_cur_mode != DriveMode::manual) {
+        ++_storage.cntr.manual_control_count;
+    }
     _cur_mode = DriveMode::manual;
     _auto_mode = AutoMode::notset;
     _start_mode_until = get_current_timestamp() + from_minutes(60);
@@ -520,9 +426,29 @@ void Controller::run_manual_mode() {
 
 void Controller::run_auto_mode() {
 
-    if (_cur_mode != DriveMode::automatic)  {
-        _cur_mode = DriveMode::automatic;
-        _auto_drive_cycle.wake_up();
+    bool start_mode = _start_mode_until > get_current_timestamp();
+
+    auto t_input = _temp_sensors.get_input_temp();
+    auto t_output = _temp_sensors.get_output_temp();
+    if (t_input.has_value()
+       && t_output.has_value()
+       && t_input.value() <= _storage.config.output_max_temp
+       && t_output.value() <= _storage.config.output_max_temp
+       && ((   t_input.value() >= _storage.config.lowerst_safe_temp
+            && t_output.value() >= _storage.config.lowerst_safe_temp)
+            || start_mode)) {
+
+
+        if (_cur_mode == DriveMode::init) {
+            if (get_current_timestamp() > 6000) {
+                _cur_mode = DriveMode::unknown;
+            }
+        } else if (_cur_mode != DriveMode::automatic)  {
+            _cur_mode = DriveMode::automatic;
+            _auto_drive_cycle.wake_up();
+        }
+    } else {
+        run_stop_mode();
     }
 }
 
@@ -533,14 +459,14 @@ void Controller::run_other_mode() {
 
 void Controller::run_stop_mode() {
     if (_cur_mode != DriveMode::stop) {
-        ++_storage.cntr2.stop_count;
+        ++_storage.cntr.stop_count;
         if (!_temp_sensors.get_output_temp()) {
-            ++_storage.cntr2.temp_read_failure_count;
+            ++_storage.cntr.therm_failure_count;
         } else if (is_overheat()) {
-            ++_storage.cntr1.overheat_count;
+            ++_storage.cntr.overheat_count;
         }
         if (_sensors.feeder_overheat) {
-            ++_storage.cntr1.feeder_overheat_count;
+            ++_storage.cntr.feeder_overheat_count;
         }
         _storage.save();
     }
@@ -561,12 +487,18 @@ IPAddress Controller::get_local_ip() const {
     return _network.get_local_ip();
 }
 
-constexpr std::pair<const char *, uint8_t Controller::ManualControlStruct::*> manual_control_table[] ={
-        {"feed.tr",&Controller::ManualControlStruct::_feeder_time},
-        {"fan.timer",&Controller::ManualControlStruct::_fan_time},
-        {"fan.speed",&Controller::ManualControlStruct::_fan_speed},
-        {"pump.force",&Controller::ManualControlStruct::_force_pump},
-};
+void Controller::history_out(const HistoryRequest &req, Print &out) {
+    for (uint16_t i = req.day_from; i < req.day_to; ++i) {
+        auto snp = _storage.read_day_stats(i);
+        char day[20];
+        day_to_date(i, day, sizeof(day));
+        print(out, day, ",", snp.feeder, ",",
+               snp.feeder_low, ",", snp.fuel_kg, ",",
+               snp.overheat_count,",", snp.therm_fail_count,",",
+               snp.restart_count,",", snp.manual_count,"\n");
+    }
+
+}
 
 
 #ifdef EMULATOR
@@ -622,6 +554,27 @@ void Controller::handle_server(MyHttpServer::Request &req) {
             _list_temp_async.emplace(std::move(*req.client));
             return;
         }
+    } else if (req.request_line.path == "/api/scan_wifi") {
+        if (req.request_line.method == HttpMethod::POST) {
+            _server.error_response(req, 202, {});
+            req.client->stop();
+            _fan.stop();
+            _feeder.stop();
+            _network.begin_scan();
+            return;
+        } else if (req.request_line.method == HttpMethod::GET) {
+            NetworkControl::ScanResultItem items[32];
+            static_buff.clear();
+            auto cnt = _network.get_scan_results(items, 32);
+            for (std::size_t i = 0; i < cnt; ++i) {
+                print(static_buff, items[i].rssi,",",
+                        items[i].encryption,",",
+                        items[i].ssid,"\n");
+            }
+            _server.send_file(req,Ctx::text,static_buff.get_text(), false);
+        } else {
+            _server.error_response(req,400,{});
+        }
     } else if (req.request_line.path == "/api/code" && req.request_line.method == HttpMethod::POST) {
         if (req.body.empty()) {
             generate_otp_code();
@@ -666,6 +619,12 @@ void Controller::handle_server(MyHttpServer::Request &req) {
         } else {
             _server.error_response(req,400,{});
         }
+    } else if (req.request_line.path == "/api/history" && req.request_line.method == HttpMethod::GET) {
+        uint16_t last_day = _storage.snapshot.day_number+1;
+        uint16_t first_day = last_day - graph_files * eeprom_sector_size;
+        _server.send_simple_header(req, "text/csv", -1,false,"");
+        print(*req.client, "Datum,Podavac,Podavac uspoarne, Plneni, Prehrati, Chyba teplomeru, Restart, Rucni rezim\n");
+        history_out({first_day, last_day}, *req.client);
     } else if (req.request_line.path == "/") {
         _server.send_file_async(req, HttpServerBase::ContentType::html, embedded_index_html, true, embedded_index_html_etag);
 #ifdef EMULATOR
@@ -691,6 +650,8 @@ void Controller::handle_server(MyHttpServer::Request &req) {
 
 bool Controller::manual_control(const ManualControlStruct &cntr) {
     if (_cur_mode != DriveMode::manual || _sensors.tray_open) return false;
+    if (cntr._control_id < _man_mode_control_id || _kb_stop) return false;
+    _man_mode_control_id = cntr._control_id;
     if (cntr._fan_speed != 0xFF) {
         _fan.set_speed(cntr._fan_speed);
     }
@@ -711,47 +672,30 @@ bool Controller::manual_control(const ManualControlStruct &cntr) {
     }
     if (cntr._force_pump != 0xFF) {
         _force_pump = cntr._force_pump != 0;
+        control_pump();
     }
     return true;
 }
 
-bool Controller::manual_control(std::string_view body, std::string_view &&error_field) {
-    ManualControlStruct cntr = {};
-    do {
-        auto ln = split(body,"&");
-        if (!update_settings_kv(manual_control_table, cntr, ln)) {
-            error_field = ln;
-            return false;
-        }
-    } while (!body.empty());
-    if (!manual_control(cntr)) {
-        error_field = "invalid mode";
-        return false;
-    }
-    return true;
-
-}
 
 TimeStampMs Controller::update_motorhours(TimeStampMs now) {
     bool fd = is_feeder_on();
-    bool pm = is_pump_on();
     bool fa = is_fan_on();
     Storage &stor = get_storage();
-    if (fd) ++stor.tray.feeder_time;
-    if (pm) ++stor.runtm.pump_time;
-    if (fa) ++stor.runtm.fan_time;
+    if (fd) ++stor.runtm.feeder;
+    if (fa) ++stor.runtm.fan;
     if (_cur_mode == DriveMode::automatic) {
         switch (_auto_mode) {
-            case AutoMode::fullpower: ++stor.runtm.full_power_time;break;
-            case AutoMode::lowpower: ++stor.runtm.low_power_time;break;
-            case AutoMode::off:     ++stor.runtm.cooling_time;break;
+            case AutoMode::fullpower: ++stor.runtm.full_power;break;
+            case AutoMode::lowpower: ++stor.runtm.low_power;
+                                if (fd) ++stor.runtm.feeder_low;
+                                break;
+            case AutoMode::off:     ++stor.runtm.cooling;break;
             default:break;
         }
     } else if (_cur_mode == DriveMode::stop) {
-        ++stor.runtm2.stop_time;
+        ++stor.runtm.stop_time;
     }
-    if (is_overheat()) ++stor.runtm2.overheat_time;
-    ++stor.runtm2.active_time;
 
     if (now >= _flush_time) {
         stor.save();
@@ -761,35 +705,6 @@ TimeStampMs Controller::update_motorhours(TimeStampMs now) {
 }
 
 
-bool Controller::set_fuel(const SetFuelParams &sfp) {
-
-    auto filltime  = sfp.absnow?_storage.tray.feeder_time:_storage.tray.tray_fill_time;
-    if (sfp.kalib) {
-        if (_storage.tray.tray_fill_kg == 0) {
-            return false;
-        }
-        auto total_time = filltime - _storage.tray.tray_fill_time;
-        auto consump = total_time / _storage.tray.tray_fill_kg;
-        if (consump > 0xFFFF || consump == 0) {
-            return false;
-        }
-        _storage.tray.feeder_1kg_time = consump;
-        _storage.tray.tray_fill_kg = sfp.kgchg;
-    } else {
-        if (sfp.full) {
-            _storage.tray.set_max_fill(filltime, _storage.config.tray_kg);
-        } else {
-            _storage.tray.update_tray_fill(filltime, sfp.kgchg);
-        }
-
-    }
-
-    _storage.tray.tray_fill_time = filltime;
-    _storage.save();
-    return true;
-
-
-}
 
 void Controller::factory_reset() {
     _storage.get_eeprom().erase_all();
@@ -801,7 +716,6 @@ void Controller::factory_reset() {
 TimeStampMs Controller::auto_drive_cycle(TimeStampMs cur_time) {
     //determine next control mode
     auto t_input = _temp_sensors.get_input_ampl();
-    auto t_output = _temp_sensors.get_output_ampl();
     if (_cur_mode != DriveMode::automatic) {
         return from_minutes(60);
     }
@@ -811,28 +725,13 @@ TimeStampMs Controller::auto_drive_cycle(TimeStampMs cur_time) {
 
     AutoMode prev_mode = _auto_mode;
 
-    if (t_input < _storage.config.input_min_temp) {
-        _auto_mode = AutoMode::fullpower;
-    } else if (t_input >= _storage.config.input_min_temp + 5) {
-        _auto_mode = AutoMode::off;  
-    } else {
-        if (t_output< _storage.config.input_min_temp) {
-            _auto_mode = AutoMode::fullpower;
-        } else if (t_output< _storage.config.output_max_temp ) {
-            _auto_mode = AutoMode::lowpower;
-        } else {
-            _auto_mode = AutoMode::off;
-        }
-    }
 
-    if (_auto_mode != prev_mode) {
-        switch (_auto_mode) {
-            case AutoMode::off: _storage.cntr2.cool_count++;break;
-            case AutoMode::fullpower: _storage.cntr2.full_power_count++;break;
-            case AutoMode::lowpower: _storage.cntr2.low_power_count++;break;
-            default: break;
-        }
-        _storage.save();
+    if (t_input < _storage.config.input_temp_full_power) {
+        _auto_mode = AutoMode::fullpower;
+    } else if (t_input < _storage.config.input_temp_low_power) {
+        _auto_mode = AutoMode::lowpower;
+    } else {
+        _auto_mode = AutoMode::off;
     }
 
     const Profile *p;
@@ -884,41 +783,17 @@ void Controller::handle_ws_request(MyHttpServer::Request &req)
     static_buff.write(static_cast<char>(cmd));
     switch (cmd)
     {
-    case WsReqCmd::control_status: if (msg.size() == sizeof(ManualControlStruct)) {
-        ManualControlStruct s;
-        std::copy(msg.begin(), msg.end(), reinterpret_cast<char *>(&s));
-        manual_control(s);
-        status_out_ws(static_buff);
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
-    }
-    break;
-    case WsReqCmd::set_fuel: if (msg.size() == sizeof(SetFuelParams)) {
-        SetFuelParams s;
-        std::copy(msg.begin(), msg.end(), reinterpret_cast<char *>(&s));
-        if (!set_fuel(s)) {
-            static_buff.print('\x1');
+    case WsReqCmd::set_fuel: {
+        int32_t amount;
+        if (parse_to_field_int(amount, msg)) {
+            _storage.add_fuel(amount);
+        } else {
+            static_buff.print("Parse error: number");
         }
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
     }
     break;
     case WsReqCmd::get_config: {
         config_out(static_buff);
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
-    }
-    break;
-    case WsReqCmd::get_stats: {
-        uint32_t cntr = _storage.get_eeprom().get_crc_error_counter();
-        uint32_t timestamp = get_current_timestamp()/1000;
-        uint32_t consumed_kg_total = _storage.tray.calc_total_consumed_fuel();
-        static_buff.write(reinterpret_cast<const char *>(&_storage.runtm), sizeof(_storage.runtm));
-        static_buff.write(reinterpret_cast<const char *>(&_storage.runtm2), sizeof(_storage.runtm2));
-        static_buff.write(reinterpret_cast<const char *>(&_storage.cntr1), sizeof(_storage.cntr1));
-        static_buff.write(reinterpret_cast<const char *>(&_storage.cntr2), sizeof(_storage.cntr2));
-        static_buff.write(reinterpret_cast<const char *>(&_storage.tray), sizeof(_storage.tray));
-        static_buff.write(reinterpret_cast<const char *>(&consumed_kg_total), sizeof(consumed_kg_total));
-        static_buff.write(reinterpret_cast<const char *>(&cntr), sizeof(cntr));
-        static_buff.write(reinterpret_cast<const char *>(&timestamp), sizeof(timestamp));
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
     }
     break;
     case WsReqCmd::set_config: {
@@ -926,145 +801,44 @@ void Controller::handle_ws_request(MyHttpServer::Request &req)
         if (!config_update(msg, std::move(failed_field))) {
             print(static_buff, failed_field);
         }
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
     }
     break;
-    case WsReqCmd::file_config:
-        static_buff.write(reinterpret_cast<const char *>(&_storage.config), sizeof(_storage.config));
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
-    break;
-    case WsReqCmd::file_tray:
-        static_buff.write(reinterpret_cast<const char *>(&_storage.tray), sizeof(_storage.tray));
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
-    break;
-    case WsReqCmd::file_util1:
-        static_buff.write(reinterpret_cast<const char *>(&_storage.runtm), sizeof(_storage.runtm));
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
-    break;
-    case WsReqCmd::file_cntrs1:
-        static_buff.write(reinterpret_cast<const char *>(&_storage.cntr1), sizeof(_storage.cntr1));
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
-    break;
-    case WsReqCmd::file_util2:
-        static_buff.write(reinterpret_cast<const char *>(&_storage.runtm2), sizeof(_storage.runtm2));
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
-    break;
-    case WsReqCmd::file_cntrs2:
-        static_buff.write(reinterpret_cast<const char *>(&_storage.cntr2), sizeof(_storage.cntr2));
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
-    break;
-    case WsReqCmd::file_tempsensor:
-        static_buff.write(reinterpret_cast<const char *>(&_storage.temp), sizeof(_storage.temp));
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
-    break;
-    case WsReqCmd::file_wifi_ssid:
-        static_buff.write(reinterpret_cast<const char *>(&_storage.wifi_ssid), sizeof(_storage.wifi_ssid));
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
-    break;
-    case WsReqCmd::file_wifi_net:
-        static_buff.write(reinterpret_cast<const char *>(&_storage.wifi_config), sizeof(_storage.wifi_config));
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
-    break;
-    case WsReqCmd::file_wifi_pwd:
-        static_buff.print(_storage.wifi_password.password.get().empty()?"":"****");
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::binary});
-    break;
-    case WsReqCmd::enum_tasks:
-        _scheduler.enum_tasks([&](const AbstractTask *t){
-            print(static_buff,get_task_name(t)," ",t->_run_time," ",t->get_scheduled_time(),"\r\n");
-        });
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
-        break;
     case WsReqCmd::generate_code:
         generate_otp_code();
         static_buff.write(_last_code.data(), _last_code.size());
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
         break;
     case WsReqCmd::unpair_all:
         generate_pair_secret();
         gen_and_print_token();
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
         break;
+    case WsReqCmd::monitor_cycle: {
+        auto m = ManualControlStruct::from(msg);
+        manual_control(m);
+        status_out(static_buff);
+        break;
+    }
+    case WsReqCmd::history: {
+        auto hr = HistoryRequest::from(msg);
+        history_out(hr, static_buff);
+        break;
+    }
+    case WsReqCmd::get_stats:
+        stats_out(static_buff);
+        break;
+    case WsReqCmd::reset_fuel:
+         _storage.reset_fuel_stats();
+         break;
     case WsReqCmd::reset:
         _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
         delay(10000);   //delay more than 5 sec invokes WDT
-        break;
-    case WsReqCmd::clear_stats:
-        _storage.tray.commit_consumed(_storage.tray.feeder_time);
-        _storage.tray.feeder_time = _storage.tray.feeder_time - _storage.tray.tray_fill_time ;
-        _storage.tray.tray_open_time = 0;
-        _storage.tray.tray_fill_time = 0;
-        _storage.tray.consumed_fuel_kg = 0;
-        _storage.cntr1 = {};
-        _storage.cntr2 = {};
-        _storage.runtm = {};
-        _storage.runtm2 = {};
-        _storage.save();
-        _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
-        break;
+        return;
     default:
         break;
     }
+    _server.send_ws_message(req, ws::Message{static_buff.get_text(), ws::Type::text});
 }
 
-struct StatusOutWs {
-    uint32_t cur_time;
-    uint32_t feeder_time;
-    uint32_t tray_open_time;
-    uint32_t tray_fill_time;
-    int16_t tray_fill_kg;
-    int16_t bag_consumption;
-    int16_t temp_output_value;
-    int16_t temp_output_amp_value;
-    int16_t temp_input_value;
-    int16_t temp_input_amp_value;
-    int16_t rssi;
-    uint8_t temp_sim;
-    uint8_t temp_input_status;
-    uint8_t temp_output_status;
-    uint8_t mode;
-    uint8_t automode;
-    uint8_t try_open;
-    uint8_t motor_temp_ok;
-    uint8_t pump;
-    uint8_t feeder;
-    uint8_t fan;
-};
 
-static int16_t encode_temp(std::optional<float> v) {
-    if (v.has_value()) {
-        return static_cast<int16_t>(*v*10.0);
-    } else {
-        return static_cast<int16_t>(0x8000);
-    }
-}
-
-void Controller::status_out_ws(Stream &s) {
-    StatusOutWs st{
-        get_current_time(),
-        _storage.tray.feeder_time,
-        _storage.tray.tray_open_time,
-        _storage.tray.tray_fill_time,
-        static_cast<int16_t>(_storage.tray.tray_fill_kg),
-        static_cast<int16_t>(_storage.tray.feeder_1kg_time),
-        encode_temp(_temp_sensors.get_output_temp()),
-        encode_temp(_temp_sensors.get_output_ampl()),
-        encode_temp(_temp_sensors.get_input_temp()),
-        encode_temp(_temp_sensors.get_input_ampl()),
-        static_cast<int16_t>(_network.get_rssi()),
-        static_cast<uint8_t>(_temp_sensors.is_simulated()?1:0),
-        static_cast<uint8_t>(_temp_sensors.get_output_status()),
-        static_cast<uint8_t>(_temp_sensors.get_input_status()),
-        static_cast<uint8_t>(_cur_mode),
-        static_cast<uint8_t>(_auto_mode),
-        static_cast<uint8_t>(_sensors.tray_open?1:0),
-        static_cast<uint8_t>(_sensors.feeder_overheat?1:0),
-        static_cast<uint8_t>(_pump.is_active()?1:0),
-        static_cast<uint8_t>(_feeder.is_active()?1:0),
-        static_cast<uint8_t>(_fan.get_current_speed()),
-    };
-    s.write(reinterpret_cast<const char *>(&st), sizeof(st));
-}
 
 
 TimeStampMs Controller::read_serial(TimeStampMs) {
@@ -1073,26 +847,12 @@ TimeStampMs Controller::read_serial(TimeStampMs) {
 }
 
 
-std::string_view Controller::get_task_name(const AbstractTask *task) {
-    if (task == &_feeder) return "feeder";
-    if (task == &_fan) return "fan";
-    if (task == &_temp_sensors) return "temp_sensors";
-    if (task == &_display) return "display";
-    if (task == &_motoruntime) return "motoruntime";
-    if (task == &_auto_drive_cycle) return "auto_drive_cycle";
-    if (task == &_network) return "network";
-    if (task == &_read_serial) return "read_serial";
-    if (task == &_refresh_wdt) return "wdt";
-    return "unknown";
-}
 
 bool Controller::enable_temperature_simulation(std::string_view b) {
     SimulInfo sinfo;
-    do {
-       if (!update_settings_kv(simulate_temp_table, sinfo, split(b, "&"))) {
-           return false;
-       }
-    }while (!b.empty());
+    if (!update_settings_fd(sinfo, b, simulate_temp_table)) {
+       return false;
+    }
     if (sinfo.input>0 && sinfo.output > 0) {
         _temp_sensors.simulate_temperature(sinfo.input,sinfo.output);
         return true;
@@ -1160,7 +920,7 @@ void Controller::generate_pair_secret() {
 void Controller::gen_and_print_token() {
     auto rnd = generate_token_random_code();
     auto tkn = generate_signed_token({rnd.data(), rnd.size()});
-    print(static_buff, "token=", std::string_view(tkn.data(), tkn.size()),"\r\n");
+    print(static_buff, "token=", std::string_view(tkn.data(), tkn.size()),"\n");
 }
 
 TimeStampMs Controller::refresh_wdt(TimeStampMs) {
@@ -1221,6 +981,7 @@ TimeStampMs Controller::run_keyboard(TimeStampMs cur_time) {
                 _storage.config.operation_mode = 1;
                 stop_btn.set_user_state();
                 _storage.save();
+                _kb_stop = false;
             }
         } else {
             if (stop_btn.stabilize(default_btn_release_interval_ms)) {
@@ -1229,6 +990,7 @@ TimeStampMs Controller::run_keyboard(TimeStampMs cur_time) {
                     _feeder.stop();
                     _fan.stop();
                     _storage.save();
+                    _kb_stop = true;
                 }
             }
         }
@@ -1270,5 +1032,57 @@ TimeStampMs Controller::run_keyboard(TimeStampMs cur_time) {
     }
     return 2;
 }
+
+TimeStampMs Controller::daily_log(TimeStampMs ) {
+    if (!is_time_synced()) return 1000;
+#ifdef EMULATOR
+    prepare_history_mockup();
+#endif
+    //-1 - because day is recorded at beginning of new day
+    auto dnum = get_current_time()/day_length_seconds-1;
+    _storage.record_day_stats(static_cast<uint16_t>(dnum));
+    return std::min(60000,day_length_seconds *1000);
+}
+
+#ifdef EMULATOR
+void Controller::prepare_history_mockup() {
+    if (_storage.snapshot.day_number == 0) {
+        auto dnum = get_current_time()/day_length_seconds-1;
+        std::mt19937 rng(2);
+        int feeder = 70;
+        int feeder_low = 10;
+        int fill = 0;
+        for (int i = 0; i < 360; ++i) {
+            _storage.manage_day_stats(i-360+dnum+1, [&](int pos, Storage::AllDailyData &dd){
+                dd.feeder._days[pos] = feeder;
+                dd.feeder_low._days[pos] = std::min(feeder_low, feeder);
+                std::uniform_int_distribution<int> dist(-10, 10);
+                std::uniform_int_distribution<int> fdist(150, 225);
+                std::uniform_int_distribution<int> f0dist(5, 10);
+                std::uniform_int_distribution<int> errd(0,40);
+                std::uniform_int_distribution<int> errv(0, 255);
+                feeder = std::clamp(feeder + dist(rng)/3, 5, 60);
+                feeder_low = std::clamp(feeder_low + dist(rng)/3, 5, 60);
+                if (f0dist(rng) < fill) {
+                    dd.fuel._days[pos] = fdist(rng);
+                    fill=0;
+                } else {
+                    dd.fuel._days[pos] = 0;
+                    ++fill;
+                }
+                if (errd(rng) == 0) {
+                    dd.errors._days[pos] = errv(rng);
+                }
+                if (errd(rng) == 0) {
+                    dd.controls._days[pos] = errv(rng);
+                }
+                return true;
+            });
+        }
+        _storage.snapshot.day_number = dnum;
+    }
+}
+#endif
+
 
 }

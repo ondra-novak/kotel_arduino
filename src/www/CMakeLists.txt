@@ -7,6 +7,7 @@ set(ALL_FILES index.head.html
               main.js
               utils.js
               websocketclient.js
+              forms.js
               style.css)
 
 set(INTERMEDIATE_FILES ${CMAKE_CURRENT_LIST_DIR}/index.html

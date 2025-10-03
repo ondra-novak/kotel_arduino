@@ -1,0 +1,114 @@
+x-tempgauge {
+    display:block;
+    width: 1em;
+    height: 1em;
+    font-size: 10rem;
+}
+
+.tempGauge {
+    border-top: 2px solid;
+    border-left: 2px solid;
+    border-right: 2px solid;
+    border-bottom: 2px solid #0000;
+    width: 1em;
+    height: 1em;
+    border-radius: 1em;
+    position: relative;
+    overflow: hidden;
+}
+
+.tempGauge .label {
+    position:absolute;
+    left:0;
+    right: 0;
+    font-size: 0.1em;
+    z-index: 1;
+}
+
+.tempGauge .label.cur_temp {
+    bottom: 1.2em;
+    text-align: center;
+    font-size: 0.15em;
+    width: 2.4em;
+    margin:  auto;
+    border-radius: 1em;
+    background-color: #444;
+    color: yellow;
+    z-index: 0;
+}
+.tempGauge .label.amp_temp::before {
+    content:"trend: ";
+}
+.tempGauge .label.amp_temp {
+    bottom: 0.22em;
+    text-align: center;
+    font-size: 0.1em;
+    width: 6em;
+    margin:  auto;
+}
+.tempGauge .label.t20 {
+    bottom: 17%;
+    text-align:left;
+    padding-left: 12%;
+}
+.tempGauge .label.t40 {
+    bottom: 60%;
+    text-align:left;
+    padding-left: 5%;
+}
+.tempGauge .label.t60 {
+    top: 1%em;
+    text-align:center;
+}
+.tempGauge .label.t80 {
+    bottom: 60%;
+    text-align:right;
+    padding-right: 5%;
+}
+.tempGauge .label.t100 {
+    bottom: 17%;
+    text-align:right;
+    padding-right: 12%;
+}
+.tempGauge .needle {
+    width: 90%;
+    height: 90%;
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    transition: 1s transform;
+    z-index: 1;
+}
+
+.tempGauge .max.needle::before {
+    border: 1px solid red;
+}
+.tempGauge .min.needle::before {
+    border: 1px solid green;
+}
+
+.tempGauge .needle::before {
+    border: 2px solid;
+    display: block;
+    content: "";
+    font-size: 0px;
+    width: 50%;
+    margin: auto;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    height: 0px;
+}
+.tempGauge .needle::after {
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 10%;
+    height: 10%;
+    position:absolute;
+    content: "";
+    background-color: currentcolor;
+    margin:auto;
+    border-radius: 100%;
+}

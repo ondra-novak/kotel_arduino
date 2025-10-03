@@ -5,6 +5,8 @@
 #include "WiFiS3.h"
 
 #include <vector>
+
+
 struct WiFiUtils {
 
     static std::string &modem_cmd(const char *prompt);
@@ -14,14 +16,6 @@ struct WiFiUtils {
     static uint8_t status();
     static void reset();
 
-
-    struct Scanner {
-        void begin();
-        bool is_ready();
-        std::vector<CAccessPoint> get_result();
-
-
-    };
 
 
 

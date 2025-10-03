@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+    <body>
+        <script src="forms.js"></script>
+
+
+        <template id="select_test">
+            <div><span>Label</span><span data-name="l"></span></div>
+            <select data-name="s">
+                <option data-name="opt" data-key="k" data-attr="value=k" ></option>
+            </select>
+            <template data-name="rd" data-key="k" data-model="pos">
+                <div><input type="radio" name="unique" data-attr="value=k" data-name="pos"><span data-name="label"></span></div>
+            </template>
+            <div><input type="text" data-name="text"><button data-disable="btdis" disabled>Send</button></div>
+            <div><input type="checkbox" data-name="m" data-mask="1"> 0x1 </div>
+            <div><input type="checkbox" data-name="m" data-mask="2"> 0x2 </div>
+            <div><input type="checkbox" data-name="m" data-mask="4"> 0x4 </div>
+            <div><input type="checkbox" data-name="m" data-mask="8"> 0x8 </div>
+            <div><input type="checkbox" data-name="m" data-mask="0x10"> 0x10 </div>
+            <div> Res: <span data-name="mres"></span></div>
+            
+        </template>
+
+        <script>
+            const f = FormView.load("select_test");
+            window.my_form = f;
+            f.mount();
+            f.set({
+                l: "ahoj",
+                opt:[
+                    {"k":1, "opt":"option 1"},
+                    {"k":2, "opt":"option 2"},
+                    {"k":3, "opt":"option 3"},
+                ],
+                s: 2,
+                rd: [
+                    {"k":"a", "label":"opt a"},
+                    {"k":"b", "label":"opt b"},
+                    {"k":"c", "label":"opt c"},
+                    {"k":"d", "label":"opt d"},
+                ]
+            });
+            f.set({"rd": "b"});
+            const flds = f.get_fields();
+            flds.m = 10;
+            f.on("text","input", ()=>flds.btdis = flds.text.length == 0)
+            f.on("m","change", ()=>flds.mres = flds.m);
+        </script>
+
+
+    </body>
+</html>

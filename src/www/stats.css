@@ -1,0 +1,7 @@
+.statsDlg input {
+    width: 5rem;
+    height: 1rem;
+}
+.statsDlg label[data-unit] input {
+    padding-right: 1.2rem;
+}
