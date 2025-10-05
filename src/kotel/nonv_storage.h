@@ -95,7 +95,7 @@ public:
         _eeprom.read_file(file_snapshot, snapshot);
         _eeprom.read_file(file_tray, tray);
         _eeprom.read_file(file_runtime, runtm);
-        _eeprom.read_file(file_cntrs, runtm);
+        _eeprom.read_file(file_cntrs, cntr);
         _eeprom.read_file(file_tempsensor, temp);
         _eeprom.read_file(file_wifi_ssid, wifi_ssid);
         _eeprom.read_file(file_wifi_pwd, wifi_password);

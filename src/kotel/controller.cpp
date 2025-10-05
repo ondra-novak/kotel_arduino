@@ -1058,7 +1058,7 @@ TimeStampMs Controller::run_keyboard(TimeStampMs cur_time) {
 TimeStampMs Controller::daily_log(TimeStampMs ) {
     if (!is_time_synced()) return 1000;
 #ifdef EMULATOR
-    prepare_history_mockup();
+    //prepare_history_mockup();
 #endif
     //-1 - because day is recorded at beginning of new day
     auto dnum = get_current_time()/day_length_seconds-1;
