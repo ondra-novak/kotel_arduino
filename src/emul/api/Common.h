@@ -26,7 +26,7 @@ void digitalWrite(int pin, int mode);
 int digitalRead(int pin);
 int analogRead(int pin);
 void pinMode(int pin, int mode);
-inline void delay(int) {}
+void delay(int);
 
 #define PSTR(x) (x)
 

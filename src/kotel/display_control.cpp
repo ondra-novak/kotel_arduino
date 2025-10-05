@@ -19,7 +19,7 @@ constexpr Matrix_MAX7219::Bitmap<6,2> feeder_anim[] = {
         "@@@@@@",
 };
 
-constexpr Matrix_MAX7219::Bitmap<2,2> fan_anim[] = {
+constexpr auto fan_anim_slow = std::array<Matrix_MAX7219::Bitmap<2,2>,4>({
         "@ "
         "@ ",
         "@@"
@@ -28,7 +28,20 @@ constexpr Matrix_MAX7219::Bitmap<2,2> fan_anim[] = {
         " @",
         "  "
         "@@"
-};
+});
+
+constexpr auto fan_anim_fast = std::array<Matrix_MAX7219::Bitmap<2,2>,4>({
+        "@@"
+        "@ ",
+        "@@"
+        " @",
+        " @"
+        "@@",
+        "@ "
+        "@@"
+});
+
+constexpr auto fan_anim_all = std::array<std::array<Matrix_MAX7219::Bitmap<2,2>,4>,2>({fan_anim_slow,  fan_anim_fast});
 
 constexpr Matrix_MAX7219::Bitmap<5,2> wifi_icon = {
         "@ @ @"
@@ -277,6 +290,16 @@ constexpr Matrix_MAX7219::Bitmap<5,5> motor_overheat_icon = {
 };
 
 
+constexpr Matrix_MAX7219::Bitmap<7,7> stop_icon = {
+        "  @@@  "
+        " @@  @ "
+        "@@ @@@@"
+        "@@@ @@@"
+        "@@@@ @@"
+        " @  @@ "
+        "  @@@  "
+};
+
 /*
 
 constexpr Matrix_MAX7219::Bitmap<4,8> celsius_icon={
@@ -373,10 +396,12 @@ void DisplayControl::drive_mode_anim(unsigned int anim_pos) {
             case Controller::DriveMode::manual:
                 TR::textout(frame_buffer,Matrix_MAX7219::font_5x3, {8,0}, "RU");break;
             default:
-                if ((anim_pos >> 3) & 1) {
-                    TR::textout(frame_buffer,Matrix_MAX7219::font_5x3, {0,0}, "STOP");
-                } else if (_cntr.is_feeder_overheat()) {
-                    frame_buffer.put_image({9,0}, motor_overheat_icon);
+                if ((anim_pos >> 2) & 3) {
+                    if (_cntr.is_feeder_overheat()) {
+                        frame_buffer.put_image({9,0}, motor_overheat_icon);
+                    } else {
+                        frame_buffer.put_image({8,0}, stop_icon);
+                    }
                 }
                 break;
             case Controller::DriveMode::automatic: {
@@ -431,9 +456,17 @@ void DisplayControl::draw_feeder_anim(unsigned int gframe) {
 }
 
 void DisplayControl::draw_fan_anim(unsigned int gframe) {
-    if (_cntr.is_fan_on()) {
-        auto frame = gframe % 4;
-        frame_buffer.put_image({16,6}, fan_anim[frame]);
+    int lev = _cntr.get_fan_level();
+    if (lev) {
+        auto frame = gframe;
+        --lev;
+        if (!lev) {
+            frame >>=1;
+        } else {
+            --lev;
+        }
+        frame &= 3;
+        frame_buffer.put_image({16,6}, fan_anim_all[lev][frame]);
     }
 }
 
@@ -443,14 +476,17 @@ void DisplayControl::draw_pump_anim(unsigned int) {
     }
 }
 
+void DisplayControl::schedule_ip_show(TimeStampMs cur_time) {
+    _ipaddr_show_next = cur_time + from_seconds(5);
+}
 void DisplayControl::draw_wifi_state( TimeStampMs cur_time) {
     if (_cntr.is_wifi()) {
         bool topen = _cntr.is_tray_open();
         frame_buffer.put_image({27,6}, _cntr.is_wifi_ap()?wifi_ap_icon:wifi_icon);
         if (_ipaddr_show_next == max_timestamp
            && !_cntr.is_wifi_used()
-           && (!topen && _tray_opened)) {
-            _ipaddr_show_next = cur_time + from_seconds(5);
+           && topen) {
+            schedule_ip_show(cur_time);
         }
         bool client = _cntr.get_last_net_activity() + 10000 > cur_time;
         if (client && (frame & 0x1)) {
@@ -462,9 +498,8 @@ void DisplayControl::draw_wifi_state( TimeStampMs cur_time) {
         }
 
         frame_buffer.set_pixel(25,7,client);
-        _tray_opened = topen;
     } else {
-        _tray_opened = true;
+        schedule_ip_show(cur_time);
     }
 }
 
@@ -480,7 +515,7 @@ static constexpr std::string_view short_version(const std::string_view ver) {
         ++iter;
         iter = const_find(iter, ver.end(),'-');
     }
-    return ver.substr(0, std::distance(ver.begin(), iter));
+    return ver.substr(0, iter - ver.begin());
 }
 
 constexpr auto shorten_version = short_version(project_version);
@@ -514,12 +549,9 @@ void DisplayControl::begin() {
     display.set_intensity(_cntr.get_storage().config.display_intensity);
 }
 
-void DisplayControl::display_init_pattern() {
-    for (int j = 0; j < 2; j++) {
-        for (int i = j; i < 8; i+=3) frame_buffer.draw_line(0, i, 31, i, true);
-        display.display(frame_buffer);
-        delay(200);
-    }
+void DisplayControl::display_init_progress(int pos) {
+    frame_buffer.draw_line(0,7,0,7-pos,true);
+    display.display(frame_buffer);
 }
 
 void DisplayControl::show_tray_state() {

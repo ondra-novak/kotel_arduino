@@ -2,6 +2,7 @@
 
 #include "timestamp.h"
 
+#include <algorithm>
 namespace kotel {
 
 
@@ -35,7 +36,7 @@ public:
         auto util = millis() - start;;
         auto rt = _run_time;
         if (util > rt) {
-            _run_time = util;
+            _run_time = std::min<TimeStampMs>(util,1000);
         } else if (util < rt) {
             _run_time -= (rt - util)/10;
         }

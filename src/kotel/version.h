@@ -1,1 +1,8 @@
-constexpr auto project_version = std::string_view("v2-21-g69dad0c");
+#include <string_view>
+
+template<int N>
+constexpr auto init_string_constexpr(const char (&str)[N]) {
+    return std::string_view(str, N-1);
+}
+
+constexpr auto project_version = init_string_constexpr("v2-22-g1dcfb4f");

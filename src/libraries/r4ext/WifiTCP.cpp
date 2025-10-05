@@ -60,3 +60,42 @@ void WiFiUtils::reset() {
 
 
 
+void WiFiUtils::Scanner::begin() {
+    modem.begin();
+    modem.timeout(0);
+    std::string &res =modem_res();
+    modem.write(modem_cmd(PROMPT(_WIFISCAN)),res,CMD(_WIFISCAN));
+}
+
+bool WiFiUtils::Scanner::is_ready() {
+    return Serial2.available();
+}
+
+std::vector<WiFiUtils::AccessPoint> WiFiUtils::Scanner::get_result() {
+    std::vector<AccessPoint> out;
+    modem.timeout(4500);
+
+    modem.avoid_trim_results();
+    modem.read_using_size();
+
+    std::vector<std::string> aps;
+    std::string &res =modem_res();
+    if (modem.write(modem_cmd(PROMPT(_WIFISCAN)),res,"")) {
+       split(aps, res, "\r\n");
+       std::vector<std::string> tokens;
+       for(uint16_t i = 0; i < aps.size(); i++) {
+          AccessPoint ap;
+          tokens.clear();
+          split(tokens, aps[i], "|");
+          if(tokens.size() >= 5) {
+             ap.ssid            = tokens[0];
+             ap.bssid           = tokens[1];
+             ap.rssi            = tokens[2];
+             ap.channel         = tokens[3];
+             ap.encryption_mode = tokens[4];
+             out.push_back(ap);
+          }
+       }
+    }
+    return out;
+}

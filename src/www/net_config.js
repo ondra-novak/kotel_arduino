@@ -89,7 +89,6 @@ function configureNetwork(cfgobj) {
     const cfg = cfgobj.get();
     const newcfg = {};
     const flds = f.get_fields();    
-    const encr = ["WEP","WPA","WPA2","WPA2 E","WPA3","none","AUTO"];
     flds.ap = cfg["wifi.ssid"];
     flds.pwd = cfg["wifi.password"];
     flds.found = false;
@@ -97,13 +96,13 @@ function configureNetwork(cfgobj) {
         await fetch("/api/scan_wifi",{method:"POST"});
         while(true) {
             try {
-                await new Promise(ok=>setTimeout(ok, 1000));
+                await new Promise(ok=>setTimeout(ok, 3000));
                 const r = await ( await fetch("/api/scan_wifi")).text();
                 const tbl = r.split("\n").map(x=>x.split(','))
                     .map((x,idx)=>({
                         idx: idx,
                         ssid: x[2],
-                        encr: encr[x[1]],
+                        encr: x[1],
                         sign: x[0]
                     }));
                 flds.list = tbl;

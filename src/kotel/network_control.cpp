@@ -172,39 +172,21 @@ void NetworkControl::init_wifi_ap() {
 
 }
 
-void NetworkControl::begin_scan() {
-    _scan_results = WiFi.scanNetworks();
-    if (_scan_results < 0) {
-        _scan_results = 0;
-    } else {
-        auto st = WiFi.status();
-        if (_mode == WifiMode::ap) {
-            if (st != WL_AP_LISTENING) {
-                stop_wifi();
-                init_wifi_ap();
-            }
-        } else if (_mode == WifiMode::client) {
-            if (st != WL_CONNECTED) {
-                stop_wifi();
-                init_wifi_client();
-            }
+void NetworkControl::restore_wifi_mode() {
+    auto st = WiFi.status();
+    if (_mode == WifiMode::ap) {
+        if (st != WL_AP_LISTENING) {
+            stop_wifi();
+            init_wifi_ap();
+        }
+    } else if (_mode == WifiMode::client) {
+        if (st != WL_CONNECTED) {
+            stop_wifi();
+            init_wifi_client();
         }
     }
 }
 
-std::size_t NetworkControl::get_scan_results(ScanResultItem *buffer, std::size_t size) {
-    std::size_t cnt = _scan_results;
-    cnt = std::min(cnt, size);
-    for (std::size_t i = 0; i < cnt; ++i) {
-        ScanResultItem &itm = buffer[i];
-        uint8_t nitm = static_cast<uint8_t>(i);
-        itm.ssid = WiFi.SSID(nitm);
-        itm.rssi = WiFi.RSSI(nitm);
-        itm.encryption = WiFi.encryptionType(nitm);
-    }
-    return cnt;
-
-}
 
 void NetworkControl::stop_wifi() {
     _server.end();

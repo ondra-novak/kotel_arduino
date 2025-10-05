@@ -140,6 +140,7 @@ bool parse_line(Command &cmd, std::string_view line) {
 
 bool fetch_command(Command &cmd, std::istream &stream) {
     std::string line;
+    if (stream.eof()) return false;
     do {
         std::getline(stream, line);
         if (line.empty()) {
@@ -222,6 +223,64 @@ void smooth_temp(const Command &cmd, unsigned long time) {
 
 }
 
+class Emulator {
+public:
+
+    void run(std::istream &f) {
+        bool cont = fetch_command(cmd, f);
+        this->f = &f;
+        kotel::setup();
+        while (cont) {
+            kotel::loop();
+            cont = advance_next_cycle();
+        }
+
+    }
+
+    bool advance_next_cycle() {
+        auto &sim=*SimulMatrixMAX7219<4>::current_instance;
+
+        auto now = std::chrono::system_clock::now();
+        std::string ln;
+        if (sim.is_dirty()) {
+            sim.clear_dirty();
+            log_line("DISPLAY: --------------------------");
+            for(int i = 0; i<sim.parts(); ++i) {
+                sim.draw_part(i, ln);
+                log_line("DISPLAY: >", ln, "<");
+            }
+        }
+        ++current_cycle;
+        auto str = uart_output();
+        if (!str.empty()) {
+            log_line("Serial: ", str);
+        }
+        std::this_thread::sleep_until(now+std::chrono::milliseconds(1));
+        now = std::chrono::system_clock::now();
+        auto time = millis();
+        smooth_temp(cmd, time);
+        bool cont = true;
+        while (cont && time >= cmd.timestamp) {
+            process_command(cmd);
+            cont = fetch_command(cmd, *f);
+        }
+        return cont;
+    }
+
+    Command cmd;
+    std::istream *f;
+
+};
+
+static Emulator emulator;
+
+void delay(int mls) {
+    auto stop = get_current_timestamp()+ mls;
+    while (get_current_timestamp() < stop) {
+        emulator.advance_next_cycle();
+    }
+}
+
 int main(int argc, char **argv) {
     SimulMatrixMAX7219<4> sim;
     sim.current_instance = &sim;
@@ -251,35 +310,9 @@ int main(int argc, char **argv) {
         }
     }
 
+    emulator.run(f);
 
-    kotel::setup();
-    Command cmd;
-    bool cont = fetch_command(cmd, f);
-    std::string ln;
-    while (cont) {
-        auto now = std::chrono::system_clock::now();
-        auto time = millis();
-        smooth_temp(cmd, time);
-        while (cont && time >= cmd.timestamp) {
-            process_command(cmd);
-            cont = fetch_command(cmd, f);
-        }
-        kotel::loop();
-        if (sim.is_dirty()) {
-            sim.clear_dirty();
-            log_line("DISPLAY: --------------------------");
-            for(int i = 0; i<sim.parts(); ++i) {
-                sim.draw_part(i, ln);
-                log_line("DISPLAY: >", ln, "<");
-            }
-        }
-        ++current_cycle;
-        auto str = uart_output();
-        if (!str.empty()) {
-            log_line("Serial: ", str);
-        }
-        std::this_thread::sleep_until(now+std::chrono::milliseconds(1));
-    }
+
 }
 
 unsigned long millis() {

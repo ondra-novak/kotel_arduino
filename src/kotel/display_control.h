@@ -28,7 +28,7 @@ public:
 
     void display_code(std::array<char, 4> code);
     void display_version();
-    void display_init_pattern();
+    void display_init_progress(int pos);
     void scroll_text(const std::string_view &text);
 
     virtual void run(TimeStampMs cur_time) override;
@@ -41,8 +41,7 @@ protected:
 
     const Controller &_cntr;
     TimeStampMs _scroll_end = 0;
-    TimeStampMs _ipaddr_show_next = max_timestamp;
-    bool _tray_opened = true;
+    TimeStampMs _ipaddr_show_next = 10000;
     uint8_t _pause_display_sec = 0;
     uint8_t _last_net_activity = 0;
     std::string _scroll_text = {};
@@ -59,6 +58,7 @@ protected:
     void draw_scroll(TimeStampMs cur_time);
 
     void show_tray_state();
+    void schedule_ip_show(TimeStampMs cur_time);
 
 
 };

@@ -34,12 +34,12 @@ public:
         _speed = speed;
         float s = speed * 0.01;
         float t = _stor.config.fan_nonlinear_correction.value *0.1f;
-        // (ln(1/(e^t * (1-s) + s)) + t)/t
-        float adj_speed = (std::log(1.0f/(std::exp(t)*(1-s)+s))+t)/t;
-        auto on = 8 + static_cast<unsigned int>(20.0/(adj_speed*100));
-        auto off = static_cast<unsigned int>(on/adj_speed - on);
-        auto new_off = off * 10;
-        auto new_on = on * 10;
+        float adj_speed = std::pow(s, t);   //power-law
+        _pulse_mode =adj_speed< 0.20;
+        float on = _pulse_mode?100.0:8.0;
+        float off = on/adj_speed - on;
+        auto new_off = static_cast<unsigned int>(off) * 10;
+        auto new_on = static_cast<unsigned int>(on) * 10;
         if (new_off != _off_ms || new_on != _on_ms) {
             resume_at(0);
         }
@@ -60,6 +60,16 @@ public:
 
     bool is_active() const {
         return _running;
+    }
+    int get_speed_for_display() const {
+        if (!_running) return 0;
+        if (_pulse_mode) return _pulse?3:0;
+        if (_off_ms > _on_ms) return 1;
+        if (_off_ms > (_on_ms>>1)) return 2;
+        return 3;
+    }
+    bool is_active_for_display() const {
+        return _pulse_mode?_pulse:_running;
     }
 
     virtual void run(TimeStampMs cur_time) override {
@@ -87,6 +97,7 @@ protected:
     Storage &_stor;
     bool _pulse = true;
     bool _running = false;
+    bool _pulse_mode = false;
     uint8_t _speed = 100;
     unsigned int _on_ms;
     unsigned int _off_ms;

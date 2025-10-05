@@ -81,6 +81,7 @@ public:
     auto get_output_temp() const {return _temp_sensors.get_output_temp();}
     bool is_feeder_on() const {return _feeder.is_active();}
     bool is_pump_on() const {return _pump.is_active();}
+    int get_fan_level() const {return _fan.get_speed_for_display();}
     bool is_fan_on() const {return _fan.is_active();}
     bool is_feeder_overheat() const {return _sensors.feeder_overheat;}
     Storage &get_storage() {return _storage;}
@@ -176,7 +177,7 @@ protected:
     bool _was_tray_open = false;
     bool _keyboard_connected = false;
     bool _fan_step_down = false;
-    bool _kb_stop = false;
+    bool _ap_scan = false;
 
     DriveMode _cur_mode = DriveMode::init;
     AutoMode _auto_mode = AutoMode::fullpower;
@@ -204,6 +205,7 @@ protected:
     std::optional<TCPClient> _list_temp_async;
     StringStream<1024> static_buff;
     std::array<char, 4> _last_code;
+    std::vector<WiFiUtils::AccessPoint> _aplist;
     IPAddress _my_ip;
     MyKeyboard::State _kbdstate;
     TrayChange _cur_tray_change;

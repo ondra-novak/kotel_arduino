@@ -68,13 +68,18 @@ void Controller::begin() {
     _storage.begin();
     init_serial_log();
     _display.begin();
-    _display.display_init_pattern();
     _display.display_version();
     _fan.begin();
     _feeder.begin();
     _pump.begin();
     _temp_sensors.begin();
+    _display.display_init_progress(1);
     _network.begin();
+
+    if (_storage.pair_secret_need_init) {
+        generate_pair_secret();
+    }
+    _display.display_init_progress(3);
     kbdcntr.begin();
     _keyboard_connected = true;
     for (int i = 0; i < 100 && _keyboard_connected; ++i) {
@@ -84,13 +89,12 @@ void Controller::begin() {
     }
     print(Serial, "Keyboard: ", _keyboard_connected?"connected":"not detected","\r\n");
     _storage.cntr.restart_count++;
-    if (_storage.pair_secret_need_init) {
-        generate_pair_secret();
-    }
+    _display.display_init_progress(5);
 #if ENABLE_VDT
     Serial.print("Init WDT: ");
     Serial.println(WDT.begin(5589));
 #endif
+    _display.display_init_progress(7);
 
 }
 
@@ -139,6 +143,24 @@ void Controller::run() {
         _list_temp_async->stop();
         _list_temp_async.reset();
     }
+    if (_ap_scan) {
+        _ap_scan = false;
+        _fan.stop();
+        _feeder.stop();
+        WiFiUtils::Scanner scn;
+        scn.begin();
+        auto tm = get_current_timestamp();
+        auto stop = tm + 10000;
+        while (!scn.is_ready() && stop > tm) {
+            delay(1);
+            WDT.refresh();
+            tm = get_current_timestamp();
+        }
+        _aplist = scn.get_result();
+        _network.restore_wifi_mode();
+        return;
+    }
+
     _scheduler.run();
     _storage.commit();
 
@@ -309,7 +331,7 @@ Controller::HistoryRequest Controller::HistoryRequest::from(std::string_view str
 Controller::StatusOut Controller::status_out() const {
     return {
             get_current_time(),
-            _kb_stop?0:_man_mode_control_id,
+            _man_mode_control_id,
             encode_temp(_temp_sensors.get_output_temp()),
             encode_temp(_temp_sensors.get_output_ampl()),
             encode_temp(_temp_sensors.get_input_temp()),
@@ -422,7 +444,7 @@ void Controller::run_manual_mode() {
     }
     _cur_mode = DriveMode::manual;
     _auto_mode = AutoMode::notset;
-    _start_mode_until = get_current_timestamp() + from_minutes(60);
+    _start_mode_until = get_current_timestamp() + from_minutes(120);
 
 }
 
@@ -559,19 +581,13 @@ void Controller::handle_server(MyHttpServer::Request &req) {
     } else if (req.request_line.path == "/api/scan_wifi") {
         if (req.request_line.method == HttpMethod::POST) {
             _server.error_response(req, 202, {});
-            req.client->stop();
-            _fan.stop();
-            _feeder.stop();
-            _network.begin_scan();
-            return;
+            _ap_scan = true;
         } else if (req.request_line.method == HttpMethod::GET) {
-            NetworkControl::ScanResultItem items[32];
             static_buff.clear();
-            auto cnt = _network.get_scan_results(items, 32);
-            for (std::size_t i = 0; i < cnt; ++i) {
-                print(static_buff, items[i].rssi,",",
-                        items[i].encryption,",",
-                        items[i].ssid,"\n");
+            for (const auto &item: _aplist) {
+                print(static_buff, item.rssi,",",
+                        item.encryption_mode,",",
+                        item.ssid,"\n");
             }
             _server.send_file(req,Ctx::text,static_buff.get_text(), false);
         } else {
@@ -652,7 +668,7 @@ void Controller::handle_server(MyHttpServer::Request &req) {
 
 bool Controller::manual_control(const ManualControlStruct &cntr) {
     if (_cur_mode != DriveMode::manual || _sensors.tray_open) return false;
-    if (cntr._control_id < _man_mode_control_id || _kb_stop) return false;
+    if (cntr._control_id < _man_mode_control_id ) return false;
     _man_mode_control_id = cntr._control_id;
     if (cntr._fan_speed != 0xFF) {
         _fan.set_speed(cntr._fan_speed);
@@ -983,7 +999,7 @@ TimeStampMs Controller::run_keyboard(TimeStampMs cur_time) {
                 _storage.config.operation_mode = 1;
                 stop_btn.set_user_state();
                 _storage.save();
-                _kb_stop = false;
+                ++_man_mode_control_id;
             }
         } else {
             if (stop_btn.stabilize(default_btn_release_interval_ms)) {
@@ -992,7 +1008,7 @@ TimeStampMs Controller::run_keyboard(TimeStampMs cur_time) {
                     _feeder.stop();
                     _fan.stop();
                     _storage.save();
-                    _kb_stop = true;
+                    ++_man_mode_control_id;
                 }
             }
         }
@@ -1004,16 +1020,19 @@ TimeStampMs Controller::run_keyboard(TimeStampMs cur_time) {
                     auto sch = cur_time+150;
                     if (_feeder.get_scheduled_time() < sch) {
                         _feeder.keep_running(sch);
+                        ++_man_mode_control_id;
                     }
                 }
                 if (feeder_btn.stabilize(feeder_min_press_interval_ms)) {
                     _feeder.keep_running(cur_time+1000);
                     feeder_btn.set_user_state();
+                    ++_man_mode_control_id;
                 }
             }
             auto &fan_btn = _kbdstate.get_state(key_code_fan);
             if (fan_btn.stabilize(default_btn_release_interval_ms) && fan_btn.pressed()) {
                 if (_fan.is_active()) {
+                    ++_man_mode_control_id;
                     int spd = _fan.get_speed();
                     if (spd >= 100) _fan_step_down = true;
                     if (spd <= fan_speed_change_step) _fan_step_down = false;
@@ -1027,6 +1046,7 @@ TimeStampMs Controller::run_keyboard(TimeStampMs cur_time) {
                     _fan.set_speed(spd);
                 }
                 _fan.keep_running(cur_time+manual_run_interval_ms);
+                ++_man_mode_control_id;
             }
 
         }

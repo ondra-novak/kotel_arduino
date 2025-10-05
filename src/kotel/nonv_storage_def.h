@@ -60,7 +60,7 @@ struct Config {
     uint8_t input_temp_samples = 10;    //pocet vzorcu pro vypocet trendu
     uint8_t output_temp_samples = 10;   //pocet vzorcu pro vypocet trendu
     uint8_t fan_pulse_interval = 100;   //interval pulzovani
-    OneDecimalValue fan_nonlinear_correction = {20}; //parametr T * 0.1 ve vzorci pro nelinearitu
+    OneDecimalValue fan_nonlinear_correction = {11}; //parametr T * 0.1 ve vzorci pro nelinearitu
 
     uint8_t serial_log_out = 0;     //if there is 1, serial output is used for logging
     uint8_t bag_kg = 15;            //velikost pytle
