@@ -20,7 +20,8 @@ async function bindDeviceDialog() {
             fld.code_error = false;
             fld.send_error = false;
             if (fld.code.length == 4) {
-                const r = await fetch("/api/code", {method:"POST", body: fld.code});
+                const code = fld.code.toUpperCase();
+                const r = await fetch("/api/code", {method:"POST", body: code});
                 if (r.status == 200) {
                     const txt = parseResponse(await r.text());
                     dlg.close(txt);                
