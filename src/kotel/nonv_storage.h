@@ -121,6 +121,7 @@ public:
             _eeprom.update_file(file_snapshot,snapshot);
             _eeprom.update_file(file_runtime,runtm);
             _eeprom.update_file(file_cntrs,cntr);
+            _eeprom.update_file(file_tray, tray);
             _eeprom.update_file(file_tempsensor,temp);
             _eeprom.update_file(file_wifi_ssid,wifi_ssid);
             _eeprom.update_file(file_wifi_pwd,wifi_password);

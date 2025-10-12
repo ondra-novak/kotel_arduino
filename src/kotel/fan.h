@@ -35,8 +35,8 @@ public:
         float s = speed * 0.01;
         float t = _stor.config.fan_nonlinear_correction.value *0.1f;
         float adj_speed = std::pow(s, t);   //power-law
-        _pulse_mode =adj_speed< 0.20;
-        float on = _pulse_mode?100.0:8.0;
+        _pulse_mode =adj_speed< 0.10;
+        float on = _pulse_mode?70.0:8.0;
         float off = on/adj_speed - on;
         auto new_off = static_cast<unsigned int>(off) * 10;
         auto new_on = static_cast<unsigned int>(on) * 10;

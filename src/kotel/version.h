@@ -5,4 +5,4 @@ constexpr auto init_string_constexpr(const char (&str)[N]) {
     return std::string_view(str, N-1);
 }
 
-constexpr auto project_version = init_string_constexpr("v2-4-g7bc5387");
+constexpr auto project_version = init_string_constexpr("v2-6-gc5da802");
