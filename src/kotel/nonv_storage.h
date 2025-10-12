@@ -254,6 +254,7 @@ public:
 
     void add_fuel(int kg) {
 
+        if (kg == 0) return;
         int32_t capacity = static_cast<int32_t>(config.tray_kg);
         if (tray.feeder_time_last_fill == 0) {
             tray.feeder_time_last_fill = runtm.feeder;

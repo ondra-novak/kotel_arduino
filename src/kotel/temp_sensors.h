@@ -114,7 +114,9 @@ public:
     }
 
      std::optional<float> get_input_temp() const {
-        return _input._value;
+        auto v = _input._value;
+        if (v.has_value()) return v.value() + _stor.temp.input_calib_60;
+        else return v;
     }
 
     SimpleDallasTemp::Status get_output_status() const {
@@ -122,7 +124,9 @@ public:
     }
 
     std::optional<float> get_output_temp() const {
-        return _output._value;
+        auto v = _output._value;
+        if (v.has_value()) return v.value() + _stor.temp.output_calib_60;
+        else return v;
     }
 
     bool is_reading() const {
@@ -130,11 +134,11 @@ public:
     }
 
     float get_input_ampl() const {
-        return _input.extrapolate(static_cast<int>(_stor.config.input_temp_samples));
+        return _input.extrapolate(static_cast<int>(_stor.config.input_temp_samples))+_stor.temp.input_calib_60;
     }
 
     float get_output_ampl() const {
-        return _output.extrapolate(static_cast<int>(_stor.config.output_temp_samples));
+        return _output.extrapolate(static_cast<int>(_stor.config.output_temp_samples))+_stor.temp.output_calib_60;
     }
 
 

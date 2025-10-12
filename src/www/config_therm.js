@@ -79,7 +79,7 @@ async function configureInputTherm(cfgobj) {
     f.on("bok","click",async ()=>{
         newcfg.tlow = flds.tlow;
         newcfg.tfull = flds.tfull;
-        if (!isNaN(flds.trend)) newcfg.tins = (flds.tins* 6).toFixed(0);
+        if (!isNaN(flds.tins)) newcfg.tins = (flds.tins* 6).toFixed(0);
         await Promise.resolve(cfgobj.set(newcfg));
         f.close(true);
     })

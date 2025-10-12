@@ -308,6 +308,20 @@ static constexpr std::pair<const char *, int16_t Tray::*> stats_table_tray3[] ={
         {"tray.initial_fill_adj", &Tray::initial_fill_adj}
 };
 
+static constexpr std::pair<const char *, uint32_t Snapshot::*> stats_snapshot1[] = {
+        {"snp.feeder",&Snapshot::feeder},
+        {"snp.feeder_low",&Snapshot::feeder_low},
+        {"snp.fuel_kg",&Snapshot::fuel_kg},
+};
+static constexpr std::pair<const char *, uint16_t Snapshot::*> stats_snapshot2[] = {
+        {"snp.manual_count",&Snapshot::manual_count},
+        {"snp.overheat_count",&Snapshot::overheat_count},
+        {"snp.therm_fail_count",&Snapshot::therm_fail_count},
+        {"snp.restart_count",&Snapshot::restart_count},
+        {"snp.day_number",&Snapshot::day_number},
+};
+
+
 static int16_t encode_temp(std::optional<float> v) {
     if (v.has_value()) {
         return static_cast<int16_t>(*v*10.0);
@@ -429,6 +443,7 @@ void Controller::stats_out(Stream &s) {
     print_table(s, stats_table_tray2, _storage.tray);
     print_table(s, stats_table_tray3, _storage.tray);
     print(s,"tray.remain=",_storage.calc_remaining_fuel(),"\n");
+    print(s,"curr_consump=",_feeder_frac * day_length_seconds/_storage.tray.feeder_speed,"\n");
     print(s,"eeprom_errors=", _storage.get_eeprom().get_crc_error_counter(),"\n");
 }
 
@@ -637,12 +652,12 @@ void Controller::handle_server(MyHttpServer::Request &req) {
         } else {
             _server.error_response(req,400,{});
         }
-    } else if (req.request_line.path == "/api/history" && req.request_line.method == HttpMethod::GET) {
+/*    } else if (req.request_line.path == "/api/history" && req.request_line.method == HttpMethod::GET) {
         uint16_t last_day = _storage.snapshot.day_number+1;
         uint16_t first_day = last_day - graph_files * eeprom_sector_size;
         _server.send_simple_header(req, "text/csv", -1,false,"");
         print(*req.client, "Datum,Podavac,Podavac uspoarne, Plneni, Prehrati, Chyba teplomeru, Restart, Rucni rezim\n");
-        history_out({first_day, last_day}, *req.client);
+        history_out({first_day, last_day}, *req.client);*/
     } else if (req.request_line.path == "/") {
         _server.send_file_async(req, HttpServerBase::ContentType::html, embedded_index_html, true, embedded_index_html_etag);
 #ifdef EMULATOR
@@ -700,7 +715,11 @@ TimeStampMs Controller::update_motorhours(TimeStampMs now) {
     bool fd = is_feeder_on();
     bool fa = is_fan_on();
     Storage &stor = get_storage();
-    if (fd) ++stor.runtm.feeder;
+    _feeder_frac = _feeder_frac * (1.0f-feeder_frac_ema_const);
+    if (fd) {
+        ++stor.runtm.feeder;
+        _feeder_frac += feeder_frac_ema_const;
+    }
     if (fa) ++stor.runtm.fan;
     if (_cur_mode == DriveMode::automatic) {
         switch (_auto_mode) {
@@ -717,7 +736,7 @@ TimeStampMs Controller::update_motorhours(TimeStampMs now) {
 
     if (now >= _flush_time) {
         stor.save();
-        _flush_time = now+60000;
+        _flush_time = now+300000;
     }
     return 1000;
 }
@@ -1063,7 +1082,7 @@ TimeStampMs Controller::daily_log(TimeStampMs ) {
     //-1 - because day is recorded at beginning of new day
     auto dnum = get_current_time()/day_length_seconds-1;
     _storage.record_day_stats(static_cast<uint16_t>(dnum));
-    return std::min(60000,day_length_seconds *1000);
+    return 60000;
 }
 
 #ifdef EMULATOR

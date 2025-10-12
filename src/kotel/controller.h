@@ -34,6 +34,7 @@ public:
     static constexpr int feeder_min_press_interval_ms = 150;
     static constexpr int fan_speed_change_step = 20;
     static constexpr int day_length_seconds = 24*60*60;
+//    static constexpr int day_length_seconds = 60;
 
     enum class DriveMode {
         unknown,
@@ -210,6 +211,9 @@ protected:
     MyKeyboard::State _kbdstate;
     TrayChange _cur_tray_change;
     std::uint32_t _man_mode_control_id = 1;
+    float _feeder_frac = 0;
+
+    static constexpr float feeder_frac_ema_const =  2.0f/(day_length_seconds/24);
 
     enum class WsReqCmd {
 

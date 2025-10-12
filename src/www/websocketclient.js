@@ -87,6 +87,7 @@ class WebSocketExchange {
         if (this.#tosend.length == 0) return;
         if (!this.#ws) {
             let uri = location.href.replace(/^http/, "ws").replace(/(.*)\/.*$/,"$1/") + "api/ws?token="+this.#token;
+//            let uri = "ws://192.168.0.130/api/ws?token=37zeAdRP-Jm23o-BfCyAmiLpfy8k5pyuyAwDlz7f";
             this.#ws = new WebSocket(uri);
             this.#ws.binaryType = "arraybuffer";
             this.#ws.onerror = () => {

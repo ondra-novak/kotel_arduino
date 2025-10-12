@@ -21,30 +21,67 @@ function formatDateRoman(date) {
     return `${day}.${romanMonths[month - 1]}.`;
 }
 
+
+function export_csv(data) {
+    if (!data || !data.length) return;
+
+    const keys = Object.keys(data[0]);
+    const csvRows = [
+        keys.join(","),
+        ...data.map(row =>
+            keys.map(k => {
+                let val = row[k];
+                if (val instanceof Date) val = val.toISOString();
+                if (typeof val === "string" && (val.includes(",") || val.includes('"'))) {
+                    val = `"${val.replace(/"/g, '""')}"`;
+                }
+                return val;
+            }).join(",")
+        )
+    ];
+
+    const csvContent = csvRows.join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "graph.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
 async function openChart(ws /*:WebSocketExchange*/, fdspeed) {
     const dlg = ModalDialog.load("dailyChart");
     const flds = dlg.get_fields();
     const day_end = Math.floor(new Date().getTime()/daymseconds);
     const day_start = day_end - 360;
     const mdata = [];
+    const csvdata = [];
+    let stop_flag = false;
     const  loadData =async () => {
-        for (let i = day_end-1; i >= day_start; i-=7) {
+        for (let i = day_end; i >= day_start; i-=7) {
             let b = i - 7;
             let e = Math.max(day_start, i);
             try {
+                if (stop_flag) return;
                 const d = await ws.send_request(WsReqCmd.history, `from=${b}&to=${e}`)
                 d.split('\n',e-b).map((ln,ofs)=>{
                     let [day,f,fl,fu,e1,e2,c1,c2]
                         = ln.split(',')
                         .map((x,idx)=>idx?parseFloat(x):(new Date(x)));
-                    day = formatDateRoman(day);
+                    const sday = formatDateRoman(day);
                     f = Math.round(f / fdspeed * 2)/2;
                     fl = Math.round(fl / fdspeed * 2)/2;
-                    mdata[b-day_start+ofs] ={day,f,fl,fu,e1,e2,c1,c2};                        
+                    const idx = b-day_start+ofs;
+                    mdata[idx] ={day:sday,f,fl,fu,e1,e2,c1,c2};                        
+                    csvdata[idx] = {Datum:day,Podavac:f,"Podavac usporne":fl, Plneni:fu, Prehrati:e1, "Chyba teplomeru":e2, Restart:c1, "Rucni rezim":c2};
                 });                
-                redraw();
+                redraw();                
             } catch (e) {
-
+                console.error(e);
             }
         }
     }
@@ -118,7 +155,8 @@ async function openChart(ws /*:WebSocketExchange*/, fdspeed) {
     }
 
     loadData();
+    dlg.on("export","click",()=>export_csv(csvdata));
 
     
-    return dlg.do_modal("bst");   
+    return dlg.do_modal("bst").then(x=>((stop_flag = true),x));
 }

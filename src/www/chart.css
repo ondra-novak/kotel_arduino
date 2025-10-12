@@ -1,5 +1,13 @@
 .dailyChart {
     width: 91vw;
+    position: relative;
+}
+
+.dailyChart .btn {
+    z-index: 20;
+    position: absolute;
+    top: 1px;
+    left: 8rem;
 }
 
 .dailyChart .main {
@@ -17,6 +25,7 @@
 }
 .dailyChart .main > div > svg {
     height: 100%;
+    padding-right: 2rem;
 }
 .dailyChart .f {
     stroke: white;
