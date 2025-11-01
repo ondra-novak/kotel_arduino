@@ -15,10 +15,14 @@
 
 std::string www_path = {};
 
+static unsigned long current_cycle = 0;
+static unsigned long cycle_step = 1;
+
 template<typename ... Args>
 void log_line(Args ... text) {
     float m = millis() *0.001f;
-    std::cout << std::setprecision(3) << std::fixed << m << " ";
+    std::cout << std::setprecision(3) << std::fixed << m << " ("<< cycle_step << ") ";
+
     (std::cout << ... <<  text) << std::endl;
 }
 
@@ -65,7 +69,7 @@ namespace kotel {
     extern Controller controller;
 }
 
-static unsigned long current_cycle = 0;
+
 
 
 
@@ -227,6 +231,7 @@ class Emulator {
 public:
 
     void run(std::istream &f) {
+        prev_tm = std::chrono::steady_clock::now();
         bool cont = fetch_command(cmd, f);
         this->f = &f;
         kotel::setup();
@@ -240,7 +245,6 @@ public:
     bool advance_next_cycle() {
         auto &sim=*SimulMatrixMAX7219<4>::current_instance;
 
-        auto now = std::chrono::system_clock::now();
         std::string ln;
         if (sim.is_dirty()) {
             sim.clear_dirty();
@@ -250,13 +254,25 @@ public:
                 log_line("DISPLAY: >", ln, "<");
             }
         }
-        ++current_cycle;
         auto str = uart_output();
         if (!str.empty()) {
             log_line("Serial: ", str);
         }
-        std::this_thread::sleep_until(now+std::chrono::milliseconds(1));
-        now = std::chrono::system_clock::now();
+        std::this_thread::sleep_until(prev_tm+step);
+        auto now = std::chrono::steady_clock::now();
+        auto diff = (now - prev_tm);
+        auto need = std::chrono::nanoseconds(static_cast<std::size_t>(1000000*cycle_step/simspeed));
+        auto err = (need-diff)/2;
+        auto zero = std::chrono::nanoseconds(0);
+        if (err <zero && step == zero) {
+            ++cycle_step;
+        } else {
+            step += err;
+            if (step < zero) step = zero;
+        }
+        current_cycle += cycle_step;
+        prev_tm = now;
+
         auto time = millis();
         smooth_temp(cmd, time);
         bool cont = true;
@@ -269,6 +285,8 @@ public:
 
     Command cmd;
     std::istream *f;
+    std::chrono::steady_clock::time_point prev_tm = {};
+    std::chrono::steady_clock::duration step = std::chrono::milliseconds(10);
 
 };
 
@@ -316,7 +334,7 @@ int main(int argc, char **argv) {
 }
 
 unsigned long millis() {
-    return static_cast<unsigned long>(simspeed * current_cycle);
+    return static_cast<unsigned long>(current_cycle);
 }
 
 static char pins[20] = "IIIIIIIIIIIIIIIIIII";

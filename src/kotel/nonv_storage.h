@@ -255,27 +255,30 @@ public:
     void add_fuel(int kg) {
 
         if (kg == 0) return;
+        if (tray.feeder_time_accum > runtm.feeder) {    //fix bug made in previous calculation
+            tray.feeder_time_accum = runtm.feeder;
+        }
         int32_t capacity = static_cast<int32_t>(config.tray_kg);
-        if (tray.feeder_time_last_fill == 0) {
-            tray.feeder_time_last_fill = runtm.feeder;
-            tray.initial_fill_adj += kg;
-            tray.feeder_time_accum = 0;
-            tray.fuel_kg_accum = 0;
-        } else {
-            int32_t remain = calc_remaining_fuel();
-            tray.feeder_time_accum += runtm.feeder - tray.feeder_time_last_fill;
+        if (tray.feeder_time_last_fill == 0 || tray.fuel_kg_accum == 0) {
+            tray.initial_fill_adj = 0;
             tray.fuel_kg_accum += kg;
+            tray.feeder_time_accum = 0;
             tray.feeder_time_last_fill = runtm.feeder;
-            if (remain < 0) {
-                tray.initial_fill_adj -= remain;
-                remain = 0;
-            }
-            if (remain + kg > capacity) {
-                tray. initial_fill_adj -= remain + kg - capacity;
-            }
-            int32_t calc_speed = std::max<int32_t>(1,tray.feeder_time_accum / tray.fuel_kg_accum);
+        } else {
+            tray.feeder_time_accum += runtm.feeder - tray.feeder_time_last_fill;
+            int32_t calc_speed = std::max<int32_t>(1, tray.feeder_time_accum/tray.fuel_kg_accum);
             calc_speed = (calc_speed * 3 + tray.feeder_speed)/4;
             tray.feeder_speed = static_cast<uint16_t>(calc_speed);
+            tray.fuel_kg_accum += kg;
+            tray.feeder_time_last_fill = runtm.feeder;
+
+            int32_t remain = calc_remaining_fuel();
+            if (remain < kg) {
+                tray.initial_fill_adj += kg - remain;
+            } else if (remain > capacity) {
+                tray. initial_fill_adj -= remain - capacity;
+            }
+
         }
 
         _eeprom.update_file(file_tray, tray);

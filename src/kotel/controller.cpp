@@ -448,9 +448,14 @@ void Controller::stats_out(Stream &s) {
 }
 
 void Controller::control_pump() {
-//    auto t_input = _temp_sensors.get_input_temp();
-    _pump.set_active(_storage.config.operation_mode == static_cast<uint8_t>(OperationMode::automatic)
-                || _force_pump );
+    auto t_input = _temp_sensors.get_input_temp();
+    auto t_output = _temp_sensors.get_output_temp();
+    bool pump_active = _force_pump
+            || _storage.config.operation_mode == static_cast<uint8_t>(OperationMode::automatic)
+            || (t_input.has_value() && t_input.value() >= _storage.config.lowerst_safe_temp)
+            || (t_output.has_value() && t_output.value() >= _storage.config.lowerst_safe_temp);
+
+    _pump.set_active(pump_active);
 }
 
 void Controller::run_manual_mode() {
@@ -469,26 +474,34 @@ void Controller::run_auto_mode() {
 
     auto t_input = _temp_sensors.get_input_temp();
     auto t_output = _temp_sensors.get_output_temp();
-    if (t_input.has_value()
-       && t_output.has_value()
-       && t_input.value() <= _storage.config.output_max_temp
-       && t_output.value() <= _storage.config.output_max_temp
-       && ((   t_input.value() >= _storage.config.lowerst_safe_temp
-            && t_output.value() >= _storage.config.lowerst_safe_temp)
-            || start_mode)) {
+    //we need both temperatures
+    if (t_input.has_value() && t_output.has_value()) {
+        //read both values
+        auto tin = t_input.value();
+        auto tout = t_output.value();
+        //if both tin and tout is below max
+        if (tin <= _storage.config.output_max_temp
+           && tout <= _storage.config.output_max_temp
+           //if we are in start mode or tin and tout are above safe temp
+           && (start_mode || (
+                  tin >= _storage.config.lowerst_safe_temp
+               && tout >= _storage.config.lowerst_safe_temp))
+           ) {
 
-
-        if (_cur_mode == DriveMode::init) {
-            if (get_current_timestamp() > 6000) {
-                _cur_mode = DriveMode::unknown;
+                if (tin > _storage.config.lowerst_safe_temp && tout > _storage.config.lowerst_safe_temp) {
+                    _start_mode_until = 0;
+                }
+                //if current mode is not automatic, switch to automatic
+                if (_cur_mode != DriveMode::automatic) {
+                    _cur_mode = DriveMode::automatic;
+                    //and wakeup driving cycle
+                    _auto_drive_cycle.wake_up();
+                }
+                return;
             }
-        } else if (_cur_mode != DriveMode::automatic)  {
-            _cur_mode = DriveMode::automatic;
-            _auto_drive_cycle.wake_up();
-        }
-    } else {
-        run_stop_mode();
     }
+    //otherwise - stop
+    run_stop_mode();
 }
 
 void Controller::run_other_mode() {
@@ -499,7 +512,7 @@ void Controller::run_other_mode() {
 void Controller::run_stop_mode() {
     if (_cur_mode != DriveMode::stop) {
         ++_storage.cntr.stop_count;
-        if (!_temp_sensors.get_output_temp()) {
+        if (!_temp_sensors.get_output_temp() || !_temp_sensors.get_input_temp()) {
             ++_storage.cntr.therm_failure_count;
         } else if (is_overheat()) {
             ++_storage.cntr.overheat_count;
